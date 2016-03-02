@@ -1,5 +1,5 @@
 /* © Copyright Piotr Nikiel, CERN, 2015.  All rights not expressly granted are reserved.
- * open62541_compat.cpp
+ * open62541_compat.h
  *
  *  Created on: 15 Nov,  2015
  *      Author: Piotr Nikiel <piotr@nikiel.info>

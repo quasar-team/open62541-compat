@@ -255,6 +255,11 @@ void UaVariant::reuseOrRealloc( const UA_DataType* dataType, void* newValue )
     }
 }
 
+void UaVariant::setBool( OpcUa_Boolean value )
+{
+    reuseOrRealloc( &UA_TYPES[UA_TYPES_BOOLEAN], &value );
+}
+
 void UaVariant::setInt16( OpcUa_Int16 value )
 {
     reuseOrRealloc( &UA_TYPES[UA_TYPES_INT16], &value );
@@ -302,6 +307,12 @@ void UaVariant::setString( const UaString& value )
         throw alloc_error();
     
 }
+
+UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
+{
+    return toSimpleType( &UA_TYPES[UA_TYPES_BOOLEAN], &out );
+}
+
 
 UaStatus UaVariant::toInt16( OpcUa_Int16& out ) const
 {

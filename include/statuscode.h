@@ -31,7 +31,14 @@
 #define OpcUa_Bad  0x80000000
 #define OpcUa_BadNotImplemented UA_STATUSCODE_BADNOTIMPLEMENTED
 #define OpcUa_BadDataEncodingInvalid UA_STATUSCODE_BADDATAENCODINGINVALID
-#define OpcUa_BadInvalidArgument OpcUa_Bad // FIXME: 
+#define OpcUa_BadInvalidArgument OpcUa_Bad // FIXME:
+#define OpcUa_BadWaitingForInitialData OpcUa_Bad // FIXME:
+#define OpcUa_BadOutOfRange OpcUa_Bad // FIXME:
+#define OpcUa_BadUserAccessDenied OpcUa_Bad // FIXME:
+#define OpcUa_BadCommunicationError OpcUa_Bad // FIXME:
+#define OpcUa_BadNotSupported OpcUa_Bad // FIXME:
+#define OpcUa_Uncertain OpcUa_Bad // FIXME
+#define OpcUa_BadResourceUnavailable OpcUa_Bad // FIXME:
 
 typedef OpcUa_UInt32 OpcUa_StatusCode;
 

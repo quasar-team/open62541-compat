@@ -78,6 +78,8 @@ class UaVariant
 
   void setString( const UaString& value );
 
+  void clear () {}; // TODO:
+  
   // getters
   UaStatus toBool( OpcUa_Boolean& value) const;
   UaStatus toInt16( OpcUa_Int16& value) const;

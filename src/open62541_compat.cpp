@@ -46,7 +46,7 @@ UaString::UaString( const char* s)
 	throw alloc_error();
 
     *m_impl = UA_String_fromChars( s );
-    if( ! m_impl->data )
+    if( m_impl->length < 0 )
     {
 	UA_String_delete( m_impl );
 	throw alloc_error();

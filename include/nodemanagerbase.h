@@ -40,45 +40,57 @@ class NodeManagerConfig
 
 class NodeManagerBase: public NodeManagerConfig
 {
- public:
-  NodeManagerBase( const char* name, bool sth, int hashtablesize ) {m_server=0;}
-  virtual ~NodeManagerBase();
+public:
+	NodeManagerBase( const char* name, bool sth, int hashtablesize ) { m_server = 0; m_namespace = 0; }
+	virtual ~NodeManagerBase();
 	UaNode* getNode( const UaNodeId& nodeId ) const;
 
-		int getNameSpaceIndex () const { return 1; }
+	// int getNameSpaceIndex () const { return 1; }
+	int getNameSpaceIndex () const {
+		// Index 0 is reserved for the open6, and index 2 for all added stuff. 1 seems unused.
+		return( m_namespace );
+	}
+	//int getNameSpaceIndex () const { return 2; }
 
 	UaStatus addNodeAndReference( 
-	    const UaNodeId& from,
-	    UaNode* to,
-	    const UaNodeId& refType);
+			const UaNodeId& from,
+			UaNode* to,
+			const UaNodeId& refType);
 	UaStatus addNodeAndReference(
-	    UaNode* from,
-	    UaNode* to,
-	    const UaNodeId& refType); // { return addNodeAndReference( from->nodeId(), to, refType ); }
-	  
-
+			UaNode* from,
+			UaNode* to,
+			const UaNodeId& refType); // { return addNodeAndReference( from->nodeId(), to, refType ); }
 
 	void linkServer( UA_Server* s ) { m_server = s; }
- private:
-	
-		UA_Server* m_server;
+
+
+	bool setNamespace( const int ns, const std::string &nsName ){
+		m_namespace  = ns;
+		const int nsIndex = UA_Server_addNamespace( m_server, nsName.c_str() );
+		return ( nsIndex == ns );
+	}
+
+private:
+	UA_Server* m_server;
 	std::list<UaNode*> m_listNodes;
-	class ServerRootNode: public UaNode
-	{
-	public: 
-	ServerRootNode(): UaNode( UaNodeId(OpcUaId_ObjectsFolder, 0) ) {}
-	    virtual UaQualifiedName browseName() const { return UaQualifiedName(0, "."); }
-	    virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEOBJECTTYPE,0); }
-	    virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass::OpcUa_NodeClass_Object; }
-	private:
-	    ServerRootNode( const ServerRootNode& other );
-	    void operator=( const ServerRootNode& other );
+		int m_namespace;
+
+		class ServerRootNode: public UaNode
+		{
+		public:
+			ServerRootNode(): UaNode( UaNodeId(OpcUaId_ObjectsFolder, 0) ) {}
+			virtual UaQualifiedName browseName() const { return UaQualifiedName(0, "."); }
+			virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEOBJECTTYPE,0); }
+			virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass::OpcUa_NodeClass_Object; }
+		private:
+			ServerRootNode( const ServerRootNode& other );
+			void operator=( const ServerRootNode& other );
+
+		};
+		ServerRootNode m_serverRootNode;
+
 
 	};
-	ServerRootNode m_serverRootNode;
-
-  
-};
 
 
 

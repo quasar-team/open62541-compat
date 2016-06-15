@@ -103,17 +103,15 @@ UaStatus NodeManagerBase::addNodeAndReference(
     UaNode* to,
     const UaNodeId& refType)
 {
-    // std::cout << __PRETTY_FUNCTION__ << "from.id=" << from.toString().toUtf8() << " to.id=" << to->nodeId().toString().toUtf8() <<  std::endl;
+	std::cout << __FILE__ << " " << __LINE__ << std::endl;
+   // std::cout << __PRETTY_FUNCTION__ << "from.id=" << from.toString().toUtf8() << " to.id=" << to->nodeId().toString().toUtf8() <<  std::endl;
     // std::cout << "ref=" << refType.toString().toUtf8() << endl;
-
     UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
 	
     switch( to->nodeClass() )
     {
     case OpcUa_NodeClass_Object:
 	{
-
-		    
 	    UA_ObjectAttributes objectAttributes;
 	    UA_ObjectAttributes_init( &objectAttributes );
 	    objectAttributes.description = UA_LOCALIZEDTEXT("en_US","the answer");
@@ -138,7 +136,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
 	}
     case OpcUa_NodeClass_Variable:
 	{
-	    // UA_DataSource dateDataSource = (UA_DataSource) {
+		// UA_DataSource dateDataSource = (UA_DataSource) {
 	    // 	.handle = &myInteger, .read = readInteger, .write = writeInteger};
 	    UA_DataSource dateDataSource 
 	    {
@@ -150,7 +148,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
 	    UA_VariableAttributes_init(&attr);
  	    attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
 	    attr.displayName = *displayName.impl();
- 	    UA_StatusCode s =
+	    UA_StatusCode s =
 		UA_Server_addDataSourceVariableNode(m_server,
 						    to->nodeId().impl(),
 						    parent->nodeId().impl(),
@@ -161,9 +159,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
 						    dateDataSource,
 						    NULL
 		    );
-    
-
-	    if (UA_STATUSCODE_GOOD == s)
+ 	    if (UA_STATUSCODE_GOOD == s)
 	    {
 		m_listNodes.push_back( to );
 		parent->addReferencedTarget( to, refType );
@@ -188,3 +184,6 @@ UaStatus NodeManagerBase::addNodeAndReference(
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     return addNodeAndReference( parentNode, to, refType);
 }
+
+
+

@@ -25,6 +25,7 @@
 #include <iostream>
 #include <opcua_basedatavariabletype.h>
 #include <ASUtils.h>
+#include <stdexcept>
 
 NodeManagerBase::NodeManagerBase( const char* uri, bool sth, int hashtablesize ):
   m_server(0),

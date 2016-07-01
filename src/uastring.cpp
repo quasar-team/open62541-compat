@@ -60,7 +60,7 @@ UaString::UaString( const UaString& other)
     if ( ! m_impl)
 	throw alloc_error();
 
-    if( UA_String_copy( other.m_impl, m_impl ) != UA_StatusCode::UA_STATUSCODE_GOOD)
+    if( UA_String_copy( other.m_impl, m_impl ) != UA_STATUSCODE_GOOD)
     {
 	UA_String_delete( m_impl );
 	throw alloc_error();
@@ -73,7 +73,7 @@ UaString::UaString( const UA_String* other )
     m_impl = UA_String_new( );
     if ( ! m_impl)
 	throw alloc_error();
-    if( UA_String_copy( other, m_impl ) != UA_StatusCode::UA_STATUSCODE_GOOD)
+    if( UA_String_copy( other, m_impl ) != UA_STATUSCODE_GOOD)
     {
 	UA_String_delete( m_impl );
 	throw alloc_error();
@@ -99,7 +99,7 @@ const UaString& UaString::operator=(const UaString& other)
     if (m_impl -> data)
 	UA_String_deleteMembers( m_impl );
 
-    if( UA_String_copy( other.m_impl, m_impl ) != UA_StatusCode::UA_STATUSCODE_GOOD)
+    if( UA_String_copy( other.m_impl, m_impl ) != UA_STATUSCODE_GOOD)
     {
 	UA_String_delete( m_impl );
 	throw alloc_error();
@@ -170,7 +170,7 @@ UaVariant::UaVariant( const UaVariant& other)
 	throw std::runtime_error("UA_Variant_new() returned 0");
     }
     UA_StatusCode status = UA_Variant_copy( other.m_impl, this->m_impl );
-    if (status != UA_StatusCode::UA_STATUSCODE_GOOD)
+    if (status != UA_STATUSCODE_GOOD)
 	throw std::runtime_error("UA_Variant_copy failed 0x"+Utils::toHexString(status) );
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 
@@ -200,7 +200,7 @@ UaVariant::UaVariant( const UA_Variant& other )
     }
       
     UA_StatusCode status = UA_Variant_copy( &other, this->m_impl );
-    if (status != UA_StatusCode::UA_STATUSCODE_GOOD)
+    if (status != UA_STATUSCODE_GOOD)
         throw std::runtime_error("UA_Variant_copy failed");
 }
 
@@ -303,7 +303,7 @@ void UaVariant::setString( const UaString& value )
     /* Now we assume that the variant is empty */
     UA_StatusCode s = UA_Variant_setScalarCopy( m_impl, value.impl(), &UA_TYPES[UA_TYPES_STRING]);
     
-    if (s != UA_StatusCode::UA_STATUSCODE_GOOD)
+    if (s != UA_STATUSCODE_GOOD)
         throw alloc_error();
     
 }
@@ -432,7 +432,7 @@ UaNodeId::UaNodeId ( const UaString& stringAddress, int ns)
     m_impl.namespaceIndex = ns;
     m_impl.identifierType = UA_NODEIDTYPE_STRING;
     UA_StatusCode status = UA_String_copy( stringAddress.impl(), &m_impl.identifier.string );
-    if (status != UA_StatusCode::UA_STATUSCODE_GOOD)
+    if (status != UA_STATUSCODE_GOOD)
         throw alloc_error();
    
 
@@ -449,7 +449,7 @@ UaNodeId::UaNodeId ( const UaNodeId& other)
 {
     UA_NodeId_init( &m_impl );
     UA_StatusCode status = UA_NodeId_copy( other.pimpl(), &this->m_impl );
-    if (status != UA_StatusCode::UA_STATUSCODE_GOOD)
+    if (status != UA_STATUSCODE_GOOD)
         throw alloc_error();
 
 }

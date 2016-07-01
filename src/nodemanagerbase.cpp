@@ -26,6 +26,13 @@
 #include <opcua_basedatavariabletype.h>
 #include <ASUtils.h>
 
+NodeManagerBase::NodeManagerBase( const char* uri, bool sth, int hashtablesize ):
+  m_server(0),
+  m_nameSpaceUri(uri)
+{
+
+}
+
 NodeManagerBase::~NodeManagerBase()
 {
 
@@ -187,4 +194,9 @@ UaStatus NodeManagerBase::addNodeAndReference(
 }
 
 
-
+void NodeManagerBase::linkServer( UA_Server* server )
+{
+	const int nsIndex = UA_Server_addNamespace( m_server, m_nameSpaceUri.c_str() );
+	if (nsIndex != 2)
+		throw std::logic_error("UA_Server_addNamespace: namespace added to nsindex different than 2. ");
+}

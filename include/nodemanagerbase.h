@@ -41,16 +41,11 @@ class NodeManagerConfig
 class NodeManagerBase: public NodeManagerConfig
 {
 public:
-	NodeManagerBase( const char* name, bool sth, int hashtablesize ) { m_server = 0; m_namespace = 0; }
+	NodeManagerBase( const char* uri, bool sth, int hashtablesize );
 	virtual ~NodeManagerBase();
 	UaNode* getNode( const UaNodeId& nodeId ) const;
 
-	// int getNameSpaceIndex () const { return 1; }
-	int getNameSpaceIndex () const {
-		// Index 0 is reserved for the open6, and index 2 for all added stuff. 1 seems unused.
-		return( m_namespace );
-	}
-	//int getNameSpaceIndex () const { return 2; }
+	OpcUa_UInt16 getNameSpaceIndex 	() 	const { return 2; }
 
 	UaStatus addNodeAndReference( 
 			const UaNodeId& from,
@@ -61,19 +56,13 @@ public:
 			UaNode* to,
 			const UaNodeId& refType); // { return addNodeAndReference( from->nodeId(), to, refType ); }
 
-	void linkServer( UA_Server* s ) { m_server = s; }
+	void linkServer( UA_Server* server );
 
-
-	bool setNamespace( const int ns, const std::string &nsName ){
-		m_namespace  = ns;
-		const int nsIndex = UA_Server_addNamespace( m_server, nsName.c_str() );
-		return ( nsIndex == ns );
-	}
 
 private:
 	UA_Server* m_server;
 	std::list<UaNode*> m_listNodes;
-		int m_namespace;
+	std::string m_nameSpaceUri;
 
 		class ServerRootNode: public UaNode
 		{

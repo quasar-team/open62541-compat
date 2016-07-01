@@ -197,6 +197,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
 
 void NodeManagerBase::linkServer( UA_Server* server )
 {
+	m_server = server;
 	const int nsIndex = UA_Server_addNamespace( m_server, m_nameSpaceUri.c_str() );
 	if (nsIndex != 2)
 		throw std::logic_error("UA_Server_addNamespace: namespace added to nsindex different than 2. ");

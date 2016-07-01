@@ -124,6 +124,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
 		/*browsename*/ to->browseName().impl(),
 		/*type def*/ to->typeDefinitionId().impl(),
 		/* object attrs*/ objectAttributes,
+                /* instantiation cbk*/ 0,
 		/*out new node id*/ 0
 		);    
 	    std::cout << "UA_Server_addObjectNode() finished with code " << std::hex << s << std::dec << std::endl;

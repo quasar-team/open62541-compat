@@ -26,7 +26,7 @@ open6Dir = os.path.join(baseDir, 'open62541')
 open6BuildDir = os.path.join(open6Dir, 'build')
 CMD_generateProjForVisStu12 = 'cmake -DUA_ENABLE_AMALGAMATION=ON {0} -G "Visual Studio 12 Win64"'.format(open6Dir)
 CMD_loadVisStu12Env = '"C:\\Program Files (x86)\\Microsoft Visual Studio 12.0\\VC\\vcvarsall.bat" amd64'
-CMD_buildProjWithVisStu12 = 'msbuild {0} /clp:ErrorsOnly /property:Platform=x64;Configuration=Release'.format(os.path.join(open6Dir, 'ALL_BUILD.vcxproj'))
+CMD_buildProjWithVisStu12 = 'msbuild {0} /clp:ErrorsOnly /property:Platform=x64;Configuration=Release'.format(os.path.join(open6BuildDir, 'ALL_BUILD.vcxproj'))
 
 def remove_readonly(func, path, _):
 	print('clearing read only flag for directory [{0}]'.format(path))

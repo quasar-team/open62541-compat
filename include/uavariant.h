@@ -24,6 +24,7 @@
 
 #include <opcua_platformdefs.h>
 #include <open62541.h>
+#include <atomic>
 
 enum OpcUaType
   {
@@ -116,8 +117,12 @@ class UaDataValue
     const UA_DataValue* impl() const { return m_impl; }
     UaVariant* value() const{ return new UaVariant(m_impl->value); }
 
+    UaDataValue clone(); // can't be const because of synchronization
+
   private:
     UA_DataValue *m_impl;
+    std::atomic_flag m_lock;
+    
   
   											 
 };

@@ -69,9 +69,15 @@ static UA_StatusCode unifiedRead(void *handle, const UA_NodeId nodeid, UA_Boolea
 {
     // we expect that the handle points to an object of subclass of BaseDataVariableType
     OpcUa::BaseDataVariableType *variable = static_cast<OpcUa::BaseDataVariableType*>(handle);
-    std::cout << "static cast is " << variable << std::endl;
-    std::cout << "read request comes from " << variable->nodeId().toString().toUtf8() << std::endl;
-    UA_DataValue_copy( variable->valueImpl(), dataValue );
+
+    UaDataValue aCopy( variable->value(0) ); // internally cloned so we can do anything with this object
+    UA_DataValue_copy( aCopy.impl(), dataValue );
+
+    // Piotr: I think that this version of open6 is leaking, try to use this code and you will see:
+    // dataValue->hasValue = true;
+    // double v = rand();
+    // UA_Variant_setScalarCopy(&dataValue->value, &v, &UA_TYPES[UA_TYPES_DOUBLE]);
+    
     return UA_STATUSCODE_GOOD;
 }
 

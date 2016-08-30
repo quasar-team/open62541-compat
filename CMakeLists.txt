@@ -20,6 +20,6 @@
 add_library ( open62541-compat OBJECT
   src/nodemanagerbase.cpp
   src/open62541_compat.cpp
-  
+  src/open62541.c
   )
 

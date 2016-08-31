@@ -61,7 +61,7 @@ def main():
 		print('cmake -DUA_ENABLE_AMALGAMATION=ON ../')
 		subprocess.check_call(['cmake', '-DUA_ENABLE_AMALGAMATION=ON', '../'])
 		print('make')
-		subprocess.check_call(['make'], stdout=out)
+		subprocess.check_call(['make'])
 		
 	shutil.copyfile(os.path.join(open6BuildDir, 'open62541.h'), os.path.join(baseDir, 'include', 'open62541.h'))
 	shutil.copyfile(os.path.join(open6BuildDir, 'open62541.c'), os.path.join(baseDir, 'src', 'open62541.c'))

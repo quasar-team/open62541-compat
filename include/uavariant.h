@@ -24,7 +24,16 @@
 
 #include <opcua_platformdefs.h>
 #include <open62541.h>
+
+#define GCC_VERSION (__GNUC__ * 10000 \
+                               + __GNUC_MINOR__ * 100 \
+                               + __GNUC_PATCHLEVEL__)
+#if GCC_VERSION > 48000
 #include <atomic>
+#else
+#include <stdatomic.h>
+#endif
+
 
 enum OpcUaType
   {

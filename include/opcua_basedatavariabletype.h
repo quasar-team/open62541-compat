@@ -47,7 +47,7 @@ namespace OpcUa
 	    const UaDataValue& dataValue,
 	    OpcUa_Boolean checkAccessLevel
 	    );
-	virtual UaDataValue value(Session* session) const;
+	virtual UaDataValue value(Session* session) ;
 	virtual UaQualifiedName browseName() const { return m_browseName; }
 	virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE,0); }
 	virtual void setDataType( const UaNodeId& typeref ) {}

@@ -25,6 +25,22 @@
 #include <opcua_platformdefs.h>
 #include <open62541.h>
 
+#ifdef __linux__
+
+#define GCC_VERSION (__GNUC__ * 10000 \
+                               + __GNUC_MINOR__ * 100 \
+                               + __GNUC_PATCHLEVEL__)
+#if GCC_VERSION > 48000
+#include <atomic>
+#else
+#include <stdatomic.h>
+#endif
+
+#else // other than Linux, i.e. Windows
+#include <atomic>
+#endif
+
+
 enum OpcUaType
   {
 
@@ -116,8 +132,12 @@ class UaDataValue
     const UA_DataValue* impl() const { return m_impl; }
     UaVariant* value() const{ return new UaVariant(m_impl->value); }
 
+    UaDataValue clone(); // can't be const because of synchronization
+
   private:
     UA_DataValue *m_impl;
+    std::atomic_flag m_lock;
+    
   
   											 
 };

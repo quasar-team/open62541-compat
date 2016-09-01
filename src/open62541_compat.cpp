@@ -380,7 +380,8 @@ UaDateTime UaDateTime:: now()
     //   // TODO
     // }
  
-UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime )
+UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime ):
+    m_lock( ATOMIC_FLAG_INIT )
 
 {
     m_impl = UA_DataValue_new ();
@@ -396,7 +397,8 @@ UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode,
 
 }
 
-UaDataValue::UaDataValue( const UaDataValue& other )
+UaDataValue::UaDataValue( const UaDataValue& other ):
+    m_lock( ATOMIC_FLAG_INIT )
 {
     m_impl = UA_DataValue_new ();
     // LOG(Log::INF) << "allocated new UA_DataValue @ " <<  m_impl;  
@@ -405,6 +407,7 @@ UaDataValue::UaDataValue( const UaDataValue& other )
 
 void UaDataValue:: operator=(const UaDataValue& other )
 {
+    while (m_lock.test_and_set(std::memory_order_acquire));  // acquire lock
     if (m_impl)
     {
         UA_DataValue_deleteMembers (m_impl);
@@ -414,14 +417,27 @@ void UaDataValue:: operator=(const UaDataValue& other )
     m_impl = UA_DataValue_new ();
     // LOG(Log::INF) << "allocated new UA_DataValue @ " <<  m_impl;  
     UA_DataValue_copy( other.m_impl, m_impl );
+    m_lock.clear(std::memory_order_release);
+    
+}
+
+UaDataValue UaDataValue::clone()
+{
+    while (m_lock.test_and_set(std::memory_order_acquire));  // acquire lock
+    UaDataValue aCopy ( *this );
+    m_lock.clear(std::memory_order_release);
+    return aCopy;
     
 }
 
 UaDataValue:: ~UaDataValue ()
 {
-    UA_DataValue_deleteMembers( m_impl );
-    UA_DataValue_delete( m_impl );
-    m_impl = 0;
+    if (m_impl)
+    {
+	UA_DataValue_deleteMembers( m_impl );
+	UA_DataValue_delete( m_impl );
+	m_impl = 0;
+    }
     
 }
 
@@ -434,8 +450,6 @@ UaNodeId::UaNodeId ( const UaString& stringAddress, int ns)
     UA_StatusCode status = UA_String_copy( stringAddress.impl(), &m_impl.identifier.string );
     if (status != UA_STATUSCODE_GOOD)
         throw alloc_error();
-   
-
 }
 
 
@@ -548,9 +562,9 @@ namespace OpcUa
         return OpcUa_Good;
     }
 
-    UaDataValue BaseDataVariableType::value(Session* session) const
+    UaDataValue BaseDataVariableType::value(Session* session) 
     {
-        return m_currentValue;
+        return m_currentValue.clone();
     }
 
 

@@ -39,6 +39,7 @@
 #define OpcUa_BadNotSupported OpcUa_Bad // FIXME:
 #define OpcUa_Uncertain OpcUa_Bad // FIXME
 #define OpcUa_BadResourceUnavailable OpcUa_Bad // FIXME:
+#define OpcUa_BadInternalError UA_STATUSCODE_BADINTERNALERROR
 
 typedef OpcUa_UInt32 OpcUa_StatusCode;
 

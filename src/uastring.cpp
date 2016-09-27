@@ -175,6 +175,13 @@ UaVariant::UaVariant( const UaString& v )
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
+UaVariant::UaVariant( const OpcUa_Float& v )
+:m_impl(createAndCheckOpen6Variant())
+{
+	setFloat(v);
+	LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+}
+
 UaVariant::UaVariant( const UaVariant& other)
 :m_impl(createAndCheckOpen6Variant())
 {

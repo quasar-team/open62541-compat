@@ -24,7 +24,10 @@
 
 #include <opcua_platformdefs.h>
 #include <open62541.h>
+#include "statuscode.h"
+#include "uadatetime.h"
 
+/*
 #ifdef __linux__
 
 #define GCC_VERSION (__GNUC__ * 10000 \
@@ -39,6 +42,10 @@
 #else // other than Linux, i.e. Windows
 #include <atomic>
 #endif
+*/
+
+//#include <stdatomic.h>
+#include <atomic>
 
 
 enum OpcUaType
@@ -72,8 +79,9 @@ class UaVariant
   void operator= (const UaVariant &other);
   UaVariant( const UA_Variant& other );
 
-  UaVariant( const UaString& );
-  UaVariant( OpcUa_UInt32 v );
+  UaVariant( const UaString& v );
+  UaVariant( const OpcUa_UInt32& v );
+  UaVariant( const OpcUa_Int32& v );
   
   ~UaVariant();
   OpcUaType type() const;
@@ -110,6 +118,8 @@ class UaVariant
   
   const UA_Variant* impl() const { return m_impl; }
  private:
+  static UA_Variant* createAndCheckOpen6Variant();
+  static void destroyOpen6Variant(UA_Variant* open6Variant);
 
   UA_Variant * m_impl;
   //! Will assign a supplied newValue to the variant's value. If possible (matching old/new types) a realloc is avoided.

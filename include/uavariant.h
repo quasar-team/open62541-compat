@@ -115,6 +115,7 @@ class UaVariant
   UaStatus toDouble( OpcUa_Double& value ) const;
 
   UaString toString( ) const;
+  UaString toFullString() const;
   
   const UA_Variant* impl() const { return m_impl; }
  private:

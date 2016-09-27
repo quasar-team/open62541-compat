@@ -348,6 +348,20 @@ UaString UaVariant::toString( ) const
     return UaString( (UA_String*)m_impl->data );
 }
 
+UaString UaVariant::toFullString() const
+{
+	std::ostringstream result;
+	if(m_impl)
+	{
+		result << "type ["<<(m_impl->type)<<"] dimensions count ["<<m_impl->arrayDimensionsSize<<"]";
+	}
+	else
+	{
+		result << "type [EMPTY!]";
+	}
+	return UaString(result.str().c_str());
+}
+
 template<typename T>
 UaStatus UaVariant::toSimpleType( const UA_DataType* dataType, T* out ) const
 {

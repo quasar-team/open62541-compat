@@ -129,61 +129,61 @@ UaLocalizedText::~UaLocalizedText ()
     UA_LocalizedText_deleteMembers( &m_impl );
 }
 
-UA_Variant* UaVariant::createAndCheckOpen6Variant()
+UA_Variant* UaVariant::createAndCheckOpen62541Variant()
 {
-	UA_Variant* open6Variant = UA_Variant_new();
-    if (!open6Variant)
+	UA_Variant* open62541Variant = UA_Variant_new();
+    if (!open62541Variant)
     {
     	throw std::runtime_error("UA_Variant_new() returned 0");
     }
-    return open6Variant;
+    return open62541Variant;
 }
 
-void UaVariant::destroyOpen6Variant(UA_Variant* open6Variant)
+void UaVariant::destroyOpen62541Variant(UA_Variant* open62541Variant)
 {
-	if(open6Variant)
+	if(open62541Variant)
 	{
-	    UA_Variant_deleteMembers( open6Variant );
-	    UA_Variant_delete( open6Variant );
+	    UA_Variant_deleteMembers( open62541Variant );
+	    UA_Variant_delete( open62541Variant );
 	}
 }
 
 UaVariant::UaVariant ()
-:m_impl(createAndCheckOpen6Variant())
+:m_impl(createAndCheckOpen62541Variant())
 {
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const OpcUa_UInt32& v )
-:m_impl(createAndCheckOpen6Variant())
+:m_impl(createAndCheckOpen62541Variant())
 {
     setUInt32( v );
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const OpcUa_Int32& v )
-:m_impl(createAndCheckOpen6Variant())
+:m_impl(createAndCheckOpen62541Variant())
 {
     setInt32( v );
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const UaString& v )
-:m_impl(createAndCheckOpen6Variant())
+:m_impl(createAndCheckOpen62541Variant())
 {
     setString( v );
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const OpcUa_Float& v )
-:m_impl(createAndCheckOpen6Variant())
+:m_impl(createAndCheckOpen62541Variant())
 {
 	setFloat(v);
 	LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const UaVariant& other)
-:m_impl(createAndCheckOpen6Variant())
+:m_impl(createAndCheckOpen62541Variant())
 {
     const UA_StatusCode status = UA_Variant_copy( other.m_impl, this->m_impl );
     if (status != UA_STATUSCODE_GOOD)
@@ -194,8 +194,8 @@ UaVariant::UaVariant( const UaVariant& other)
 
 void UaVariant::operator= (const UaVariant &other)
 {
-	destroyOpen6Variant(m_impl);
-    m_impl = createAndCheckOpen6Variant();
+	destroyOpen62541Variant(m_impl);
+    m_impl = createAndCheckOpen62541Variant();
     
     const UA_StatusCode status = UA_Variant_copy( other.m_impl, this->m_impl );
     if (status != UA_STATUSCODE_GOOD)
@@ -205,7 +205,7 @@ void UaVariant::operator= (const UaVariant &other)
 }
 
 UaVariant::UaVariant( const UA_Variant& other )
-:m_impl(createAndCheckOpen6Variant())
+:m_impl(createAndCheckOpen62541Variant())
 {
     UA_StatusCode status = UA_Variant_copy( &other, this->m_impl );
     if (status != UA_STATUSCODE_GOOD)
@@ -215,7 +215,7 @@ UaVariant::UaVariant( const UA_Variant& other )
 UaVariant::~UaVariant()
 {
     LOG(Log::TRC) <<"+"<< __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
-    destroyOpen6Variant(m_impl);
+    destroyOpen62541Variant(m_impl);
     m_impl = 0;
 }
 

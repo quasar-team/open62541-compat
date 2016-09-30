@@ -154,14 +154,14 @@ UaVariant::UaVariant ()
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
-UaVariant::UaVariant( const OpcUa_UInt32& v )
+UaVariant::UaVariant( OpcUa_UInt32 v )
 :m_impl(createAndCheckOpen62541Variant())
 {
     setUInt32( v );
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
-UaVariant::UaVariant( const OpcUa_Int32& v )
+UaVariant::UaVariant( OpcUa_Int32 v )
 :m_impl(createAndCheckOpen62541Variant())
 {
     setInt32( v );
@@ -175,7 +175,7 @@ UaVariant::UaVariant( const UaString& v )
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
-UaVariant::UaVariant( const OpcUa_Float& v )
+UaVariant::UaVariant( OpcUa_Float v )
 :m_impl(createAndCheckOpen62541Variant())
 {
 	setFloat(v);

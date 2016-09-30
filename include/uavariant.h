@@ -120,8 +120,8 @@ class UaVariant
   
   const UA_Variant* impl() const { return m_impl; }
  private:
-  static UA_Variant* createAndCheckOpen6Variant();
-  static void destroyOpen6Variant(UA_Variant* open6Variant);
+  static UA_Variant* createAndCheckOpen62541Variant();
+  static void destroyOpen62541Variant(UA_Variant* open62541Variant);
 
   UA_Variant * m_impl;
   //! Will assign a supplied newValue to the variant's value. If possible (matching old/new types) a realloc is avoided.

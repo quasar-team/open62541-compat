@@ -24,29 +24,24 @@
 
 #include <opcua_platformdefs.h>
 #include <open62541.h>
-#include "statuscode.h"
-#include "uadatetime.h"
+#include <statuscode.h>
+#include <uadatetime.h>
 
-/*
+
 #ifdef __linux__
 
 #define GCC_VERSION (__GNUC__ * 10000 \
                                + __GNUC_MINOR__ * 100 \
                                + __GNUC_PATCHLEVEL__)
-#if GCC_VERSION > 48000
+#if GCC_VERSION > 40800
 #include <atomic>
-#else
+#else // GCC_VERSION
 #include <stdatomic.h>
-#endif
+#endif // GCC_VERSION
 
-#else // other than Linux, i.e. Windows
+#else //  __linux__ not defined, so windows or so...
 #include <atomic>
-#endif
-*/
-
-//#include <stdatomic.h>
-#include <atomic>
-
+#endif // __linux__
 
 enum OpcUaType
   {

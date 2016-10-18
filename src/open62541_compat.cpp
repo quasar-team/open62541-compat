@@ -22,7 +22,7 @@
 #include <open62541_compat.h>
 #include <iostream>
 #include <Utils.h>
-#include <ASUtils.h>
+//#include <ASUtils.h>
 
 class alloc_error: public std::runtime_error
 {
@@ -129,88 +129,93 @@ UaLocalizedText::~UaLocalizedText ()
     UA_LocalizedText_deleteMembers( &m_impl );
 }
 
+UA_Variant* UaVariant::createAndCheckOpen62541Variant()
+{
+	UA_Variant* open62541Variant = UA_Variant_new();
+    if (!open62541Variant)
+    {
+    	throw std::runtime_error("UA_Variant_new() returned 0");
+    }
+    return open62541Variant;
+}
+
+void UaVariant::destroyOpen62541Variant(UA_Variant* open62541Variant)
+{
+	if(open62541Variant)
+	{
+	    UA_Variant_deleteMembers( open62541Variant );
+	    UA_Variant_delete( open62541Variant );
+	}
+}
 
 UaVariant::UaVariant ()
+:m_impl(createAndCheckOpen62541Variant())
 {
-    m_impl = UA_Variant_new();
-    if (!m_impl)
-    {
-	throw std::runtime_error("UA_Variant_new() returned 0");
-    }
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_UInt32 v )
+:m_impl(createAndCheckOpen62541Variant())
 {
-    m_impl = UA_Variant_new();
-    if (!m_impl)
-    {
-	throw std::runtime_error("UA_Variant_new() returned 0");
-    }
-    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
     setUInt32( v );
+    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+}
+
+UaVariant::UaVariant( OpcUa_Int32 v )
+:m_impl(createAndCheckOpen62541Variant())
+{
+    setInt32( v );
+    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const UaString& v )
+:m_impl(createAndCheckOpen62541Variant())
 {
-    m_impl = UA_Variant_new();
-    if (!m_impl)
-    {
-	throw std::runtime_error("UA_Variant_new() returned 0");
-    }
-    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
     setString( v );
+    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+}
+
+UaVariant::UaVariant( OpcUa_Float v )
+:m_impl(createAndCheckOpen62541Variant())
+{
+	setFloat(v);
+	LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const UaVariant& other)
+:m_impl(createAndCheckOpen62541Variant())
 {
-    m_impl = UA_Variant_new();
-    if (!m_impl)
-    {
-	throw std::runtime_error("UA_Variant_new() returned 0");
-    }
-    UA_StatusCode status = UA_Variant_copy( other.m_impl, this->m_impl );
+    const UA_StatusCode status = UA_Variant_copy( other.m_impl, this->m_impl );
     if (status != UA_STATUSCODE_GOOD)
-	throw std::runtime_error("UA_Variant_copy failed 0x"+Utils::toHexString(status) );
+    	throw std::runtime_error("UA_Variant_copy failed 0x"+Utils::toHexString(status) );
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
-
 }
 
 
 void UaVariant::operator= (const UaVariant &other)
 {
-    m_impl = UA_Variant_new();
-    if (!m_impl)
-    {
-        throw std::runtime_error("UA_Variant_new() returned 0");
-    }
+	destroyOpen62541Variant(m_impl);
+    m_impl = createAndCheckOpen62541Variant();
     
-    UA_StatusCode status = UA_Variant_copy( other.m_impl, this->m_impl );
-    if (!status)
-        throw std::runtime_error("UA_Variant_copy failed");
+    const UA_StatusCode status = UA_Variant_copy( other.m_impl, this->m_impl );
+    if (status != UA_STATUSCODE_GOOD)
+        throw std::runtime_error("UA_Variant_copy failed 0x"+Utils::toHexString(status) );
+
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const UA_Variant& other )
+:m_impl(createAndCheckOpen62541Variant())
 {
-    m_impl = UA_Variant_new();
-    if (!m_impl)
-    {
-        throw std::runtime_error("UA_Variant_new() returned 0");
-    }
-      
     UA_StatusCode status = UA_Variant_copy( &other, this->m_impl );
     if (status != UA_STATUSCODE_GOOD)
         throw std::runtime_error("UA_Variant_copy failed");
 }
 
-
-
 UaVariant::~UaVariant()
 {
     LOG(Log::TRC) <<"+"<< __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
-    UA_Variant_deleteMembers( m_impl );
-    UA_Variant_delete( m_impl );
+    destroyOpen62541Variant(m_impl);
     m_impl = 0;
 }
 
@@ -305,7 +310,6 @@ void UaVariant::setString( const UaString& value )
     
     if (s != UA_STATUSCODE_GOOD)
         throw alloc_error();
-    
 }
 
 UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
@@ -346,11 +350,23 @@ UaStatus UaVariant::toDouble( OpcUa_Double& out ) const
 
 UaString UaVariant::toString( ) const
 {
-
     if (m_impl->type != &UA_TYPES[UA_TYPES_STRING])
         throw std::runtime_error("not-a-string");
     return UaString( (UA_String*)m_impl->data );
-    
+}
+
+UaString UaVariant::toFullString() const
+{
+	std::ostringstream result;
+	if(m_impl)
+	{
+		result << "type ["<<(m_impl->type)<<"] dimensions count ["<<m_impl->arrayDimensionsSize<<"]";
+	}
+	else
+	{
+		result << "type [EMPTY!]";
+	}
+	return UaString(result.str().c_str());
 }
 
 template<typename T>
@@ -358,12 +374,19 @@ UaStatus UaVariant::toSimpleType( const UA_DataType* dataType, T* out ) const
 {
     //TODO: Add case when array
     //TODO: in principle it should be possible to convert i.e. Int16->Int32, or Byte->Int16, or so... but this is not supported yet
-    if (!m_impl->data)
-        return OpcUa_Bad;  // The variant is null: impossible to convert
-    else if (dataType != m_impl->type)
+    if (!m_impl || !m_impl->data)
+    {
+    	LOG(Log::DBG) << __PRETTY_FUNCTION__ << " conversion failed, variant is null";
+        return OpcUa_Bad;
+    }
+
+    if (dataType != m_impl->type)
+    {
+    	LOG(Log::DBG) << __PRETTY_FUNCTION__ << " conversion failed, target type ["<<dataType<<"] does not match variant type ["<<m_impl->type<<"]";
         return OpcUa_Bad;  // Incompatible data type
-    else
-        *out = *static_cast<T*>(m_impl->data);
+    }
+
+    *out = *static_cast<T*>(m_impl->data);
     return OpcUa_Good;
 }
 

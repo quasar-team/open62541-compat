@@ -182,6 +182,13 @@ UaVariant::UaVariant( OpcUa_Float v )
 	LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
+UaVariant::UaVariant( OpcUa_Boolean v )
+:m_impl(createAndCheckOpen62541Variant())
+{
+	setBool(v);
+	LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+}
+
 UaVariant::UaVariant( const UaVariant& other)
 :m_impl(createAndCheckOpen62541Variant())
 {
@@ -237,6 +244,8 @@ OpcUaType UaVariant::type() const
         return OpcUaType_Double;
     else if(m_impl->type == &UA_TYPES[UA_TYPES_STRING])
         return OpcUaType_String;
+    else if(m_impl->type == &UA_TYPES[UA_TYPES_BOOLEAN])
+    	return OpcUaType_Boolean;
     else
         throw std::runtime_error ("not-implemented");
 }

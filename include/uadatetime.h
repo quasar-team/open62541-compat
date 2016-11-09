@@ -22,10 +22,26 @@
 #ifndef __UADATETIME_H_
 #define __UADATETIME_H_
 
+#include <open62541.h>
+
 class UaDateTime
 {
 public:
-static UaDateTime now();
+	UaDateTime();
+	static UaDateTime now();
+
+	void addSecs(int secs);
+	void addMilliSecs(int msecs);
+
+	static UaDateTime fromString(const UaString&);
+
+private:
+	UaDateTime(const UA_DateTimeStruct& dateTime);
+
+	UA_DateTimeStruct m_dateTime;
+
+	static void initializeInternalDateTimeStruct(UA_DateTimeStruct& dateTimeStruct);
+	static void cloneExternalDateTimeStruct(UA_DateTimeStruct& destDateTimeStruct, const UA_DateTimeStruct& srcDateTimeStruct);
 };
 
 #endif // __UADATETIME_H_

@@ -211,6 +211,21 @@ void UaVariant::operator= (const UaVariant &other)
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
+bool UaVariant::operator==(const UaVariant& other) const
+{
+	if(m_impl == 0 || other.m_impl == 0) return false; // uninitialized - cannot compare.
+	if(type() != other.type()) return false;
+	if(m_impl->arrayLength != other.m_impl->arrayLength) return false;
+	if(m_impl->arrayDimensionsSize != other.m_impl->arrayDimensionsSize) return false;
+	for(size_t arrayDimensionIndex = 0; arrayDimensionIndex < m_impl->arrayDimensionsSize; ++arrayDimensionIndex)
+	{
+		if(m_impl->arrayDimensions[arrayDimensionIndex] != other.m_impl->arrayDimensions[arrayDimensionIndex]) return false;
+	}
+	if(0 != memcmp(m_impl->data, other.m_impl->data, m_impl->arrayLength)) return false;
+
+	return true;
+}
+
 UaVariant::UaVariant( const UA_Variant& other )
 :m_impl(createAndCheckOpen62541Variant())
 {
@@ -347,6 +362,11 @@ UaStatus UaVariant::toInt64( OpcUa_Int64& out ) const
     return toSimpleType( &UA_TYPES[UA_TYPES_INT64], &out );
 }
 
+UaStatus UaVariant::toByte(OpcUa_Byte& out) const
+{
+	return toSimpleType( &UA_TYPES[UA_TYPES_BYTE], &out );
+}
+
 UaStatus UaVariant::toFloat( OpcUa_Float& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_FLOAT], &out );
@@ -399,19 +419,49 @@ UaStatus UaVariant::toSimpleType( const UA_DataType* dataType, T* out ) const
     return OpcUa_Good;
 }
 
-
-
-UaDateTime UaDateTime:: now()
+void UaDateTime::initializeInternalDateTimeStruct(UA_DateTimeStruct& dateTimeStruct)
 {
-    //TODO
-    return UaDateTime();
+	memset(&dateTimeStruct, 0, sizeof(UA_DateTimeStruct));
 }
 
-    // UaDataValue::UaDataValue( const UaDataValue& other)
-    // {
-    //   // TODO
-    // }
- 
+
+void UaDateTime::cloneExternalDateTimeStruct(UA_DateTimeStruct& destDateTimeStruct, const UA_DateTimeStruct& srcDateTimeStruct)
+{
+	memcpy(&destDateTimeStruct, &srcDateTimeStruct, sizeof(UA_DateTimeStruct));
+}
+
+UaDateTime::UaDateTime()
+{
+	initializeInternalDateTimeStruct(m_dateTime);
+}
+
+UaDateTime::UaDateTime(const UA_DateTimeStruct& dateTime)
+{
+	cloneExternalDateTimeStruct(m_dateTime, dateTime);
+}
+
+UaDateTime UaDateTime::now()
+{
+    return UaDateTime(UA_DateTime_toStruct(UA_DateTime_now()));
+}
+
+void UaDateTime::addSecs(int secs)
+{
+	m_dateTime.sec += secs;
+}
+
+void UaDateTime::addMilliSecs(int msecs)
+{
+	m_dateTime.milliSec += msecs;
+}
+
+UaDateTime UaDateTime::fromString(const UaString& dateTimeString)
+{
+	LOG(Log::ERR) << __FUNCTION__ << " This implementation is wrong - fix it";
+	return UaDateTime();
+}
+
+
 UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime ):
     m_lock( ATOMIC_FLAG_INIT )
 

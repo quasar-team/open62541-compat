@@ -515,7 +515,7 @@ UaString UaDateTime::toString() const
 	std::ostringstream result;
 
 	const double totalNanoSeconds = (m_dateTime.milliSec * std::pow(10,6)) + (m_dateTime.microSec * std::pow(10,3)) + (m_dateTime.nanoSec);
-	const double fractionalSeconds = m_dateTime.sec + (totalNanoSeconds * std::pow(10,9));
+	const double fractionalSeconds = m_dateTime.sec + (totalNanoSeconds * std::pow(10,-9));
 	result << (boost::format("%04d-%02d-%02d:%02d:%02d:%02.09f") % m_dateTime.year % m_dateTime.month % m_dateTime.day %m_dateTime.hour % m_dateTime.min % fractionalSeconds);
 
 	return UaString(result.str().c_str());

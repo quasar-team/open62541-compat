@@ -21,7 +21,10 @@
 
 #include <open62541_compat.h>
 #include <iostream>
+#include <sstream>
 #include <Utils.h>
+#include <boost/format.hpp>
+#include <boost/date_time.hpp>
 //#include <ASUtils.h>
 
 class alloc_error: public std::runtime_error
@@ -455,12 +458,68 @@ void UaDateTime::addMilliSecs(int msecs)
 	m_dateTime.milliSec += msecs;
 }
 
+/**
+ * Accepts format
+ * "%Y-%m-%dT%H:%M:%S%ZP"
+ * e.g. epoch: "1970-01-01T00:00:00Z"
+ */
 UaDateTime UaDateTime::fromString(const UaString& dateTimeString)
 {
-	LOG(Log::ERR) << __FUNCTION__ << " This implementation is wrong - fix it";
-	return UaDateTime();
+	const std::string stdDateTimeString(dateTimeString.toUtf8());
+	std::istringstream ss(stdDateTimeString);
+
+	const static std::string timeFormatString("%Y-%m-%dT%H:%M:%S%ZP");
+	static std::locale timeFormatLocale(ss.getloc(), new boost::posix_time::time_input_facet(timeFormatString)); // Not a leak: std::locale deletes facet
+	ss.imbue(timeFormatLocale);
+
+	boost::posix_time::ptime dateTime;
+
+	try
+	{
+		ss >> dateTime;
+
+		if(dateTime.is_not_a_date_time())
+		{
+			std::ostringstream err;
+			err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"]";
+			throw std::runtime_error(err.str());
+		}
+	}
+	catch(const std::runtime_error& e)
+	{
+		std::ostringstream err;
+		err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"], error: "<<e.what();
+		throw std::runtime_error(err.str());
+	}
+	catch(...)
+	{
+		std::ostringstream err;
+		err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"], unknown error";
+		throw std::runtime_error(err.str());
+	}
+
+	UA_DateTimeStruct result;
+	initializeInternalDateTimeStruct(result);
+	result.year = dateTime.date().year();
+	result.month = dateTime.date().month();
+	result.day = dateTime.date().day();
+	result.hour = dateTime.time_of_day().hours();
+	result.min = dateTime.time_of_day().minutes();
+	result.sec = dateTime.time_of_day().seconds();
+
+	return UaDateTime(result);
 }
 
+UaString UaDateTime::toString() const
+{
+	std::ostringstream result;
+
+	const double totalNanoSeconds = (m_dateTime.milliSec * std::pow(10,6)) + (m_dateTime.microSec * std::pow(10,3)) + (m_dateTime.nanoSec);
+	const double fractionalSeconds = m_dateTime.sec + (totalNanoSeconds * std::pow(10,9));
+	result << (boost::format("%04d-%02d-%02d:%02d:%02d:%02.09f") % m_dateTime.year % m_dateTime.month % m_dateTime.day %m_dateTime.hour % m_dateTime.min % fractionalSeconds);
+
+	return UaString(result.str().c_str());
+}
 
 UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime ):
     m_lock( ATOMIC_FLAG_INIT )

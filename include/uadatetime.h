@@ -34,6 +34,7 @@ public:
 	void addMilliSecs(int msecs);
 
 	static UaDateTime fromString(const UaString&);
+	UaString toString() const;
 
 private:
 	UaDateTime(const UA_DateTimeStruct& dateTime);

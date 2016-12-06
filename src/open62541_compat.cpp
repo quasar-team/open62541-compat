@@ -21,7 +21,11 @@
 
 #include <open62541_compat.h>
 #include <iostream>
+#include <sstream>
+#include <bitset>
 #include <Utils.h>
+#include <boost/format.hpp>
+#include <boost/date_time.hpp>
 //#include <ASUtils.h>
 
 class alloc_error: public std::runtime_error
@@ -30,6 +34,10 @@ public:
     alloc_error(): std::runtime_error("memory allocation exception") {}
 };
 				 
+bool UaStatus::isBad() const
+{
+	return std::bitset<32>(m_status).test(31); // 31 ? BAD defines start at 0x8000000 (OPC-UA specification).
+}
 
 UaString::UaString ()
 {
@@ -211,6 +219,21 @@ void UaVariant::operator= (const UaVariant &other)
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
+bool UaVariant::operator==(const UaVariant& other) const
+{
+	if(m_impl == 0 || other.m_impl == 0) return false; // uninitialized - cannot compare.
+	if(type() != other.type()) return false;
+	if(m_impl->arrayLength != other.m_impl->arrayLength) return false;
+	if(m_impl->arrayDimensionsSize != other.m_impl->arrayDimensionsSize) return false;
+	for(size_t arrayDimensionIndex = 0; arrayDimensionIndex < m_impl->arrayDimensionsSize; ++arrayDimensionIndex)
+	{
+		if(m_impl->arrayDimensions[arrayDimensionIndex] != other.m_impl->arrayDimensions[arrayDimensionIndex]) return false;
+	}
+	if(0 != memcmp(m_impl->data, other.m_impl->data, m_impl->arrayLength)) return false;
+
+	return true;
+}
+
 UaVariant::UaVariant( const UA_Variant& other )
 :m_impl(createAndCheckOpen62541Variant())
 {
@@ -347,6 +370,11 @@ UaStatus UaVariant::toInt64( OpcUa_Int64& out ) const
     return toSimpleType( &UA_TYPES[UA_TYPES_INT64], &out );
 }
 
+UaStatus UaVariant::toByte(OpcUa_Byte& out) const
+{
+	return toSimpleType( &UA_TYPES[UA_TYPES_BYTE], &out );
+}
+
 UaStatus UaVariant::toFloat( OpcUa_Float& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_FLOAT], &out );
@@ -399,19 +427,98 @@ UaStatus UaVariant::toSimpleType( const UA_DataType* dataType, T* out ) const
     return OpcUa_Good;
 }
 
+UaDateTime::UaDateTime()
+:m_dateTime{0}
+{}
 
+UaDateTime::UaDateTime(const UA_DateTime& dateTime)
+:m_dateTime(dateTime)
+{}
 
-UaDateTime UaDateTime:: now()
+UaDateTime UaDateTime::now()
 {
-    //TODO
-    return UaDateTime();
+    return UaDateTime(UA_DateTime_now());
 }
 
-    // UaDataValue::UaDataValue( const UaDataValue& other)
-    // {
-    //   // TODO
-    // }
- 
+void UaDateTime::addSecs(int secs)
+{
+	m_dateTime += (secs * UA_SEC_TO_DATETIME);
+}
+
+void UaDateTime::addMilliSecs(int msecs)
+{
+	m_dateTime += (msecs * UA_MSEC_TO_DATETIME);
+}
+
+/**
+ * Accepts format
+ * "%Y-%m-%dT%H:%M:%S%ZP"
+ * e.g. unix epoch: "1970-01-01T00:00:00Z"
+ * e.g. open62541 epoch "1601-01-01T00:00:00Z" (i.e. windows epoch)
+ */
+UaDateTime UaDateTime::fromString(const UaString& dateTimeString)
+{
+	const std::string stdDateTimeString(dateTimeString.toUtf8());
+	std::istringstream ss(stdDateTimeString);
+
+	const static std::string timeFormatString("%Y-%m-%dT%H:%M:%S%ZP");
+	static std::locale timeFormatLocale(ss.getloc(), new boost::posix_time::time_input_facet(timeFormatString)); // Not a leak: std::locale deletes facet
+	ss.imbue(timeFormatLocale);
+
+	try
+	{
+		static const boost::posix_time::ptime unixEpoch(boost::gregorian::date(1970, 1, 1));
+
+		if(unixEpoch.is_not_a_date_time())
+		{
+			throw std::runtime_error("Failed to calculate unix epoch, cannot parse any dates from strings.");
+		}
+
+		boost::posix_time::ptime dateTime;
+		ss >> dateTime;
+
+		if(dateTime.is_not_a_date_time())
+		{
+			std::ostringstream err;
+			err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"]";
+			throw std::runtime_error(err.str());
+		}
+
+		const UA_DateTime open62541DateTime = UA_DATETIME_UNIX_EPOCH + ((dateTime - unixEpoch).total_seconds() * UA_SEC_TO_DATETIME);
+		return UaDateTime(open62541DateTime);
+	}
+	catch(const std::runtime_error& e)
+	{
+		std::ostringstream err;
+		err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"], error: "<<e.what();
+		throw std::runtime_error(err.str());
+	}
+	catch(...)
+	{
+		std::ostringstream err;
+		err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"], unknown error";
+		throw std::runtime_error(err.str());
+	}
+}
+
+/**
+ * Returns format
+ * "%Y-%m-%dT%H:%M:%S%ZP"
+ * e.g. unix epoch: "1970-01-01T00:00:00Z"
+ * e.g. open62541 epoch "1601-01-01T00:00:00Z" (i.e. windows epoch)
+ */
+UaString UaDateTime::toString() const
+{
+	const UA_DateTimeStruct dateTime = UA_DateTime_toStruct(m_dateTime);
+	std::ostringstream result;
+
+	const double totalNanoSeconds = (dateTime.milliSec * std::pow(10,6)) + (dateTime.microSec * std::pow(10,3)) + (dateTime.nanoSec);
+	const double fractionalSeconds = dateTime.sec + (totalNanoSeconds * std::pow(10,-9));
+	result << (boost::format("%04d-%02d-%02d:%02d:%02d:%02.09f") % dateTime.year % dateTime.month % dateTime.day %dateTime.hour % dateTime.min % fractionalSeconds);
+
+	return UaString(result.str().c_str());
+}
+
 UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime ):
     m_lock( ATOMIC_FLAG_INIT )
 
@@ -598,7 +705,4 @@ namespace OpcUa
     {
         return m_currentValue.clone();
     }
-
-
-
 };

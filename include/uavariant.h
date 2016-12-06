@@ -72,6 +72,7 @@ class UaVariant
   UaVariant ();
   UaVariant( const UaVariant& other);
   void operator= (const UaVariant &other);
+  bool operator==(const UaVariant&) const;
   UaVariant( const UA_Variant& other );
 
   UaVariant( const UaString& v );
@@ -107,6 +108,7 @@ class UaVariant
   UaStatus toInt32( OpcUa_Int32& value ) const;
   UaStatus toUInt32( OpcUa_UInt32& value ) const;
   UaStatus toInt64( OpcUa_Int64& value ) const;
+  UaStatus toByte(OpcUa_Byte& value ) const;
   UaStatus toUInt64( OpcUa_UInt64& value ) const;
   UaStatus toFloat( OpcUa_Float&  value ) const;
   UaStatus toDouble( OpcUa_Double& value ) const;

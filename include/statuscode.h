@@ -40,6 +40,9 @@
 #define OpcUa_Uncertain OpcUa_Bad // FIXME
 #define OpcUa_BadResourceUnavailable OpcUa_Bad // FIXME:
 #define OpcUa_BadInternalError UA_STATUSCODE_BADINTERNALERROR
+#define OpcUa_BadInvalidState UA_STATUSCODE_BADINVALIDSTATE
+#define OpcUa_UncertainInitialValue UA_STATUSCODE_UNCERTAININITIALVALUE
+#define OpcUa_BadUnexpectedError UA_STATUSCODE_BADUNEXPECTEDERROR
 
 typedef OpcUa_UInt32 OpcUa_StatusCode;
 
@@ -48,7 +51,9 @@ class UaStatus
 public:
     UaStatus (int s): m_status(s) {} // from status code
 UaStatus(): m_status(0x66666) {} // uninitialized
-    bool isGood() const { return m_status == 0; } // TODO
+    bool isGood() const { return m_status == UA_STATUSCODE_GOOD; }
+    bool isNotGood() const { return !isGood(); }
+    bool isBad() const;
     UaString toString() const { return "???"; }
 
 //TODO: check??

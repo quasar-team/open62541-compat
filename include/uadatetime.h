@@ -22,10 +22,24 @@
 #ifndef __UADATETIME_H_
 #define __UADATETIME_H_
 
+#include <open62541.h>
+
 class UaDateTime
 {
 public:
-static UaDateTime now();
+	UaDateTime();
+	static UaDateTime now();
+
+	void addSecs(int secs);
+	void addMilliSecs(int msecs);
+
+	static UaDateTime fromString(const UaString&);
+	UaString toString() const;
+
+private:
+	UaDateTime(const UA_DateTime& dateTime);
+
+	UA_DateTime m_dateTime; // (64bit signed int ) num of 100 nanosec intervals since windows epoch (1601-01-01T00:00:00)
 };
 
 #endif // __UADATETIME_H_

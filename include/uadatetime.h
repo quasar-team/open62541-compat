@@ -37,12 +37,9 @@ public:
 	UaString toString() const;
 
 private:
-	UaDateTime(const UA_DateTimeStruct& dateTime);
+	UaDateTime(const UA_DateTime& dateTime);
 
-	UA_DateTimeStruct m_dateTime;
-
-	static void initializeInternalDateTimeStruct(UA_DateTimeStruct& dateTimeStruct);
-	static void cloneExternalDateTimeStruct(UA_DateTimeStruct& destDateTimeStruct, const UA_DateTimeStruct& srcDateTimeStruct);
+	UA_DateTime m_dateTime; // (64bit signed int ) num of 100 nanosec intervals since windows epoch (1601-01-01T00:00:00)
 };
 
 #endif // __UADATETIME_H_

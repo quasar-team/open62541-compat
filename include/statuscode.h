@@ -53,7 +53,7 @@ public:
 UaStatus(): m_status(0x66666) {} // uninitialized
     bool isGood() const { return m_status == UA_STATUSCODE_GOOD; }
     bool isNotGood() const { return !isGood(); }
-    bool isBad() const { return UA_StatusCode(m_status) >= OpcUa_Bad; }
+    bool isBad() const;
     UaString toString() const { return "???"; }
 
 //TODO: check??

@@ -22,6 +22,7 @@
 #include <open62541_compat.h>
 #include <iostream>
 #include <sstream>
+#include <bitset>
 #include <Utils.h>
 #include <boost/format.hpp>
 #include <boost/date_time.hpp>
@@ -33,6 +34,10 @@ public:
     alloc_error(): std::runtime_error("memory allocation exception") {}
 };
 				 
+bool UaStatus::isBad() const
+{
+	return std::bitset<32>(m_status).test(31); // 31 ? BAD defines start at 0x8000000 (OPC-UA specification).
+}
 
 UaString::UaString ()
 {
@@ -422,46 +427,34 @@ UaStatus UaVariant::toSimpleType( const UA_DataType* dataType, T* out ) const
     return OpcUa_Good;
 }
 
-void UaDateTime::initializeInternalDateTimeStruct(UA_DateTimeStruct& dateTimeStruct)
-{
-	memset(&dateTimeStruct, 0, sizeof(UA_DateTimeStruct));
-}
-
-
-void UaDateTime::cloneExternalDateTimeStruct(UA_DateTimeStruct& destDateTimeStruct, const UA_DateTimeStruct& srcDateTimeStruct)
-{
-	memcpy(&destDateTimeStruct, &srcDateTimeStruct, sizeof(UA_DateTimeStruct));
-}
-
 UaDateTime::UaDateTime()
-{
-	initializeInternalDateTimeStruct(m_dateTime);
-}
+:m_dateTime{0}
+{}
 
-UaDateTime::UaDateTime(const UA_DateTimeStruct& dateTime)
-{
-	cloneExternalDateTimeStruct(m_dateTime, dateTime);
-}
+UaDateTime::UaDateTime(const UA_DateTime& dateTime)
+:m_dateTime(dateTime)
+{}
 
 UaDateTime UaDateTime::now()
 {
-    return UaDateTime(UA_DateTime_toStruct(UA_DateTime_now()));
+    return UaDateTime(UA_DateTime_now());
 }
 
 void UaDateTime::addSecs(int secs)
 {
-	m_dateTime.sec += secs;
+	m_dateTime += (secs * UA_SEC_TO_DATETIME);
 }
 
 void UaDateTime::addMilliSecs(int msecs)
 {
-	m_dateTime.milliSec += msecs;
+	m_dateTime += (msecs * UA_MSEC_TO_DATETIME);
 }
 
 /**
  * Accepts format
  * "%Y-%m-%dT%H:%M:%S%ZP"
- * e.g. epoch: "1970-01-01T00:00:00Z"
+ * e.g. unix epoch: "1970-01-01T00:00:00Z"
+ * e.g. open62541 epoch "1601-01-01T00:00:00Z" (i.e. windows epoch)
  */
 UaDateTime UaDateTime::fromString(const UaString& dateTimeString)
 {
@@ -472,10 +465,16 @@ UaDateTime UaDateTime::fromString(const UaString& dateTimeString)
 	static std::locale timeFormatLocale(ss.getloc(), new boost::posix_time::time_input_facet(timeFormatString)); // Not a leak: std::locale deletes facet
 	ss.imbue(timeFormatLocale);
 
-	boost::posix_time::ptime dateTime;
-
 	try
 	{
+		static const boost::posix_time::ptime unixEpoch(boost::gregorian::date(1970, 1, 1));
+
+		if(unixEpoch.is_not_a_date_time())
+		{
+			throw std::runtime_error("Failed to calculate unix epoch, cannot parse any dates from strings.");
+		}
+
+		boost::posix_time::ptime dateTime;
 		ss >> dateTime;
 
 		if(dateTime.is_not_a_date_time())
@@ -484,6 +483,9 @@ UaDateTime UaDateTime::fromString(const UaString& dateTimeString)
 			err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"]";
 			throw std::runtime_error(err.str());
 		}
+
+		const UA_DateTime open62541DateTime = UA_DATETIME_UNIX_EPOCH + ((dateTime - unixEpoch).total_seconds() * UA_SEC_TO_DATETIME);
+		return UaDateTime(open62541DateTime);
 	}
 	catch(const std::runtime_error& e)
 	{
@@ -497,26 +499,22 @@ UaDateTime UaDateTime::fromString(const UaString& dateTimeString)
 		err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"], unknown error";
 		throw std::runtime_error(err.str());
 	}
-
-	UA_DateTimeStruct result;
-	initializeInternalDateTimeStruct(result);
-	result.year = dateTime.date().year();
-	result.month = dateTime.date().month();
-	result.day = dateTime.date().day();
-	result.hour = dateTime.time_of_day().hours();
-	result.min = dateTime.time_of_day().minutes();
-	result.sec = dateTime.time_of_day().seconds();
-
-	return UaDateTime(result);
 }
 
+/**
+ * Returns format
+ * "%Y-%m-%dT%H:%M:%S%ZP"
+ * e.g. unix epoch: "1970-01-01T00:00:00Z"
+ * e.g. open62541 epoch "1601-01-01T00:00:00Z" (i.e. windows epoch)
+ */
 UaString UaDateTime::toString() const
 {
+	const UA_DateTimeStruct dateTime = UA_DateTime_toStruct(m_dateTime);
 	std::ostringstream result;
 
-	const double totalNanoSeconds = (m_dateTime.milliSec * std::pow(10,6)) + (m_dateTime.microSec * std::pow(10,3)) + (m_dateTime.nanoSec);
-	const double fractionalSeconds = m_dateTime.sec + (totalNanoSeconds * std::pow(10,-9));
-	result << (boost::format("%04d-%02d-%02d:%02d:%02d:%02.09f") % m_dateTime.year % m_dateTime.month % m_dateTime.day %m_dateTime.hour % m_dateTime.min % fractionalSeconds);
+	const double totalNanoSeconds = (dateTime.milliSec * std::pow(10,6)) + (dateTime.microSec * std::pow(10,3)) + (dateTime.nanoSec);
+	const double fractionalSeconds = dateTime.sec + (totalNanoSeconds * std::pow(10,-9));
+	result << (boost::format("%04d-%02d-%02d:%02d:%02d:%02.09f") % dateTime.year % dateTime.month % dateTime.day %dateTime.hour % dateTime.min % fractionalSeconds);
 
 	return UaString(result.str().c_str());
 }
@@ -707,7 +705,4 @@ namespace OpcUa
     {
         return m_currentValue.clone();
     }
-
-
-
 };

@@ -61,9 +61,19 @@ enum OpcUaType
     OpcUaType_Int64,
     OpcUaType_Float,
     OpcUaType_Double,
-    OpcUaType_String
+    OpcUaType_String,
+	OpcUaType_ByteString
   };
 
+class UaByteString
+{
+public:
+	UaByteString( const int len, OpcUa_Byte* data);
+	UA_ByteString* impl() const { return m_impl; }
+private:
+	UA_ByteString * m_impl;
+
+};
 
 
 class UaVariant
@@ -100,6 +110,8 @@ class UaVariant
 
   void setString( const UaString& value );
 
+  void setByteString( const UaByteString& value, bool detach);
+
   void clear () {}; // TODO:
   
   // getters
@@ -112,6 +124,7 @@ class UaVariant
   UaStatus toUInt64( OpcUa_UInt64& value ) const;
   UaStatus toFloat( OpcUa_Float&  value ) const;
   UaStatus toDouble( OpcUa_Double& value ) const;
+  UaStatus toByteString( UaByteString& value) const;
 
   UaString toString( ) const;
   UaString toFullString() const;

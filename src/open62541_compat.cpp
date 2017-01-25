@@ -120,6 +120,25 @@ std::string UaString::toUtf8() const
   return std::string( reinterpret_cast<const char*>(m_impl->data), m_impl->length );
 }
 
+UaByteString::UaByteString( const int length, OpcUa_Byte* data)
+{
+	m_impl = UA_ByteString_new();
+	if (!m_impl)
+		throw alloc_error();
+	UA_ByteString_init(m_impl);
+
+	m_impl->data = (UA_Byte*)malloc( length );
+	if (!m_impl->data)
+	{
+		UA_ByteString_delete(m_impl);
+		throw alloc_error();
+	}
+	memcpy( m_impl->data, data, length );
+	m_impl->length = length;
+
+
+}
+
 UaQualifiedName::UaQualifiedName(int ns, const UaString& name):
     m_unqualifiedName( name )
 {
@@ -344,6 +363,17 @@ void UaVariant::setString( const UaString& value )
         throw alloc_error();
 }
 
+void UaVariant::setByteString( const UaByteString& value, bool detach)
+{
+	if (detach)
+		throw std::runtime_error("value detachment not yet implemented");
+    if (m_impl->data != 0)
+        UA_Variant_deleteMembers( m_impl );
+    UA_StatusCode s = UA_Variant_setScalarCopy( m_impl, value.impl(), &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if (s != UA_STATUSCODE_GOOD)
+        throw alloc_error();
+}
+
 UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_BOOLEAN], &out );
@@ -383,6 +413,11 @@ UaStatus UaVariant::toFloat( OpcUa_Float& out ) const
 UaStatus UaVariant::toDouble( OpcUa_Double& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_DOUBLE], &out );
+}
+
+UaStatus UaVariant::toByteString( UaByteString& out) const
+{
+	return toSimpleType( &UA_TYPES[UA_TYPES_BYTESTRING], &out );
 }
 
 UaString UaVariant::toString( ) const

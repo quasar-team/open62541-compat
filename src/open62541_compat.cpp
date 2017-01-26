@@ -26,13 +26,10 @@
 #include <Utils.h>
 #include <boost/format.hpp>
 #include <boost/date_time.hpp>
-//#include <ASUtils.h>
 
-class alloc_error: public std::runtime_error
-{
-public:
-    alloc_error(): std::runtime_error("memory allocation exception") {}
-};
+#include <open62541_compat_common.h>
+
+
 				 
 bool UaStatus::isBad() const
 {
@@ -120,24 +117,7 @@ std::string UaString::toUtf8() const
   return std::string( reinterpret_cast<const char*>(m_impl->data), m_impl->length );
 }
 
-UaByteString::UaByteString( const int length, OpcUa_Byte* data)
-{
-	m_impl = UA_ByteString_new();
-	if (!m_impl)
-		throw alloc_error();
-	UA_ByteString_init(m_impl);
 
-	m_impl->data = (UA_Byte*)malloc( length );
-	if (!m_impl->data)
-	{
-		UA_ByteString_delete(m_impl);
-		throw alloc_error();
-	}
-	memcpy( m_impl->data, data, length );
-	m_impl->length = length;
-
-
-}
 
 UaQualifiedName::UaQualifiedName(int ns, const UaString& name):
     m_unqualifiedName( name )
@@ -288,6 +268,8 @@ OpcUaType UaVariant::type() const
         return OpcUaType_String;
     else if(m_impl->type == &UA_TYPES[UA_TYPES_BOOLEAN])
     	return OpcUaType_Boolean;
+    else if(m_impl->type == &UA_TYPES[UA_TYPES_BYTESTRING])
+    	return OpcUaType_ByteString;
     else
         throw std::runtime_error ("not-implemented");
 }

@@ -26,7 +26,7 @@
 #include <open62541.h>
 #include <statuscode.h>
 #include <uadatetime.h>
-
+#include <uabytestring.h>
 
 #ifdef __linux__
 
@@ -65,15 +65,6 @@ enum OpcUaType
 	OpcUaType_ByteString
   };
 
-class UaByteString
-{
-public:
-	UaByteString( const int len, OpcUa_Byte* data);
-	UA_ByteString* impl() const { return m_impl; }
-private:
-	UA_ByteString * m_impl;
-
-};
 
 
 class UaVariant

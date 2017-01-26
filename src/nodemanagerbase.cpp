@@ -94,7 +94,6 @@ static UA_StatusCode unifiedWrite(void *handle, const UA_NodeId nodeid, const UA
     }
     // we expect that the handle points to an object of subclass of BaseDataVariableType
     OpcUa::BaseDataVariableType *variable = static_cast<OpcUa::BaseDataVariableType*>(handle);
-    std::cout << "write request" << std::endl;
     UaVariant variant ( *data );
     UaStatus status = variable->setValue( /*anything non zero*/(Session*)-1, UaDataValue( variant, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ), OpcUa_True );
     return status;

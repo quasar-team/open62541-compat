@@ -26,13 +26,10 @@
 #include <Utils.h>
 #include <boost/format.hpp>
 #include <boost/date_time.hpp>
-//#include <ASUtils.h>
 
-class alloc_error: public std::runtime_error
-{
-public:
-    alloc_error(): std::runtime_error("memory allocation exception") {}
-};
+#include <open62541_compat_common.h>
+
+
 				 
 bool UaStatus::isBad() const
 {
@@ -119,6 +116,8 @@ std::string UaString::toUtf8() const
 {
   return std::string( reinterpret_cast<const char*>(m_impl->data), m_impl->length );
 }
+
+
 
 UaQualifiedName::UaQualifiedName(int ns, const UaString& name):
     m_unqualifiedName( name )
@@ -269,6 +268,8 @@ OpcUaType UaVariant::type() const
         return OpcUaType_String;
     else if(m_impl->type == &UA_TYPES[UA_TYPES_BOOLEAN])
     	return OpcUaType_Boolean;
+    else if(m_impl->type == &UA_TYPES[UA_TYPES_BYTESTRING])
+    	return OpcUaType_ByteString;
     else
         throw std::runtime_error ("not-implemented");
 }
@@ -344,6 +345,17 @@ void UaVariant::setString( const UaString& value )
         throw alloc_error();
 }
 
+void UaVariant::setByteString( const UaByteString& value, bool detach)
+{
+	if (detach)
+		throw std::runtime_error("value detachment not yet implemented");
+    if (m_impl->data != 0)
+        UA_Variant_deleteMembers( m_impl );
+    UA_StatusCode s = UA_Variant_setScalarCopy( m_impl, value.impl(), &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if (s != UA_STATUSCODE_GOOD)
+        throw alloc_error();
+}
+
 UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_BOOLEAN], &out );
@@ -383,6 +395,11 @@ UaStatus UaVariant::toFloat( OpcUa_Float& out ) const
 UaStatus UaVariant::toDouble( OpcUa_Double& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_DOUBLE], &out );
+}
+
+UaStatus UaVariant::toByteString( UaByteString& out) const
+{
+	return toSimpleType( &UA_TYPES[UA_TYPES_BYTESTRING], &out );
 }
 
 UaString UaVariant::toString( ) const

@@ -26,7 +26,7 @@
 #include <open62541.h>
 #include <statuscode.h>
 #include <uadatetime.h>
-
+#include <uabytestring.h>
 
 #ifdef __linux__
 
@@ -61,7 +61,8 @@ enum OpcUaType
     OpcUaType_Int64,
     OpcUaType_Float,
     OpcUaType_Double,
-    OpcUaType_String
+    OpcUaType_String,
+	OpcUaType_ByteString
   };
 
 
@@ -100,6 +101,8 @@ class UaVariant
 
   void setString( const UaString& value );
 
+  void setByteString( const UaByteString& value, bool detach);
+
   void clear () {}; // TODO:
   
   // getters
@@ -112,6 +115,7 @@ class UaVariant
   UaStatus toUInt64( OpcUa_UInt64& value ) const;
   UaStatus toFloat( OpcUa_Float&  value ) const;
   UaStatus toDouble( OpcUa_Double& value ) const;
+  UaStatus toByteString( UaByteString& value) const;
 
   UaString toString( ) const;
   UaString toFullString() const;

@@ -147,26 +147,13 @@ OpcUaType UaVariant::type() const
 {
     if (!m_impl->data)
         return OpcUaType_Null;
-    else if(m_impl->type == &UA_TYPES[UA_TYPES_INT16])
-        return OpcUaType_Int16;
-    else if(m_impl->type == &UA_TYPES[UA_TYPES_UINT16])
-        return OpcUaType_UInt16;
-    else if(m_impl->type == &UA_TYPES[UA_TYPES_INT32])
-        return OpcUaType_Int32;
-    else if(m_impl->type == &UA_TYPES[UA_TYPES_UINT32])
-        return OpcUaType_UInt32;
-    else if(m_impl->type == &UA_TYPES[UA_TYPES_FLOAT])
-        return OpcUaType_Float;
-    else if(m_impl->type == &UA_TYPES[UA_TYPES_DOUBLE])
-        return OpcUaType_Double;
-    else if(m_impl->type == &UA_TYPES[UA_TYPES_STRING])
-        return OpcUaType_String;
-    else if(m_impl->type == &UA_TYPES[UA_TYPES_BOOLEAN])
-    	return OpcUaType_Boolean;
-    else if(m_impl->type == &UA_TYPES[UA_TYPES_BYTESTRING])
-    	return OpcUaType_ByteString;
     else
-        throw std::runtime_error ("not-implemented");
+    {
+	if (m_impl->type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC)
+	    return static_cast<OpcUaType>( m_impl->type->typeId.identifier.numeric );
+	else
+	    throw std::runtime_error("No support for non built-in data types in variant! (yet)");
+    }
 }
 
 void UaVariant::reuseOrRealloc( const UA_DataType* dataType, void* newValue )

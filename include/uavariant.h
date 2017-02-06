@@ -46,23 +46,22 @@
 enum OpcUaType
   {
 
-    OpcUaType_Null,
-    OpcUaType_Boolean,
-
-    OpcUaType_Byte,
-    OpcUaType_SByte,
-
-    OpcUaType_UInt16,
-    OpcUaType_Int16,
-
-    OpcUaType_UInt32,
-    OpcUaType_Int32,
-    OpcUaType_UInt64,
-    OpcUaType_Int64,
-    OpcUaType_Float,
-    OpcUaType_Double,
-    OpcUaType_String,
-	OpcUaType_ByteString
+    OpcUaType_Null       =  0,
+    OpcUaType_Boolean    =  UA_NS0ID_BOOLEAN,
+    OpcUaType_SByte      =  UA_NS0ID_SBYTE,    
+    OpcUaType_Byte       =  UA_NS0ID_BYTE,
+    OpcUaType_Int16      =  UA_NS0ID_INT16, 
+    OpcUaType_UInt16     =  UA_NS0ID_UINT16, 
+    OpcUaType_Int32      =  UA_NS0ID_INT32,
+    OpcUaType_UInt32     =  UA_NS0ID_UINT32,
+    OpcUaType_Int64      =  UA_NS0ID_INT64,
+    OpcUaType_UInt64     =  UA_NS0ID_UINT64,
+    OpcUaType_Float      =  UA_NS0ID_FLOAT,
+    OpcUaType_Double     =  UA_NS0ID_DOUBLE,
+    OpcUaType_String     =  UA_NS0ID_STRING,
+    // support for datetime and guid missing in the compat module
+    OpcUaType_ByteString = UA_NS0ID_BYTESTRING
+    // support for remaining types, i.e. nodeid or statuscode also still missing
   };
 
 

@@ -99,6 +99,63 @@ static UA_StatusCode unifiedWrite(void *handle, const UA_NodeId nodeid, const UA
     return status;
 }
 
+class SynchronousMethodCallback: public MethodManagerCallback
+{
+public:
+	virtual ~SynchronousMethodCallback () {}
+
+	virtual UaStatus 	finishCall (
+			OpcUa_UInt32 callbackHandle,
+			UaStatusCodeArray &inputArgumentResults,
+			UaDiagnosticInfos &inputArgumentDiag,
+			UaVariantArray &outputArguments,
+			UaStatus &statusCode)
+	{
+		// TODO: store the answer
+		this->m_resultStatus = statusCode;
+		return OpcUa_Good;
+	}
+
+	UaStatus getStatusCode () const { return m_resultStatus; }
+
+private:
+	UaStatus m_resultStatus;
+
+};
+
+UA_StatusCode unifiedCall(
+		void *methodHandle,
+		const UA_NodeId objectId,
+        size_t inputSize,
+		const UA_Variant *input,
+        size_t outputSize,
+		UA_Variant *output)
+{
+	LOG(Log::INF) << "called! handle=" << methodHandle;
+	MethodHandleUaNode *handle = static_cast<MethodHandleUaNode*> (methodHandle);
+	OpcUa::BaseObjectType *receiver = static_cast<OpcUa::BaseObjectType*> ( handle->pUaObject() );
+
+	ServiceContext sc;
+	UaVariantArray inputArgs;
+
+	SynchronousMethodCallback synchronousCallback;
+
+	UaStatus status =
+	receiver->beginCall(
+			&synchronousCallback  /* callback */,
+			sc /* fake service context */,
+			0 /* fake callback handle */,
+			handle /* fake method handle */,
+			inputArgs
+			);
+
+	if (status.isNotGood())
+		return status; // beginning failed ...
+
+
+	return synchronousCallback.getStatusCode();
+}
+
 
     UaString localisationCode("en_US");
     
@@ -128,6 +185,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
 	    UA_ObjectAttributes_init( &objectAttributes );
 	    objectAttributes.description = UA_LOCALIZEDTEXT("en_US","the answer");
 	    objectAttributes.displayName = *displayName.impl();
+	    UA_NodeId out;
 	    UA_StatusCode s = UA_Server_addObjectNode(
 		/*server*/ m_server,
 		/*newnodeid*/ to->nodeId().impl(),
@@ -137,14 +195,18 @@ UaStatus NodeManagerBase::addNodeAndReference(
 		/*type def*/ to->typeDefinitionId().impl(),
 		/* object attrs*/ objectAttributes,
                 /* instantiation cbk*/ 0,
-		/*out new node id*/ 0
+		/*out new node id*/ &out
 		);    
+
 	    std::cout << "UA_Server_addObjectNode() finished with code " << std::hex << s << std::dec << std::endl;
+	    LOG(Log::INF) << "obtained output: ns=" << out.namespaceIndex << "," << UaString(&out.identifier.string).toUtf8();
 	    if (UA_STATUSCODE_GOOD == s)
 	    {
-		m_listNodes.push_back( to );
-		parent->addReferencedTarget( to, refType );
+			m_listNodes.push_back( to );
+			parent->addReferencedTarget( to, refType );
 	    }
+	    else
+	    	LOG(Log::ERR) << "Failed to add new node: " << std::hex << s;
 	    return s;
 	}
     case OpcUa_NodeClass_Variable:
@@ -181,6 +243,43 @@ UaStatus NodeManagerBase::addNodeAndReference(
 
 	    return s;
 	}
+
+    case OpcUa_NodeClass_Method:
+    {
+    	UA_MethodAttributes attr;
+    	UA_MethodAttributes_init(&attr);
+    	attr.executable = true;
+    	attr.userExecutable = true;
+    	attr.displayName = *displayName.impl();
+    	attr.description = UA_LOCALIZEDTEXT("en_US","the description");
+
+    	MethodHandleUaNode *handle = new MethodHandleUaNode;
+    	handle->setUaNodes( static_cast<UaObject*>(parent), static_cast<UaMethod*>(to) );
+
+    	LOG(Log::INF) << "parent node: " << parent->nodeId().toFullString().toUtf8();
+    	UA_StatusCode s =
+    	UA_Server_addMethodNode(
+    			m_server,
+				to->nodeId().impl(),
+				parent->nodeId().impl(),
+				refType.impl(),
+				to->browseName().impl(),
+				attr,
+    	        unifiedCall,
+				/*void *handle*/ (void*)handle,
+    	        /*size_t inputArgumentsSize*/ 0,
+    	        /*const UA_Argument* inputArguments*/ 0,
+    	        /*size_t outputArgumentsSize*/ 0,
+				/*const UA_Argument* outputArguments*/ 0,
+    	        NULL);
+    	LOG(Log::INF) << "status code: " << std::hex << s;
+		m_listNodes.push_back( to );
+		parent->addReferencedTarget( to, refType );
+    	return 0;
+    };
+
+    default:
+    	throw std::runtime_error("not-impl");
 		
     }
 

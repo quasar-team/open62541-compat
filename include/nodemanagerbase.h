@@ -67,10 +67,11 @@ private:
 		class ServerRootNode: public UaNode
 		{
 		public:
-			ServerRootNode(): UaNode( UaNodeId(OpcUaId_ObjectsFolder, 0) ) {}
+			ServerRootNode() {}
 			virtual UaQualifiedName browseName() const { return UaQualifiedName(0, "."); }
 			virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEOBJECTTYPE,0); }
 			virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass::OpcUa_NodeClass_Object; }
+			virtual UaNodeId nodeId() const { return UaNodeId(OpcUaId_ObjectsFolder, 0); }
 		private:
 			ServerRootNode( const ServerRootNode& other );
 			void operator=( const ServerRootNode& other );

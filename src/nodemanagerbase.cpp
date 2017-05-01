@@ -25,6 +25,7 @@
 #include <iostream>
 #include <opcua_basedatavariabletype.h>
 #include <stdexcept>
+#include <uadatavariablecache.h>
 
 NodeManagerBase::NodeManagerBase( const char* uri, bool sth, int hashtablesize ):
   m_server(0),
@@ -131,12 +132,17 @@ UA_StatusCode unifiedCall(
         size_t outputSize,
 		UA_Variant *output)
 {
-	LOG(Log::INF) << "called! handle=" << methodHandle;
+	LOG(Log::INF) << "called! handle=" << methodHandle << " size=" << inputSize;
 	MethodHandleUaNode *handle = static_cast<MethodHandleUaNode*> (methodHandle);
 	OpcUa::BaseObjectType *receiver = static_cast<OpcUa::BaseObjectType*> ( handle->pUaObject() );
 
 	ServiceContext sc;
 	UaVariantArray inputArgs;
+
+	for (int i=0; i<inputSize; i++)
+	{
+		inputArgs[i] = UaVariant( input[i] );
+	}
 
 	SynchronousMethodCallback synchronousCallback;
 
@@ -172,10 +178,11 @@ UaStatus NodeManagerBase::addNodeAndReference(
     UaNode* to,
     const UaNodeId& refType)
 {
-	std::cout << __FILE__ << " " << __LINE__ << std::endl;
    // std::cout << __PRETTY_FUNCTION__ << "from.id=" << from.toString().toUtf8() << " to.id=" << to->nodeId().toString().toUtf8() <<  std::endl;
     // std::cout << "ref=" << refType.toString().toUtf8() << endl;
     UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
+
+
 	
     switch( to->nodeClass() )
     {
@@ -198,7 +205,6 @@ UaStatus NodeManagerBase::addNodeAndReference(
 		/*out new node id*/ &out
 		);    
 
-	    std::cout << "UA_Server_addObjectNode() finished with code " << std::hex << s << std::dec << std::endl;
 	    LOG(Log::INF) << "obtained output: ns=" << out.namespaceIndex << "," << UaString(&out.identifier.string).toUtf8();
 	    if (UA_STATUSCODE_GOOD == s)
 	    {
@@ -211,8 +217,16 @@ UaStatus NodeManagerBase::addNodeAndReference(
 	}
     case OpcUa_NodeClass_Variable:
 	{
-		// UA_DataSource dateDataSource = (UA_DataSource) {
-	    // 	.handle = &myInteger, .read = readInteger, .write = writeInteger};
+		// skip HasProperty
+
+		if (refType == OpcUaId_HasProperty)
+		{
+			LOG(Log::INF) << "skipping HasProperty, method instantiation is circumvented in open62541 ... ";
+			parent->addReferencedTarget(to, refType);
+			return OpcUa_Good;
+
+		}
+
 	    UA_DataSource dateDataSource 
 	    {
 		static_cast<void*>(to),
@@ -257,6 +271,30 @@ UaStatus NodeManagerBase::addNodeAndReference(
     	handle->setUaNodes( static_cast<UaObject*>(parent), static_cast<UaMethod*>(to) );
 
     	LOG(Log::INF) << "parent node: " << parent->nodeId().toFullString().toUtf8();
+
+    	const std::list<UaNode::ReferencedTarget>* referenced =  to->referencedTargets();
+    	LOG(Log::INF) << "Referenced nodes: " << referenced->size();
+
+    	UA_Argument *inArgs = 0;
+    	int inArgsSize = 0;
+
+    	for ( std::list<UaNode::ReferencedTarget>::const_iterator it = referenced->cbegin(); it!=referenced->cend(); it++ )
+    	{
+    		const UaNode::ReferencedTarget& refTarget = *it;
+    		if (refTarget.referenceTypeId == OpcUaId_HasProperty)
+    		{
+    			const UaPropertyMethodArgument* property = dynamic_cast<const UaPropertyMethodArgument*> ( refTarget.target );
+    			inArgsSize = property->numArguments();
+    			inArgs = new UA_Argument[ property->numArguments() ];
+    			for (int i=0; i < property->numArguments(); ++i )
+    			{
+    				inArgs[i] = property->implArgument(i);
+    				LOG(Log::INF) << "Configured: " << inArgs[i].name.data;
+    			}
+
+    		}
+    	}
+
     	UA_StatusCode s =
     	UA_Server_addMethodNode(
     			m_server,
@@ -267,8 +305,8 @@ UaStatus NodeManagerBase::addNodeAndReference(
 				attr,
     	        unifiedCall,
 				/*void *handle*/ (void*)handle,
-    	        /*size_t inputArgumentsSize*/ 0,
-    	        /*const UA_Argument* inputArguments*/ 0,
+    	        /*size_t inputArgumentsSize*/ inArgsSize,
+    	        /*const UA_Argument* inputArguments*/ inArgs,
     	        /*size_t outputArgumentsSize*/ 0,
 				/*const UA_Argument* outputArguments*/ 0,
     	        NULL);

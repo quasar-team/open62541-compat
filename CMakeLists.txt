@@ -23,5 +23,6 @@ add_library ( open62541-compat OBJECT
   src/uabytestring.cpp
   src/uastring.cpp
   src/uavariant.cpp
+  src/uadatavariablecache.cpp
   )
 

@@ -22,10 +22,18 @@
 #ifndef OPEN62541_COMPAT_INCLUDE_METHODMANAGER_H_
 #define OPEN62541_COMPAT_INCLUDE_METHODMANAGER_H_
 
+#include <uavariant.h>
+
     // temporary
 	// FIXME
     class UaVariantArray
     {
+    public:
+    	const UaVariant& operator[](unsigned int index) const { return m_data[index]; }
+    	UaVariant& operator[](unsigned int index) { return m_data[index]; }
+
+    private:
+    	UaVariant m_data[100];
 
     };
 

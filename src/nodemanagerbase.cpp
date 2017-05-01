@@ -114,13 +114,16 @@ public:
 	{
 		// TODO: store the answer
 		this->m_resultStatus = statusCode;
+		m_outputs = outputArguments;
 		return OpcUa_Good;
 	}
 
 	UaStatus getStatusCode () const { return m_resultStatus; }
+	UaVariantArray& outputs() { return m_outputs; }
 
 private:
 	UaStatus m_resultStatus;
+	UaVariantArray m_outputs;
 
 };
 
@@ -139,6 +142,7 @@ UA_StatusCode unifiedCall(
 	ServiceContext sc;
 	UaVariantArray inputArgs;
 
+	inputArgs.create( inputSize );
 	for (int i=0; i<inputSize; i++)
 	{
 		inputArgs[i] = UaVariant( input[i] );
@@ -157,6 +161,14 @@ UA_StatusCode unifiedCall(
 
 	if (status.isNotGood())
 		return status; // beginning failed ...
+
+
+
+	for (int i=0; i<outputSize; ++i)
+	{
+		const UA_Variant* from = synchronousCallback.outputs()[i].impl();
+		UA_Variant_copy(from, output+i);
+	}
 
 
 	return synchronousCallback.getStatusCode();
@@ -277,6 +289,8 @@ UaStatus NodeManagerBase::addNodeAndReference(
 
     	UA_Argument *inArgs = 0;
     	int inArgsSize = 0;
+    	UA_Argument *outArgs = 0;
+    	int outArgsSize = 0;
 
     	for ( std::list<UaNode::ReferencedTarget>::const_iterator it = referenced->cbegin(); it!=referenced->cend(); it++ )
     	{
@@ -284,15 +298,29 @@ UaStatus NodeManagerBase::addNodeAndReference(
     		if (refTarget.referenceTypeId == OpcUaId_HasProperty)
     		{
     			const UaPropertyMethodArgument* property = dynamic_cast<const UaPropertyMethodArgument*> ( refTarget.target );
-    			inArgsSize = property->numArguments();
-    			inArgs = new UA_Argument[ property->numArguments() ];
-    			for (int i=0; i < property->numArguments(); ++i )
+    			if (property->argumentType() == UaPropertyMethodArgument::INARGUMENTS)
     			{
-    				inArgs[i] = property->implArgument(i);
-    				LOG(Log::INF) << "Configured: " << inArgs[i].name.data;
+					inArgsSize = property->numArguments();
+					inArgs = new UA_Argument[ property->numArguments() ];
+					for (int i=0; i < property->numArguments(); ++i )
+					{
+						inArgs[i] = property->implArgument(i);
+						LOG(Log::INF) << "Configured: " << inArgs[i].name.data;
+					}
+    			}
+    			else
+    			{
+					outArgsSize = property->numArguments();
+					outArgs = new UA_Argument[ property->numArguments() ];
+					for (int i=0; i < property->numArguments(); ++i )
+					{
+						outArgs[i] = property->implArgument(i);
+						LOG(Log::INF) << "Configured: " << outArgs[i].name.data;
+					}
     			}
 
     		}
+
     	}
 
     	UA_StatusCode s =
@@ -307,8 +335,8 @@ UaStatus NodeManagerBase::addNodeAndReference(
 				/*void *handle*/ (void*)handle,
     	        /*size_t inputArgumentsSize*/ inArgsSize,
     	        /*const UA_Argument* inputArguments*/ inArgs,
-    	        /*size_t outputArgumentsSize*/ 0,
-				/*const UA_Argument* outputArguments*/ 0,
+    	        /*size_t outputArgumentsSize*/ outArgsSize,
+				/*const UA_Argument* outputArguments*/ outArgs,
     	        NULL);
     	LOG(Log::INF) << "status code: " << std::hex << s;
 		m_listNodes.push_back( to );

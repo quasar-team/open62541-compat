@@ -54,11 +54,14 @@ public:
 
 	unsigned int numArguments () const { return m_numberArguments; }
 
+	ArgumentType argumentType () const { return m_argumentType; }
+
 private:
-	UaNodeId        m_nodeId;
-	UaQualifiedName m_browseName;
-	UA_Argument **  m_impl;
+	const UaNodeId        m_nodeId;
+	const UaQualifiedName m_browseName;
+	UA_Argument **        m_impl;
 	const unsigned int    m_numberArguments;
+	const ArgumentType    m_argumentType;
 
 };
 

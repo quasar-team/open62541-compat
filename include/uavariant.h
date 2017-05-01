@@ -2,6 +2,7 @@
  *
  *  Created on: 15 Nov,  2015
  *      Author: Piotr Nikiel <piotr@nikiel.info>
+ *      Author: bfarnham
  *
  *  This file is part of Quasar.
  *
@@ -79,8 +80,10 @@ class UaVariant
   UaVariant( OpcUa_UInt32 v );
   UaVariant( OpcUa_Int32 v );
   UaVariant( OpcUa_Float v );
+  UaVariant( OpcUa_Double v );
   UaVariant( OpcUa_Boolean v );
   
+
   ~UaVariant();
   OpcUaType type() const;
     
@@ -119,6 +122,9 @@ class UaVariant
   UaString toString( ) const;
   UaString toFullString() const;
   
+  // copy-To has a signature with UaVariant however it should be the stack type. This is best effort compat we can get at the moment. (pnikiel)
+  UaStatus copyTo ( UaVariant* to ) { *to = UaVariant( *m_impl ); return OpcUa_Good; }
+
   const UA_Variant* impl() const { return m_impl; }
  private:
   static UA_Variant* createAndCheckOpen62541Variant();

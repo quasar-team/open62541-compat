@@ -19,9 +19,10 @@ UaPropertyMethodArgument::UaPropertyMethodArgument  (
 			m_nodeId(nodeId),
 			m_impl( new UA_Argument* [ numberOfArguments] ),
 			m_numberArguments( numberOfArguments ),
-			m_browseName(0, "inargs")
+			m_browseName(0, "args"),
+			m_argumentType(argumentType)
 {
-	// TODO : store arg type
+
 	for (int i=0; i<numberOfArguments; ++i)
 		m_impl[i] = UA_Argument_new();
 

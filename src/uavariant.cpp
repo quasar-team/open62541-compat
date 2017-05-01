@@ -84,6 +84,13 @@ UaVariant::UaVariant( OpcUa_Float v )
 	LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
+UaVariant::UaVariant( OpcUa_Double v )
+:m_impl(createAndCheckOpen62541Variant())
+{
+	setDouble(v);
+	LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+}
+
 UaVariant::UaVariant( OpcUa_Boolean v )
 :m_impl(createAndCheckOpen62541Variant())
 {

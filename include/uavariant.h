@@ -110,6 +110,7 @@ class UaVariant
   // getters
   UaStatus toBool( OpcUa_Boolean& value) const;
   UaStatus toInt16( OpcUa_Int16& value) const;
+  UaStatus toUInt16( OpcUa_UInt16& value) const;
   UaStatus toInt32( OpcUa_Int32& value ) const;
   UaStatus toUInt32( OpcUa_UInt32& value ) const;
   UaStatus toInt64( OpcUa_Int64& value ) const;

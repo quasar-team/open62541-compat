@@ -256,6 +256,11 @@ UaStatus UaVariant::toInt16( OpcUa_Int16& out ) const
     return toSimpleType( &UA_TYPES[UA_TYPES_INT16], &out );
 }
 
+UaStatus UaVariant::toUInt16( OpcUa_UInt16& out) const
+{
+	return toSimpleType( &UA_TYPES[UA_TYPES_UINT16], &out );
+}
+
 UaStatus UaVariant::toInt32( OpcUa_Int32& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_INT32], &out );
@@ -269,6 +274,11 @@ UaStatus UaVariant::toUInt32( OpcUa_UInt32& out ) const
 UaStatus UaVariant::toInt64( OpcUa_Int64& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_INT64], &out );
+}
+
+UaStatus UaVariant::toUInt64( OpcUa_UInt64& out ) const
+{
+    return toSimpleType( &UA_TYPES[UA_TYPES_UINT64], &out );
 }
 
 UaStatus UaVariant::toByte(OpcUa_Byte& out) const

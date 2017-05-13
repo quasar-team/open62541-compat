@@ -10,6 +10,7 @@
 
 #include <uanode.h>
 #include <statuscode.h>
+#include <uabasenodes.h>
 
 class UaUInt32Array
 {

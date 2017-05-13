@@ -25,6 +25,7 @@
 #include <uanode.h>
 #include <uabasenodes.h>
 #include <nodemanagerbase.h>
+#include <uadatavariablecache.h>
 #include <methodhandleuanode.h>
 #include <methodmanager.h>
 

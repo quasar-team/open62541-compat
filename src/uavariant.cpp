@@ -70,6 +70,20 @@ UaVariant::UaVariant( OpcUa_Int32 v )
     LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
+UaVariant::UaVariant( OpcUa_UInt64 v )
+:m_impl(createAndCheckOpen62541Variant())
+{
+    setUInt64( v );
+    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+}
+
+UaVariant::UaVariant( OpcUa_Int64 v )
+:m_impl(createAndCheckOpen62541Variant())
+{
+    setInt64( v );
+    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+}
+
 UaVariant::UaVariant( const UaString& v )
 :m_impl(createAndCheckOpen62541Variant())
 {
@@ -298,7 +312,14 @@ UaStatus UaVariant::toDouble( OpcUa_Double& out ) const
 
 UaStatus UaVariant::toByteString( UaByteString& out) const
 {
-	return toSimpleType( &UA_TYPES[UA_TYPES_BYTESTRING], &out );
+	if (m_impl->type != &UA_TYPES[UA_TYPES_BYTESTRING])
+		throw std::runtime_error("not-a-bytestring-and-conversion-not-implemented");
+
+	UA_ByteString * encapsulated = static_cast<UA_ByteString*> (m_impl->data); // nasty, isn't it?
+
+	out.setByteString( encapsulated->length, encapsulated->data );
+
+	return OpcUa_Good;
 }
 
 UaString UaVariant::toString( ) const

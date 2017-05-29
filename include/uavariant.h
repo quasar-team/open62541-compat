@@ -79,6 +79,8 @@ class UaVariant
   UaVariant( const UaString& v );
   UaVariant( OpcUa_UInt32 v );
   UaVariant( OpcUa_Int32 v );
+  UaVariant( OpcUa_UInt64 v );
+  UaVariant( OpcUa_Int64 v );
   UaVariant( OpcUa_Float v );
   UaVariant( OpcUa_Double v );
   UaVariant( OpcUa_Boolean v );

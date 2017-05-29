@@ -55,12 +55,15 @@ void UaByteString::setByteString (const int len, OpcUa_Byte *data)
 		UA_ByteString_deleteMembers( m_impl );
 		m_impl->data = 0;
 	}
-	m_impl->data = (UA_Byte*)malloc( len );
-	if (!m_impl->data)
+	if (len>0)
 	{
-		throw alloc_error();
+		m_impl->data = (UA_Byte*)malloc( len );
+		if (!m_impl->data)
+		{
+			throw alloc_error();
+		}
+		memcpy( m_impl->data, data, len );
 	}
-	memcpy( m_impl->data, data, len );
 	m_impl->length = len;
 
 }

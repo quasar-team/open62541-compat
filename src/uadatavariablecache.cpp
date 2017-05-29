@@ -17,13 +17,13 @@ UaPropertyMethodArgument::UaPropertyMethodArgument  (
 			OpcUa_UInt32   numberOfArguments,
 			ArgumentType   argumentType):
 			m_nodeId(nodeId),
-			m_impl( new UA_Argument* [ numberOfArguments] ),
 			m_numberArguments( numberOfArguments ),
 			m_browseName(0, "args"),
+			m_impl( new UA_Argument* [ numberOfArguments] ),
 			m_argumentType(argumentType)
 {
 
-	for (int i=0; i<numberOfArguments; ++i)
+	for (unsigned int i=0; i<numberOfArguments; ++i)
 		m_impl[i] = UA_Argument_new();
 
 }

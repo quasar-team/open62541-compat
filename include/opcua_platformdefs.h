@@ -32,3 +32,6 @@ typedef uint64_t OpcUa_UInt64;
 typedef int64_t  OpcUa_Int64;
 typedef float    OpcUa_Float;
 typedef double   OpcUa_Double;
+
+#include <uastring.h>
+#include <uabytestring.h>

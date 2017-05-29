@@ -305,8 +305,9 @@ namespace OpcUa
 			const UaString &name,
 			OpcUa_UInt16 browseNameNameSpaceIndex,
 			UaMutexRefCounted *pSharedMutex):
-				m_browseName(browseNameNameSpaceIndex, name),
-				m_nodeId(nodeId)
+				m_nodeId(nodeId),
+				m_browseName(browseNameNameSpaceIndex, name)
+
 	{
 
 	}
@@ -320,9 +321,10 @@ namespace OpcUa
         OpcUa_Byte         accessLevel,
         NodeManagerConfig* pNodeConfig,
         UaMutexRefCounted* pSharedMutex):
-        m_nodeId (nodeId),
+
         m_browseName( browseNameNameSpaceIndex, name),
-        m_currentValue( initialValue, OpcUa_Good, UaDateTime::now(), UaDateTime::now() )
+        m_currentValue( initialValue, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ),
+		m_nodeId (nodeId)
 							   
     {
         //      std::cout << __PRETTY_FUNCTION__ <<" (nodeId="<<nodeId.toString().toUtf8()<<")" << std::endl;

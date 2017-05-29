@@ -59,9 +59,9 @@ public:
 
 private:
 	const UaNodeId        m_nodeId;
+	const unsigned int    m_numberArguments;
 	const UaQualifiedName m_browseName;
 	UA_Argument **        m_impl;
-	const unsigned int    m_numberArguments;
 	const ArgumentType    m_argumentType;
 
 };

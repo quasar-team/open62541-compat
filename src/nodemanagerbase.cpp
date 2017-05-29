@@ -143,7 +143,7 @@ UA_StatusCode unifiedCall(
 	UaVariantArray inputArgs;
 
 	inputArgs.create( inputSize );
-	for (int i=0; i<inputSize; i++)
+	for (size_t i=0; i<inputSize; ++i)
 	{
 		inputArgs[i] = UaVariant( input[i] );
 	}
@@ -164,7 +164,7 @@ UA_StatusCode unifiedCall(
 
 
 
-	for (int i=0; i<outputSize; ++i)
+	for (size_t i=0; i<outputSize; ++i)
 	{
 		const UA_Variant* from = synchronousCallback.outputs()[i].impl();
 		UA_Variant_copy(from, output+i);
@@ -233,7 +233,8 @@ UaStatus NodeManagerBase::addNodeAndReference(
 
 		if (refType == OpcUaId_HasProperty)
 		{
-			LOG(Log::INF) << "skipping HasProperty, method instantiation is circumvented in open62541 ... ";
+			// We don't add Properties to the Address Space when open62541-compat is in use
+			// open62541 does it differently: when you add a method, then you specify the properties
 			parent->addReferencedTarget(to, refType);
 			return OpcUa_Good;
 
@@ -302,20 +303,20 @@ UaStatus NodeManagerBase::addNodeAndReference(
     			{
 					inArgsSize = property->numArguments();
 					inArgs = new UA_Argument[ property->numArguments() ];
-					for (int i=0; i < property->numArguments(); ++i )
+					for (unsigned int i=0; i < property->numArguments(); ++i )
 					{
 						inArgs[i] = property->implArgument(i);
-						LOG(Log::INF) << "Configured: " << inArgs[i].name.data;
+						//LOG(Log::INF) << "Configured: " << inArgs[i].name.data;
 					}
     			}
     			else
     			{
 					outArgsSize = property->numArguments();
 					outArgs = new UA_Argument[ property->numArguments() ];
-					for (int i=0; i < property->numArguments(); ++i )
+					for (unsigned int i=0; i < property->numArguments(); ++i )
 					{
 						outArgs[i] = property->implArgument(i);
-						LOG(Log::INF) << "Configured: " << outArgs[i].name.data;
+						//LOG(Log::INF) << "Configured: " << outArgs[i].name.data;
 					}
     			}
 

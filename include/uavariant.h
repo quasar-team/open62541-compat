@@ -61,7 +61,8 @@ enum OpcUaType
     OpcUaType_Double     =  UA_NS0ID_DOUBLE,
     OpcUaType_String     =  UA_NS0ID_STRING,
     // support for datetime and guid missing in the compat module
-    OpcUaType_ByteString = UA_NS0ID_BYTESTRING
+    OpcUaType_ByteString =  UA_NS0ID_BYTESTRING,
+	OpcUaType_Variant    =  UA_NS0ID_BASEDATATYPE
     // support for remaining types, i.e. nodeid or statuscode also still missing
   };
 

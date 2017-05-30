@@ -27,6 +27,8 @@
 
 #include <string>
 
+#include <uabytestring.h>
+
 class UaString
 {
     //! NOTE: All constructors allocate memory for new string's data. There is no memory reuse of any kind.

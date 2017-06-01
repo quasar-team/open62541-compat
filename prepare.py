@@ -26,7 +26,12 @@ open6Dir = os.path.join(baseDir, 'open62541')
 open6BuildDir = os.path.join(open6Dir, 'build')
 CMD_generateProjForVisStu12 = 'cmake -DUA_ENABLE_AMALGAMATION=ON {0} -G "Visual Studio 12 Win64"'.format(open6Dir)
 CMD_loadVisStu12Env = '"C:\\Program Files (x86)\\Microsoft Visual Studio 12.0\\VC\\vcvarsall.bat" amd64'
-CMD_buildProjWithVisStu12 = 'msbuild {0} /clp:ErrorsOnly /property:Platform=x64;Configuration=Release'.format(os.path.join(open6BuildDir, 'ALL_BUILD.vcxproj'))
+
+def generateVisualStudioBuildCommand(buildType):
+	print 'generating visual studio build command string for build type [{0}]'.format(buildType)
+	result = 'msbuild {0} /clp:ErrorsOnly /verbosity:detailed /property:Platform=x64 /property:Configuration="{1}"'.format(os.path.join(open6BuildDir, 'ALL_BUILD.vcxproj'), buildType)
+	print 'generated msbuild command: {0}'.format(result)
+	return result
 
 def remove_readonly(func, path, _):
 	print('clearing read only flag for directory [{0}]'.format(path))
@@ -55,8 +60,9 @@ def main():
 		print('generating Visual Studio 12 project, command: {0}', format(CMD_generateProjForVisStu12))
 		subprocess.check_call(CMD_generateProjForVisStu12, shell=True)
 
-		print('loading Visual Studio 12 environment and building project (in same shell to retain environment vars), command: {0} && {1}'.format(CMD_loadVisStu12Env, CMD_buildProjWithVisStu12))
-		subprocess.check_call('{0} && {1}'.format(CMD_loadVisStu12Env, CMD_buildProjWithVisStu12), shell=True)
+		print('loading Visual Studio 12 environment and building project (in same shell to retain environment vars)')
+		subprocess.check_call('{0} && {1} && {2}'.format(CMD_loadVisStu12Env, generateVisualStudioBuildCommand('Release'), generateVisualStudioBuildCommand('Debug')), shell=True)
+
 	elif platform.system() == "Linux":
 		print('cmake -DUA_ENABLE_AMALGAMATION=ON ../')
 		subprocess.check_call(['cmake', '-DUA_ENABLE_AMALGAMATION=ON', '../'])

@@ -150,9 +150,9 @@ UaString UaDateTime::toString() const
 }
 
 UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime ):
-    m_lock( ATOMIC_FLAG_INIT )
-
+    m_lock()
 {
+	m_lock.clear();
     m_impl = UA_DataValue_new ();
     if (!m_impl)
         throw std::runtime_error( "UA_DataValue_new returned 0" );
@@ -167,8 +167,9 @@ UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode,
 }
 
 UaDataValue::UaDataValue( const UaDataValue& other ):
-    m_lock( ATOMIC_FLAG_INIT )
+    m_lock()
 {
+	m_lock.clear();
     m_impl = UA_DataValue_new ();
     // LOG(Log::INF) << "allocated new UA_DataValue @ " <<  m_impl;  
     UA_DataValue_copy( other.m_impl, m_impl );

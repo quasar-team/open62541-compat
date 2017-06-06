@@ -38,7 +38,7 @@ NodeManagerBase::~NodeManagerBase()
 {
 
 
-    std::cout << __PRETTY_FUNCTION__ << std::endl;
+    std::cout << __FUNCTION__ << std::endl;
     std::cout << "m_listNodes.size=" << m_listNodes.size() << std::endl;
     while (!m_listNodes.empty())
     {
@@ -190,7 +190,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
     UaNode* to,
     const UaNodeId& refType)
 {
-   // std::cout << __PRETTY_FUNCTION__ << "from.id=" << from.toString().toUtf8() << " to.id=" << to->nodeId().toString().toUtf8() <<  std::endl;
+   // std::cout << __FUNCTION__ << "from.id=" << from.toString().toUtf8() << " to.id=" << to->nodeId().toString().toUtf8() <<  std::endl;
     // std::cout << "ref=" << refType.toString().toUtf8() << endl;
     UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
 

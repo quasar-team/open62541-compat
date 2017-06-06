@@ -53,21 +53,21 @@ void UaVariant::destroyOpen62541Variant(UA_Variant* open62541Variant)
 UaVariant::UaVariant ()
 :m_impl(createAndCheckOpen62541Variant())
 {
-    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_UInt32 v )
 :m_impl(createAndCheckOpen62541Variant())
 {
     setUInt32( v );
-    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_Int32 v )
 :m_impl(createAndCheckOpen62541Variant())
 {
     setInt32( v );
-    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_UInt64 v )
@@ -88,14 +88,14 @@ UaVariant::UaVariant( const UaString& v )
 :m_impl(createAndCheckOpen62541Variant())
 {
     setString( v );
-    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_Float v )
 :m_impl(createAndCheckOpen62541Variant())
 {
 	setFloat(v);
-	LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+	LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_Double v )
@@ -109,7 +109,7 @@ UaVariant::UaVariant( OpcUa_Boolean v )
 :m_impl(createAndCheckOpen62541Variant())
 {
 	setBool(v);
-	LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+	LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const UaVariant& other)
@@ -118,7 +118,7 @@ UaVariant::UaVariant( const UaVariant& other)
     const UA_StatusCode status = UA_Variant_copy( other.m_impl, this->m_impl );
     if (status != UA_STATUSCODE_GOOD)
     	throw std::runtime_error("UA_Variant_copy failed 0x"+Utils::toHexString(status) );
-    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 
@@ -131,7 +131,7 @@ void UaVariant::operator= (const UaVariant &other)
     if (status != UA_STATUSCODE_GOOD)
         throw std::runtime_error("UA_Variant_copy failed 0x"+Utils::toHexString(status) );
 
-    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 bool UaVariant::operator==(const UaVariant& other) const
@@ -159,7 +159,7 @@ UaVariant::UaVariant( const UA_Variant& other )
 
 UaVariant::~UaVariant()
 {
-    LOG(Log::TRC) <<"+"<< __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+    LOG(Log::TRC) <<"+"<< __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
     destroyOpen62541Variant(m_impl);
     m_impl = 0;
 }
@@ -350,13 +350,13 @@ UaStatus UaVariant::toSimpleType( const UA_DataType* dataType, T* out ) const
     //TODO: in principle it should be possible to convert i.e. Int16->Int32, or Byte->Int16, or so... but this is not supported yet
     if (!m_impl || !m_impl->data)
     {
-    	LOG(Log::DBG) << __PRETTY_FUNCTION__ << " conversion failed, variant is null";
+    	LOG(Log::DBG) << __FUNCTION__ << " conversion failed, variant is null";
         return OpcUa_Bad;
     }
 
     if (dataType != m_impl->type)
     {
-    	LOG(Log::DBG) << __PRETTY_FUNCTION__ << " conversion failed, target type ["<<dataType<<"] does not match variant type ["<<m_impl->type<<"]";
+    	LOG(Log::DBG) << __FUNCTION__ << " conversion failed, target type ["<<dataType<<"] does not match variant type ["<<m_impl->type<<"]";
         return OpcUa_Bad;  // Incompatible data type
     }
 

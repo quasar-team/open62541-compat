@@ -324,7 +324,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
 
     	}
 
-    	UA_StatusCode s =
+    	UaStatus s =
     	UA_Server_addMethodNode(
     			m_server,
 				to->nodeId().impl(),
@@ -339,7 +339,10 @@ UaStatus NodeManagerBase::addNodeAndReference(
     	        /*size_t outputArgumentsSize*/ outArgsSize,
 				/*const UA_Argument* outputArguments*/ outArgs,
     	        NULL);
-    	LOG(Log::INF) << "status code: " << std::hex << s;
+    	if (! s.isGood())
+    	{
+    	    throw std::runtime_error("failed to add the method node:"+std::string(s.toString().toUtf8()));
+    	}
 		m_listNodes.push_back( to );
 		parent->addReferencedTarget( to, refType );
     	return 0;

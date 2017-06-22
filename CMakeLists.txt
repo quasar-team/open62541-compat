@@ -25,5 +25,6 @@ add_library ( open62541-compat OBJECT
   src/uavariant.cpp
   src/uadatavariablecache.cpp
   src/arrays.cpp
+  src/statuscode.cpp
   )
 

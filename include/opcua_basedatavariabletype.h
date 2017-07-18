@@ -52,12 +52,14 @@ namespace OpcUa
 	virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE,0); }
 	virtual void setDataType( const UaNodeId& typeref ) {}
 	virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Variable; }
+	virtual UaNodeId nodeId() const { return m_nodeId; }
 
         const UA_DataValue* valueImpl() const { return m_currentValue.impl(); }
 
     private:
 	UaQualifiedName m_browseName;
 	UaDataValue m_currentValue;
+	UaNodeId m_nodeId;
     };
 
 

@@ -43,6 +43,7 @@
 #define OpcUa_BadInvalidState UA_STATUSCODE_BADINVALIDSTATE
 #define OpcUa_UncertainInitialValue UA_STATUSCODE_UNCERTAININITIALVALUE
 #define OpcUa_BadUnexpectedError UA_STATUSCODE_BADUNEXPECTEDERROR
+#define OpcUa_BadParentNodeIdInvalid UA_STATUSCODE_BADPARENTNODEIDINVALID
 
 typedef OpcUa_UInt32 OpcUa_StatusCode;
 
@@ -54,13 +55,13 @@ UaStatus(): m_status(0x66666) {} // uninitialized
     bool isGood() const { return m_status == UA_STATUSCODE_GOOD; }
     bool isNotGood() const { return !isGood(); }
     bool isBad() const;
-    UaString toString() const { return "???"; }
+    UaString toString() const;
 
 //TODO: check??
     int statusCode() const { return m_status; }
     operator UA_StatusCode() const { return (UA_StatusCode)m_status; }
 private:
-    int m_status;
+    OpcUa_StatusCode m_status;
 };
 
 #endif //__STATUSCODE_H__

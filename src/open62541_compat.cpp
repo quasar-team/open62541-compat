@@ -266,8 +266,7 @@ bool UaNodeId::operator==(const UaNodeId& other) const
     return UA_NodeId_equal( &m_impl, &other.m_impl );
 }
 
-UaNode::UaNode (UaNodeId n_id):
-    m_nodeId (n_id)
+UaNode::UaNode ()
 {
 }
 
@@ -295,12 +294,24 @@ namespace OpcUa
         OpcUa_UInt16  browseNameNameSpaceIndex, 
         NodeManagerConfig *nm
         ):
-        UaNode(nodeId),
+        m_nodeId(nodeId),
         m_browseName( browseNameNameSpaceIndex, name )
     {
         //      std::cout << __PRETTY_FUNCTION__ << std::endl;
         //      std::cout << "nodeId=" << nodeId.toString().toUtf8() << std::endl;
     }
+
+	BaseMethod::BaseMethod (
+			const UaNodeId &nodeId,
+			const UaString &name,
+			OpcUa_UInt16 browseNameNameSpaceIndex,
+			UaMutexRefCounted *pSharedMutex):
+				m_nodeId(nodeId),
+				m_browseName(browseNameNameSpaceIndex, name)
+
+	{
+
+	}
 
 
     BaseDataVariableType::BaseDataVariableType(
@@ -311,9 +322,10 @@ namespace OpcUa
         OpcUa_Byte         accessLevel,
         NodeManagerConfig* pNodeConfig,
         UaMutexRefCounted* pSharedMutex):
-        UaNode (nodeId),
+
         m_browseName( browseNameNameSpaceIndex, name),
-        m_currentValue( initialValue, OpcUa_Good, UaDateTime::now(), UaDateTime::now() )
+        m_currentValue( initialValue, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ),
+		m_nodeId (nodeId)
 							   
     {
         //      std::cout << __PRETTY_FUNCTION__ <<" (nodeId="<<nodeId.toString().toUtf8()<<")" << std::endl;

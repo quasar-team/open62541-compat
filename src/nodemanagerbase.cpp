@@ -25,6 +25,7 @@
 #include <iostream>
 #include <opcua_basedatavariabletype.h>
 #include <stdexcept>
+#include <uadatavariablecache.h>
 
 NodeManagerBase::NodeManagerBase( const char* uri, bool sth, int hashtablesize ):
   m_server(0),
@@ -99,6 +100,80 @@ static UA_StatusCode unifiedWrite(void *handle, const UA_NodeId nodeid, const UA
     return status;
 }
 
+class SynchronousMethodCallback: public MethodManagerCallback
+{
+public:
+	virtual ~SynchronousMethodCallback () {}
+
+	virtual UaStatus 	finishCall (
+			OpcUa_UInt32 callbackHandle,
+			UaStatusCodeArray &inputArgumentResults,
+			UaDiagnosticInfos &inputArgumentDiag,
+			UaVariantArray &outputArguments,
+			UaStatus &statusCode)
+	{
+		// TODO: store the answer
+		this->m_resultStatus = statusCode;
+		m_outputs = outputArguments;
+		return OpcUa_Good;
+	}
+
+	UaStatus getStatusCode () const { return m_resultStatus; }
+	UaVariantArray& outputs() { return m_outputs; }
+
+private:
+	UaStatus m_resultStatus;
+	UaVariantArray m_outputs;
+
+};
+
+UA_StatusCode unifiedCall(
+		void *methodHandle,
+		const UA_NodeId objectId,
+        size_t inputSize,
+		const UA_Variant *input,
+        size_t outputSize,
+		UA_Variant *output)
+{
+	LOG(Log::INF) << "called! handle=" << methodHandle << " size=" << inputSize;
+	MethodHandleUaNode *handle = static_cast<MethodHandleUaNode*> (methodHandle);
+	OpcUa::BaseObjectType *receiver = static_cast<OpcUa::BaseObjectType*> ( handle->pUaObject() );
+
+	ServiceContext sc;
+	UaVariantArray inputArgs;
+
+	inputArgs.create( inputSize );
+	for (size_t i=0; i<inputSize; ++i)
+	{
+		inputArgs[i] = UaVariant( input[i] );
+	}
+
+	SynchronousMethodCallback synchronousCallback;
+
+	UaStatus status =
+	receiver->beginCall(
+			&synchronousCallback  /* callback */,
+			sc /* fake service context */,
+			0 /* fake callback handle */,
+			handle /* fake method handle */,
+			inputArgs
+			);
+
+	if (status.isNotGood())
+		return status; // beginning failed ...
+
+
+
+	for (size_t i=0; i<outputSize; ++i)
+	{
+		const UA_Variant* from = synchronousCallback.outputs()[i].impl();
+		UA_Variant_copy(from, output+i);
+	}
+
+
+	return synchronousCallback.getStatusCode();
+}
+
 
     UaString localisationCode("en_US");
     
@@ -115,10 +190,11 @@ UaStatus NodeManagerBase::addNodeAndReference(
     UaNode* to,
     const UaNodeId& refType)
 {
-	std::cout << __FILE__ << " " << __LINE__ << std::endl;
    // std::cout << __FUNCTION__ << "from.id=" << from.toString().toUtf8() << " to.id=" << to->nodeId().toString().toUtf8() <<  std::endl;
     // std::cout << "ref=" << refType.toString().toUtf8() << endl;
     UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
+
+
 	
     switch( to->nodeClass() )
     {
@@ -128,6 +204,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
 	    UA_ObjectAttributes_init( &objectAttributes );
 	    objectAttributes.description = UA_LOCALIZEDTEXT("en_US","the answer");
 	    objectAttributes.displayName = *displayName.impl();
+	    UA_NodeId out;
 	    UA_StatusCode s = UA_Server_addObjectNode(
 		/*server*/ m_server,
 		/*newnodeid*/ to->nodeId().impl(),
@@ -137,20 +214,32 @@ UaStatus NodeManagerBase::addNodeAndReference(
 		/*type def*/ to->typeDefinitionId().impl(),
 		/* object attrs*/ objectAttributes,
                 /* instantiation cbk*/ 0,
-		/*out new node id*/ 0
+		/*out new node id*/ &out
 		);    
-	    std::cout << "UA_Server_addObjectNode() finished with code " << std::hex << s << std::dec << std::endl;
+
+	    LOG(Log::INF) << "obtained output: ns=" << out.namespaceIndex << "," << UaString(&out.identifier.string).toUtf8();
 	    if (UA_STATUSCODE_GOOD == s)
 	    {
-		m_listNodes.push_back( to );
-		parent->addReferencedTarget( to, refType );
+			m_listNodes.push_back( to );
+			parent->addReferencedTarget( to, refType );
 	    }
+	    else
+	    	LOG(Log::ERR) << "Failed to add new node: " << std::hex << s;
 	    return s;
 	}
     case OpcUa_NodeClass_Variable:
 	{
-		// UA_DataSource dateDataSource = (UA_DataSource) {
-	    // 	.handle = &myInteger, .read = readInteger, .write = writeInteger};
+		// skip HasProperty
+
+		if (refType == OpcUaId_HasProperty)
+		{
+			// We don't add Properties to the Address Space when open62541-compat is in use
+			// open62541 does it differently: when you add a method, then you specify the properties
+			parent->addReferencedTarget(to, refType);
+			return OpcUa_Good;
+
+		}
+
 	    UA_DataSource dateDataSource 
 	    {
 		static_cast<void*>(to),
@@ -181,6 +270,86 @@ UaStatus NodeManagerBase::addNodeAndReference(
 
 	    return s;
 	}
+
+    case OpcUa_NodeClass_Method:
+    {
+    	UA_MethodAttributes attr;
+    	UA_MethodAttributes_init(&attr);
+    	attr.executable = true;
+    	attr.userExecutable = true;
+    	attr.displayName = *displayName.impl();
+    	attr.description = UA_LOCALIZEDTEXT("en_US","the description");
+
+    	MethodHandleUaNode *handle = new MethodHandleUaNode;
+    	handle->setUaNodes( static_cast<UaObject*>(parent), static_cast<UaMethod*>(to) );
+
+    	LOG(Log::INF) << "parent node: " << parent->nodeId().toFullString().toUtf8();
+
+    	const std::list<UaNode::ReferencedTarget>* referenced =  to->referencedTargets();
+    	LOG(Log::INF) << "Referenced nodes: " << referenced->size();
+
+    	UA_Argument *inArgs = 0;
+    	int inArgsSize = 0;
+    	UA_Argument *outArgs = 0;
+    	int outArgsSize = 0;
+
+    	for ( std::list<UaNode::ReferencedTarget>::const_iterator it = referenced->cbegin(); it!=referenced->cend(); it++ )
+    	{
+    		const UaNode::ReferencedTarget& refTarget = *it;
+    		if (refTarget.referenceTypeId == OpcUaId_HasProperty)
+    		{
+    			const UaPropertyMethodArgument* property = dynamic_cast<const UaPropertyMethodArgument*> ( refTarget.target );
+    			if (property->argumentType() == UaPropertyMethodArgument::INARGUMENTS)
+    			{
+					inArgsSize = property->numArguments();
+					inArgs = new UA_Argument[ property->numArguments() ];
+					for (unsigned int i=0; i < property->numArguments(); ++i )
+					{
+						inArgs[i] = property->implArgument(i);
+						//LOG(Log::INF) << "Configured: " << inArgs[i].name.data;
+					}
+    			}
+    			else
+    			{
+					outArgsSize = property->numArguments();
+					outArgs = new UA_Argument[ property->numArguments() ];
+					for (unsigned int i=0; i < property->numArguments(); ++i )
+					{
+						outArgs[i] = property->implArgument(i);
+						//LOG(Log::INF) << "Configured: " << outArgs[i].name.data;
+					}
+    			}
+
+    		}
+
+    	}
+
+    	UaStatus s =
+    	UA_Server_addMethodNode(
+    			m_server,
+				to->nodeId().impl(),
+				parent->nodeId().impl(),
+				refType.impl(),
+				to->browseName().impl(),
+				attr,
+    	        unifiedCall,
+				/*void *handle*/ (void*)handle,
+    	        /*size_t inputArgumentsSize*/ inArgsSize,
+    	        /*const UA_Argument* inputArguments*/ inArgs,
+    	        /*size_t outputArgumentsSize*/ outArgsSize,
+				/*const UA_Argument* outputArguments*/ outArgs,
+    	        NULL);
+    	if (! s.isGood())
+    	{
+    	    throw std::runtime_error("failed to add the method node:"+std::string(s.toString().toUtf8()));
+    	}
+		m_listNodes.push_back( to );
+		parent->addReferencedTarget( to, refType );
+    	return 0;
+    };
+
+    default:
+    	throw std::runtime_error("not-impl");
 		
     }
 

@@ -23,12 +23,21 @@
 #define __OPCUA_BASEOBJECTTYPE_H__
 
 #include <uanode.h>
+#include <uabasenodes.h>
 #include <nodemanagerbase.h>
+#include <uadatavariablecache.h>
+#include <methodhandleuanode.h>
+#include <methodmanager.h>
+
+
+
+
+
 
 namespace OpcUa
 {
 
-    class BaseObjectType: public UaNode
+    class BaseObjectType: public UaObject, MethodManager
     {
     public:
 	BaseObjectType(
@@ -43,8 +52,42 @@ namespace OpcUa
 	virtual UaQualifiedName browseName() const { return m_browseName; }
 	virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Object; }
 	virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEOBJECTTYPE,0); }
+	virtual UaNodeId nodeId() const { return m_nodeId; }
+
+	virtual UaStatus beginCall (
+			MethodManagerCallback *callback,
+			const ServiceContext  &context,
+			OpcUa_UInt32          callbackHandle,
+			MethodHandle          *methodHandle,
+			const UaVariantArray  &inputArguments) { return OpcUa_Bad; }
+
     private:
+	UaNodeId m_nodeId;
 	UaQualifiedName m_browseName;
+    };
+
+
+
+    class BaseMethod: public UaMethod
+    {
+    public:
+    	BaseMethod (
+    			const UaNodeId &nodeId,
+				const UaString &name,
+				OpcUa_UInt16 browseNameNameSpaceIndex,
+				UaMutexRefCounted *pSharedMutex=NULL);
+
+
+
+    	virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Method; }
+    	virtual UaQualifiedName browseName() const { return m_browseName; }
+    	// FIXME
+    	virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEOBJECTTYPE,0); }
+    	virtual UaNodeId nodeId() const { return m_nodeId; }
+    private:
+    	UaNodeId m_nodeId;
+    	UaQualifiedName m_browseName;
+
     };
 
 }

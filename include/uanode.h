@@ -29,7 +29,8 @@
 enum OpcUa_NodeClass
 {
     OpcUa_NodeClass_Object,
-    OpcUa_NodeClass_Variable
+    OpcUa_NodeClass_Variable,
+	OpcUa_NodeClass_Method
 };
 
 
@@ -37,10 +38,10 @@ enum OpcUa_NodeClass
 class UaNode
 {
 public:
-    UaNode(UaNodeId nodeId);
+    UaNode();
     virtual ~UaNode() {}
 
-    UaNodeId nodeId() const { return m_nodeId; }
+    virtual UaNodeId nodeId() const = 0;
 
     virtual UaQualifiedName browseName() const = 0;
     virtual UaNodeId typeDefinitionId() const = 0;
@@ -57,8 +58,7 @@ public:
 
     void addReferencedTarget( UaNode* targetNode, UaNodeId referenceTypeId ) { m_referenceTargets.push_back( ReferencedTarget(targetNode, referenceTypeId));  }
     const std::list<ReferencedTarget>* referencedTargets() const { return &m_referenceTargets; }
-private:
-    UaNodeId m_nodeId;
+private:    
     std::list<ReferencedTarget> m_referenceTargets;
 
  

@@ -11,7 +11,7 @@ Redistribution and use in source and binary forms, with or without modification,
 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-@contact:    damian.abalo@cern.ch
+@contact:    quasar-developers@cern.ch
 '''
 
 import os
@@ -21,11 +21,20 @@ import shutil
 import platform
 import subprocess
 	
+open62541_commit_id = '0.2-rc2'
+open62541_config = ['-DUA_ENABLE_AMALGAMATION=ON','-DUA_ENABLE_METHODCALLS=ON']
+
 baseDir = os.getcwd()
 open6Dir = os.path.join(baseDir, 'open62541')
 open6BuildDir = os.path.join(open6Dir, 'build')
-CMD_generateProjForVisStu12 = 'cmake -DUA_ENABLE_AMALGAMATION=ON {0} -G "Visual Studio 12 Win64"'.format(open6Dir)
+CMD_generateProjForVisStu12 = 'cmake '+' '.join(open62541_config)+' {0} -G "Visual Studio 12 Win64"'.format(open6Dir)
 CMD_loadVisStu12Env = '"C:\\Program Files (x86)\\Microsoft Visual Studio 12.0\\VC\\vcvarsall.bat" amd64'
+
+
+
+def printAndExecute(args):
+        print 'Will do: '+' '.join(args)
+        subprocess.check_call(args)
 
 def generateVisualStudioBuildCommand(buildType):
 	print 'generating visual studio build command string for build type [{0}]'.format(buildType)
@@ -44,13 +53,11 @@ def main():
 		shutil.rmtree(open6Dir, onerror=remove_readonly)
 		print('does directory exist now? [{0}]'.format(os.path.exists(open6Dir)))
 
-	print('git clone https://github.com/open62541/open62541.git')
-	subprocess.check_call(['git', 'clone', 'https://github.com/open62541/open62541.git'])
+        printAndExecute( ['git', 'clone', 'https://github.com/open62541/open62541.git'] )
 	
 	os.chdir(open6Dir)
-	
-	print('git checkout 7b273f046a0affc61e83837f8df3b6377a835512')
-	subprocess.check_call(['git', 'checkout', '7b273f046a0affc61e83837f8df3b6377a835512'])
+
+	printAndExecute( ['git', 'checkout', '0.2-rc2'] )
 
 	shutil.rmtree(open6BuildDir, ignore_errors=True)
 	os.mkdir(open6BuildDir)
@@ -64,12 +71,10 @@ def main():
 		subprocess.check_call('{0} && {1} && {2}'.format(CMD_loadVisStu12Env, generateVisualStudioBuildCommand('Release'), generateVisualStudioBuildCommand('Debug')), shell=True)
 
 	elif platform.system() == "Linux":
-		print('cmake -DUA_ENABLE_AMALGAMATION=ON ../')
-		subprocess.check_call(['cmake', '-DUA_ENABLE_AMALGAMATION=ON', '../'])
-		print('make')
-		subprocess.check_call(['make'])
+		printAndExecute( ['cmake'] + open62541_config + [ '../'] )
+		printAndExecute( ['make'] )
 		
 	shutil.copyfile(os.path.join(open6BuildDir, 'open62541.h'), os.path.join(baseDir, 'include', 'open62541.h'))
-	shutil.copyfile(os.path.join(open6BuildDir, 'open62541.c'), os.path.join(baseDir, 'src', 'open62541.c'))
+
 	
 main()

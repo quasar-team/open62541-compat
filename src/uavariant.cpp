@@ -70,6 +70,20 @@ UaVariant::UaVariant( OpcUa_Int32 v )
     LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
+UaVariant::UaVariant( OpcUa_UInt64 v )
+:m_impl(createAndCheckOpen62541Variant())
+{
+    setUInt64( v );
+    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+}
+
+UaVariant::UaVariant( OpcUa_Int64 v )
+:m_impl(createAndCheckOpen62541Variant())
+{
+    setInt64( v );
+    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+}
+
 UaVariant::UaVariant( const UaString& v )
 :m_impl(createAndCheckOpen62541Variant())
 {
@@ -82,6 +96,13 @@ UaVariant::UaVariant( OpcUa_Float v )
 {
 	setFloat(v);
 	LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+}
+
+UaVariant::UaVariant( OpcUa_Double v )
+:m_impl(createAndCheckOpen62541Variant())
+{
+	setDouble(v);
+	LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_Boolean v )
@@ -249,6 +270,11 @@ UaStatus UaVariant::toInt16( OpcUa_Int16& out ) const
     return toSimpleType( &UA_TYPES[UA_TYPES_INT16], &out );
 }
 
+UaStatus UaVariant::toUInt16( OpcUa_UInt16& out) const
+{
+	return toSimpleType( &UA_TYPES[UA_TYPES_UINT16], &out );
+}
+
 UaStatus UaVariant::toInt32( OpcUa_Int32& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_INT32], &out );
@@ -262,6 +288,11 @@ UaStatus UaVariant::toUInt32( OpcUa_UInt32& out ) const
 UaStatus UaVariant::toInt64( OpcUa_Int64& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_INT64], &out );
+}
+
+UaStatus UaVariant::toUInt64( OpcUa_UInt64& out ) const
+{
+    return toSimpleType( &UA_TYPES[UA_TYPES_UINT64], &out );
 }
 
 UaStatus UaVariant::toByte(OpcUa_Byte& out) const
@@ -281,7 +312,14 @@ UaStatus UaVariant::toDouble( OpcUa_Double& out ) const
 
 UaStatus UaVariant::toByteString( UaByteString& out) const
 {
-	return toSimpleType( &UA_TYPES[UA_TYPES_BYTESTRING], &out );
+	if (m_impl->type != &UA_TYPES[UA_TYPES_BYTESTRING])
+		throw std::runtime_error("not-a-bytestring-and-conversion-not-implemented");
+
+	UA_ByteString * encapsulated = static_cast<UA_ByteString*> (m_impl->data); // nasty, isn't it?
+
+	out.setByteString( encapsulated->length, encapsulated->data );
+
+	return OpcUa_Good;
 }
 
 UaString UaVariant::toString( ) const

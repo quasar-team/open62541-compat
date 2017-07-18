@@ -2,6 +2,7 @@
  *
  *  Created on: 15 Nov,  2015
  *      Author: Piotr Nikiel <piotr@nikiel.info>
+ *      Author: bfarnham
  *
  *  This file is part of Quasar.
  *
@@ -60,7 +61,8 @@ enum OpcUaType
     OpcUaType_Double     =  UA_NS0ID_DOUBLE,
     OpcUaType_String     =  UA_NS0ID_STRING,
     // support for datetime and guid missing in the compat module
-    OpcUaType_ByteString = UA_NS0ID_BYTESTRING
+    OpcUaType_ByteString =  UA_NS0ID_BYTESTRING,
+	OpcUaType_Variant    =  UA_NS0ID_BASEDATATYPE
     // support for remaining types, i.e. nodeid or statuscode also still missing
   };
 
@@ -78,9 +80,13 @@ class UaVariant
   UaVariant( const UaString& v );
   UaVariant( OpcUa_UInt32 v );
   UaVariant( OpcUa_Int32 v );
+  UaVariant( OpcUa_UInt64 v );
+  UaVariant( OpcUa_Int64 v );
   UaVariant( OpcUa_Float v );
+  UaVariant( OpcUa_Double v );
   UaVariant( OpcUa_Boolean v );
   
+
   ~UaVariant();
   OpcUaType type() const;
     
@@ -107,6 +113,7 @@ class UaVariant
   // getters
   UaStatus toBool( OpcUa_Boolean& value) const;
   UaStatus toInt16( OpcUa_Int16& value) const;
+  UaStatus toUInt16( OpcUa_UInt16& value) const;
   UaStatus toInt32( OpcUa_Int32& value ) const;
   UaStatus toUInt32( OpcUa_UInt32& value ) const;
   UaStatus toInt64( OpcUa_Int64& value ) const;
@@ -119,6 +126,9 @@ class UaVariant
   UaString toString( ) const;
   UaString toFullString() const;
   
+  // copy-To has a signature with UaVariant however it should be the stack type. This is best effort compat we can get at the moment. (pnikiel)
+  UaStatus copyTo ( UaVariant* to ) { *to = UaVariant( *m_impl ); return OpcUa_Good; }
+
   const UA_Variant* impl() const { return m_impl; }
  private:
   static UA_Variant* createAndCheckOpen62541Variant();

@@ -27,6 +27,8 @@
 
 #include <string>
 
+#include <uabytestring.h>
+
 class UaString
 {
     //! NOTE: All constructors allocate memory for new string's data. There is no memory reuse of any kind.
@@ -50,6 +52,8 @@ public:
     std::string toUtf8() const;
 
     const UA_String * impl() const{ return m_impl; }
+
+    size_t length() const { return m_impl->length; /*FIXME: open62541 seems not UTF-8 aware so handle this we caution!*/ }
 
 private:
     UA_String * m_impl;

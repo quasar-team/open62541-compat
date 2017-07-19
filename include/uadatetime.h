@@ -23,6 +23,7 @@
 #define __UADATETIME_H_
 
 #include <open62541.h>
+#include <uastring.h>
 
 class UaDateTime
 {

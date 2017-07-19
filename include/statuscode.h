@@ -30,7 +30,9 @@
 #define OpcUa_Good UA_STATUSCODE_GOOD
 #define OpcUa_Bad  0x80000000
 #define OpcUa_BadNotImplemented UA_STATUSCODE_BADNOTIMPLEMENTED
+#define OpcUa_BadNoData UA_STATUSCODE_BADNODATA
 #define OpcUa_BadDataEncodingInvalid UA_STATUSCODE_BADDATAENCODINGINVALID
+#define OpcUa_BadDataUnavailable UA_STATUSCODE_BADDATAUNAVAILABLE
 #define OpcUa_BadInvalidArgument OpcUa_Bad // FIXME:
 #define OpcUa_BadWaitingForInitialData OpcUa_Bad // FIXME:
 #define OpcUa_BadOutOfRange OpcUa_Bad // FIXME:

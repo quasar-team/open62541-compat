@@ -21,7 +21,6 @@ import shutil
 import platform
 import subprocess
 	
-open62541_commit_id = '0.2-rc2'
 open62541_config = ['-DUA_ENABLE_AMALGAMATION=ON','-DUA_ENABLE_METHODCALLS=ON']
 
 baseDir = os.getcwd()
@@ -57,7 +56,7 @@ def main():
 	
 	os.chdir(open6Dir)
 
-	printAndExecute( ['git', 'checkout', '0.2-rc2'] )
+	printAndExecute( ['git', 'checkout', '0.2'] )
 
 	shutil.rmtree(open6BuildDir, ignore_errors=True)
 	os.mkdir(open6BuildDir)

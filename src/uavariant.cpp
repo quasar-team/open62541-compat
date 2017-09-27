@@ -74,14 +74,14 @@ UaVariant::UaVariant( OpcUa_UInt64 v )
 :m_impl(createAndCheckOpen62541Variant())
 {
     setUInt64( v );
-    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_Int64 v )
 :m_impl(createAndCheckOpen62541Variant())
 {
     setInt64( v );
-    LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const UaString& v )
@@ -102,7 +102,7 @@ UaVariant::UaVariant( OpcUa_Double v )
 :m_impl(createAndCheckOpen62541Variant())
 {
 	setDouble(v);
-	LOG(Log::TRC) << __PRETTY_FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
+	LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_Boolean v )

@@ -29,18 +29,19 @@
 
 #define OpcUa_Good UA_STATUSCODE_GOOD
 #define OpcUa_Bad  0x80000000
+#define OpcUa_Uncertain 0x40000000
 #define OpcUa_BadNotImplemented UA_STATUSCODE_BADNOTIMPLEMENTED
 #define OpcUa_BadNoData UA_STATUSCODE_BADNODATA
 #define OpcUa_BadDataEncodingInvalid UA_STATUSCODE_BADDATAENCODINGINVALID
 #define OpcUa_BadDataUnavailable UA_STATUSCODE_BADDATAUNAVAILABLE
-#define OpcUa_BadInvalidArgument OpcUa_Bad // FIXME:
-#define OpcUa_BadWaitingForInitialData OpcUa_Bad // FIXME:
-#define OpcUa_BadOutOfRange OpcUa_Bad // FIXME:
-#define OpcUa_BadUserAccessDenied OpcUa_Bad // FIXME:
-#define OpcUa_BadCommunicationError OpcUa_Bad // FIXME:
-#define OpcUa_BadNotSupported OpcUa_Bad // FIXME:
-#define OpcUa_Uncertain OpcUa_Bad // FIXME
-#define OpcUa_BadResourceUnavailable OpcUa_Bad // FIXME:
+#define OpcUa_BadInvalidArgument UA_STATUSCODE_BADINVALIDARGUMENT
+#define OpcUa_BadWaitingForInitialData UA_STATUSCODE_BADWAITINGFORINITIALDATA
+#define OpcUa_BadOutOfRange UA_STATUSCODE_BADOUTOFRANGE
+#define OpcUa_BadUserAccessDenied UA_STATUSCODE_BADUSERACCESSDENIED
+#define OpcUa_BadNoCommunication UA_STATUSCODE_BADNOCOMMUNICATION
+#define OpcUa_BadCommunicationError UA_STATUSCODE_BADCOMMUNICATIONERROR
+#define OpcUa_BadNotSupported UA_STATUSCODE_BADNOTSUPPORTED
+#define OpcUa_BadResourceUnavailable UA_STATUSCODE_BADRESOURCEUNAVAILABLE
 #define OpcUa_BadInternalError UA_STATUSCODE_BADINTERNALERROR
 #define OpcUa_BadInvalidState UA_STATUSCODE_BADINVALIDSTATE
 #define OpcUa_UncertainInitialValue UA_STATUSCODE_UNCERTAININITIALVALUE

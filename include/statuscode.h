@@ -53,7 +53,7 @@ typedef OpcUa_UInt32 OpcUa_StatusCode;
 class UaStatus
 {
 public:
-    UaStatus (int s): m_status(s) {} // from status code
+    UaStatus (OpcUa_StatusCode s): m_status(s) {} // from status code
 UaStatus(): m_status(0x66666) {} // uninitialized
     bool isGood() const { return m_status == UA_STATUSCODE_GOOD; }
     bool isNotGood() const { return !isGood(); }

@@ -24,7 +24,6 @@
 #include <iostream>
 #include <sstream>
 #include <bitset>
-#include <Utils.h>
 #include <boost/format.hpp>
 #include <boost/date_time.hpp>
 
@@ -115,9 +114,9 @@ UaVariant::UaVariant( OpcUa_Boolean v )
 UaVariant::UaVariant( const UaVariant& other)
 :m_impl(createAndCheckOpen62541Variant())
 {
-    const UA_StatusCode status = UA_Variant_copy( other.m_impl, this->m_impl );
-    if (status != UA_STATUSCODE_GOOD)
-    	throw std::runtime_error("UA_Variant_copy failed 0x"+Utils::toHexString(status) );
+    const UaStatus status = UA_Variant_copy( other.m_impl, this->m_impl );
+    if (! status.isGood())
+      throw std::runtime_error(std::string("UA_Variant_copy failed:") + status.toString().toUtf8() );
     LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
@@ -127,9 +126,9 @@ void UaVariant::operator= (const UaVariant &other)
 	destroyOpen62541Variant(m_impl);
     m_impl = createAndCheckOpen62541Variant();
     
-    const UA_StatusCode status = UA_Variant_copy( other.m_impl, this->m_impl );
-    if (status != UA_STATUSCODE_GOOD)
-        throw std::runtime_error("UA_Variant_copy failed 0x"+Utils::toHexString(status) );
+    const UaStatus status = UA_Variant_copy( other.m_impl, this->m_impl );
+    if (! status.isGood())
+        throw std::runtime_error(std::string("UA_Variant_copy failed:") + status.toString().toUtf8() );
 
     LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
@@ -190,9 +189,9 @@ void UaVariant::reuseOrRealloc( const UA_DataType* dataType, void* newValue )
         /* Data type different - have to realloc */
         UA_Variant_deleteMembers( m_impl );
         // TODO throw when failed
-        UA_StatusCode status = UA_Variant_setScalarCopy( m_impl, newValue, dataType);
-        if (status != UA_STATUSCODE_GOOD)
-            throw std::runtime_error("UA_Variant_setScalarCopy failed:"+Utils::toHexString(status));
+        UaStatus status = UA_Variant_setScalarCopy( m_impl, newValue, dataType);
+        if (! status.isGood())
+	  throw std::runtime_error(std::string("UA_Variant_setScalarCopy failed:")+status.toString().toUtf8());
     }
 }
 

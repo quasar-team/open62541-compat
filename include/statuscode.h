@@ -47,6 +47,7 @@
 #define OpcUa_UncertainInitialValue UA_STATUSCODE_UNCERTAININITIALVALUE
 #define OpcUa_BadUnexpectedError UA_STATUSCODE_BADUNEXPECTEDERROR
 #define OpcUa_BadParentNodeIdInvalid UA_STATUSCODE_BADPARENTNODEIDINVALID
+#define OpcUa_BadServerNotConnected UA_STATUSCODE_BADSERVERNOTCONNECTED
 
 typedef OpcUa_UInt32 OpcUa_StatusCode;
 

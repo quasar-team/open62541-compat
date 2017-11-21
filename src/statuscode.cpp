@@ -6,16 +6,27 @@
  */
 
 #include <statuscode.h>
-#include <Utils.h>
+#include <sstream>
 
-#include <boost/lexical_cast.hpp>
+template<typename T>
+static std::string toHexString (const T t)
+{
+        std::ostringstream oss;
+        oss << std::hex << (unsigned long)t << std::dec;
+        return oss.str ();
+}
+
 
 UaString UaStatus::toString() const
 {
     switch (m_status)
     {
+        case OpcUa_Good: return "Good";
         case OpcUa_BadParentNodeIdInvalid: return "BadParentNodeIdInvalid";
-        default: return ("statuscode=0x"+Utils::toHexString(m_status)+" --missing-description--implement-me--").c_str();
+        case OpcUa_BadDataEncodingInvalid: return "BadDataEncodingInvalid";
+        case OpcUa_BadServerNotConnected: return "BadServerNotConnected";
+        case OpcUa_BadOutOfRange: return "BadOutOfRange";
+        default: return ("statuscode=0x"+toHexString(m_status)+" --missing-description--implement-me-in-statuscode.cpp--").c_str();
     }
 }
 

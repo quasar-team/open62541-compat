@@ -23,9 +23,9 @@
 #include <iostream>
 #include <sstream>
 #include <bitset>
-#include <Utils.h>
 #include <boost/format.hpp>
 #include <boost/date_time.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include <open62541_compat_common.h>
 
@@ -274,12 +274,12 @@ UaString UaNodeId::toString() const
 {
     if (identifierType() == IdentifierType::OpcUa_IdentifierType_String)
     {
-        std::string s = "(ns="+Utils::toString(namespaceIndex())+","+UaString(identifierString()).toUtf8()+")";
+        std::string s = "(ns="+boost::lexical_cast<std::string>(namespaceIndex())+","+UaString(identifierString()).toUtf8()+")";
         return UaString(s.c_str());
     }
     else if (identifierType() == IdentifierType::OpcUa_IdentifierType_Numeric)
     {
-        std::string s = "(ns="+Utils::toString(namespaceIndex())+","+Utils::toString(identifierNumeric())+")";
+        std::string s = "(ns="+boost::lexical_cast<std::string>(namespaceIndex())+","+boost::lexical_cast<std::string>(identifierNumeric())+")";
         return UaString(s.c_str());
     }
     return "non-string-id";

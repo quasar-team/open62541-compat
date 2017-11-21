@@ -21,7 +21,6 @@
 
 #include <open62541_compat.h>
 #include <iostream>
-#include <Utils.h>
 
 #include <open62541_compat_common.h>
 

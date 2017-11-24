@@ -14,10 +14,13 @@
 # GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
 # LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Author: Piotr Nikiel <piotr@nikiel.info> Ben Farnham <firstNm.secondNm@cern.ch>
+# Authors:
+# Piotr Nikiel <piotr@nikiel.info>
+# Ben Farnham <firstNm.secondNm@cern.ch>
 
+option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 
-add_library ( open62541-compat OBJECT
+SET( SRCS
   src/nodemanagerbase.cpp
   src/open62541_compat.cpp
   src/uabytestring.cpp
@@ -27,4 +30,19 @@ add_library ( open62541-compat OBJECT
   src/arrays.cpp
   src/statuscode.cpp
   )
+
+if(STANDALONE_BUILD)
+  add_definitions( -std=c++0x )
+  include_directories( include )
+  include_directories( LogIt/include )
+  add_library( open62541-compat STATIC
+    ${SRCS}
+  )
+else(STANDALONE_BUILD)
+  add_library ( open62541-compat OBJECT
+    ${SRCS}
+  )
+endif(STANDALONE_BUILD)
+  
+
 

@@ -3,9 +3,14 @@
 import os
 import shutil
 
+import prepare
+
+prepare.main()
+
 build_directory = 'build'
 
-shutil.rmtree(build_directory)
+if os.path.isdir(build_directory):
+    shutil.rmtree(build_directory)
 os.mkdir(build_directory)
 os.chdir(build_directory)
 # FIXME: windows compatibility?

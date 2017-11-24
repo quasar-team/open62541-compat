@@ -12,12 +12,7 @@ Documentation/AlternativeBackends.html
 
 Quick-start guide to get an stand-alone(independent) library
 -----------------------------------------------------------
-1. clone it
-2. python prepare.py (downloads open62541 and builds it)
-3. mkdir build
-4. cd build
-5. cmake -DSTANDALONE_BUILD=ON ../
-6. make
+Please run build_standalone.py
 
 
 

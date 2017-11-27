@@ -9,13 +9,18 @@
 #define INCLUDE_UACLIENT_UASESSION_H_
 
 
+
 #include <uaclient/uaclientsdk.h>
+
+// forward-decl
+struct UA_Client;
 
 namespace UaClientSdk
 {
 
 class UaSession
 {
+    UaSession ();
 
     UaStatus connect(
             const UaString&                endpoint,
@@ -30,6 +35,8 @@ class UaSession
             const UaReadValueIds &      nodesToRead,
             UaDataValues &              values,
             UaDiagnosticInfos &         diagnosticInfos  );
+private:
+    UA_Client *m_client;
 };
 
 }

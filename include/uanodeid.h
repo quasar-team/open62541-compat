@@ -29,6 +29,7 @@
 //TODO: switch for amalgamation
 #include <open62541.h>
 
+//FIXME: should base on open62541 constants
 enum IdentifierType
 {
     OpcUa_IdentifierType_Numeric,

@@ -31,13 +31,23 @@ UaNodeId::UaNodeId( int numericAddress, int ns ):
 
 }
 
-UaNodeId::UaNodeId ( const UaNodeId& other)
+UaNodeId::UaNodeId ( const UaNodeId & other)
 {
     UA_NodeId_init( &m_impl );
     UA_StatusCode status = UA_NodeId_copy( other.pimpl(), &this->m_impl );
     if (status != UA_STATUSCODE_GOOD)
         throw alloc_error();
 
+}
+
+const UaNodeId& UaNodeId::operator=(const UaNodeId & other)
+{
+    UA_NodeId_deleteMembers( &m_impl );
+    UA_NodeId_init( &m_impl );
+    UA_StatusCode status = UA_NodeId_copy( other.pimpl(), &this->m_impl );
+    if (status != UA_STATUSCODE_GOOD)
+        throw alloc_error();
+    return *this;
 }
 
 UaNodeId::~UaNodeId ()
@@ -83,6 +93,9 @@ UaString UaNodeId::toString() const
     return "non-string-id";
 }
 
-
+void UaNodeId::copyTo( UaNodeId* other)
+{
+    *other = *this;
+}
 
 

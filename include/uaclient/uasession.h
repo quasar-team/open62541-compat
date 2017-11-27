@@ -9,11 +9,19 @@
 #define INCLUDE_UACLIENT_UASESSION_H_
 
 
+#include <uaclient/uaclientsdk.h>
+
 namespace UaClientSdk
 {
 
 class UaSession
 {
+
+    UaStatus connect(
+            const UaString&                endpoint,
+            const SessionConnectInfo&      connectInfo,
+            const SessionSecurityInfo&     securityInfo,
+            UaSessionCallback*             callback);
 
     UaStatus read(
             ServiceSettings &           serviceSettings,

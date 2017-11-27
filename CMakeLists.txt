@@ -27,5 +27,6 @@ add_library ( open62541-compat OBJECT
   src/statuscode.cpp
   src/uanodeid.cpp
   src/uadatavalue.cpp
+  src/uaclient/uasession.cpp
   )
 

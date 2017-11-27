@@ -21,25 +21,11 @@
 #ifndef OPEN62541_COMPAT_INCLUDE_ARRAYS_H_
 #define OPEN62541_COMPAT_INCLUDE_ARRAYS_H_
 
+#include <array_templates.h>
+
 #include <uavariant.h>
 
-class UaVariantArray
-{
-public:
-	UaVariantArray();
-	UaVariantArray (const UaVariantArray& other);
-
-	const UaVariant& operator[](unsigned int index) const;
-	UaVariant& operator[](unsigned int index);
-
-	void create(unsigned int sz);
-	size_t size() const { return m_size; }
-
-private:
-	UaVariant    *m_data;
-	unsigned int m_size;
-
-};
+typedef UaCompatArray<UaVariant> UaVariantArray;
 
 
 #endif /* OPEN62541_COMPAT_INCLUDE_ARRAYS_H_ */

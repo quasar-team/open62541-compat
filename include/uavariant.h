@@ -29,21 +29,6 @@
 #include <uadatetime.h>
 #include <uabytestring.h>
 
-#ifdef __linux__
-
-#define GCC_VERSION (__GNUC__ * 10000 \
-                               + __GNUC_MINOR__ * 100 \
-                               + __GNUC_PATCHLEVEL__)
-#if GCC_VERSION > 40800
-#include <atomic>
-#else // GCC_VERSION
-#include <stdatomic.h>
-#endif // GCC_VERSION
-
-#else //  __linux__ not defined, so windows or so...
-#include <atomic>
-#endif // __linux__
-
 enum OpcUaType
   {
 
@@ -142,28 +127,6 @@ class UaVariant
     UaStatus toSimpleType( const UA_DataType* dataType, T* out ) const;
 };
 
-
-class UaDataValue 
-{
-  public:
-    UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime );
-    UaDataValue( const UaDataValue& other );
-    void operator=(const UaDataValue& other );
-
-    ~UaDataValue ();
-
-    const UA_DataValue* impl() const { return m_impl; }
-    UaVariant* value() const{ return new UaVariant(m_impl->value); }
-
-    UaDataValue clone(); // can't be const because of synchronization
-
-  private:
-    UA_DataValue *m_impl;
-    std::atomic_flag m_lock;
-    
-  
-  											 
-};
 
 
 #endif // __UAVARIANT_H__

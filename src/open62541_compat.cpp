@@ -25,7 +25,6 @@
 #include <bitset>
 #include <boost/format.hpp>
 #include <boost/date_time.hpp>
-#include <boost/lexical_cast.hpp>
 
 #include <open62541_compat_common.h>
 

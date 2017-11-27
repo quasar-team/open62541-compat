@@ -9,7 +9,10 @@
  *  of concerns.
  */
 
-#include <uadatavalue.cpp>
+#include <stdexcept>
+
+#include <LogIt.h>
+#include <uadatavalue.h>
 
 UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime ):
 m_lock()

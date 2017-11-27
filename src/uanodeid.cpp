@@ -10,6 +10,8 @@
  */
 
 #include <uanodeid.h>
+#include <open62541_compat_common.h>
+#include <boost/lexical_cast.hpp>
 
 UaNodeId::UaNodeId ( const UaString& stringAddress, int ns)
 {

@@ -22,9 +22,12 @@
 #ifndef __OPCUA_BASEDATAVARIABLETYPE_H__
 #define __OPCUA_BASEDATAVARIABLETYPE_H__
 
+#include <uanodeid.h>
 #include <uanode.h>
+#include <uadatavalue.h>
 #include <nodemanagerbase.h>
 #include <open62541_compat.h>
+
 
 namespace OpcUa
 {

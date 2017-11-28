@@ -57,7 +57,8 @@ public:
     UA_NodeId impl() const { return m_impl; }
     const UA_NodeId* pimpl() const { return &m_impl; }
 
-    void copyTo( UaNodeId* other);
+    void copyTo( UA_NodeId* other) const;
+    void copyTo( UaNodeId* other) const;
     bool operator==(const UaNodeId& other) const;
 private:
     /* UaString m_stringId; */

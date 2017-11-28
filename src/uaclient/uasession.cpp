@@ -51,7 +51,7 @@ UaStatus UaSession::connect(
  * - type of timestamps (TODO)
  * - maxAge (TODO)
  *
- * also: this code is leaking!
+ * also: this code is highlt non-reentrant because of open62541- TODO: mutex it!
  */
 UaStatus UaSession::read(
             ServiceSettings &           serviceSettings,
@@ -73,10 +73,16 @@ UaStatus UaSession::read(
     UA_ReadRequest_init(&readRequest);
     readRequest.nodesToRead =  (UA_ReadValueId*) UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
     readRequest.nodesToReadSize = 1;
-    readRequest.nodesToRead[0].nodeId = nodesToRead[0].NodeId.impl(); // TODO: will it free it or we should free it?
+
+    UA_NodeId_init(&readRequest.nodesToRead[0].nodeId);
+    nodesToRead[0].NodeId.copyTo( &readRequest.nodesToRead[0].nodeId );
+
     readRequest.nodesToRead[0].attributeId = nodesToRead[0].AttributeId;
 
     UA_ReadResponse readResponse = UA_Client_Service_read(m_client, readRequest);
+
+    UA_Array_delete(readRequest.nodesToRead, 1, &UA_TYPES[UA_TYPES_READVALUEID]);
+
     UaStatus serviceStatus = UaStatus(readResponse.responseHeader.serviceResult);
 
     if ( serviceStatus.isGood() )
@@ -106,6 +112,9 @@ UaStatus UaSession::read(
             // TODO: free the read response
         }
     }
+
+    UA_Array_delete(readResponse.results, readResponse.resultsSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+
     return serviceStatus;
 
 }

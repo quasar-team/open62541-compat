@@ -93,9 +93,20 @@ UaString UaNodeId::toString() const
     return "non-string-id";
 }
 
-void UaNodeId::copyTo( UaNodeId* other)
+void UaNodeId::copyTo( UaNodeId* other) const
 {
     *other = *this;
+}
+
+/** Assumption: the other is "initialized"
+ *
+ */
+void UaNodeId::copyTo( UA_NodeId* other) const
+{
+    UA_StatusCode status = UA_NodeId_copy( &this->m_impl, other );
+    if (status != UA_STATUSCODE_GOOD)
+        throw alloc_error();
+
 }
 
 

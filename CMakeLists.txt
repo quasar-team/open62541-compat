@@ -18,6 +18,9 @@
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
 
+cmake_minimum_required(VERSION 2.8)
+cmake_policy(SET CMP0012 NEW)
+
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 
 SET( SRCS
@@ -37,8 +40,11 @@ if(STANDALONE_BUILD)
   add_definitions( -std=c++0x )
   include_directories( include )
   include_directories( LogIt/include )
+  set( LOGIT_HAS_UATRACE FALSE )
+  add_subdirectory(LogIt)
   add_library( open62541-compat STATIC
     ${SRCS}
+    $<TARGET_OBJECTS:LogIt>
   )
 else(STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT

@@ -22,10 +22,15 @@
 #define OPEN62541_COMPAT_INCLUDE_ARRAYS_H_
 
 #include <array_templates.h>
-
+#include <statuscode.h>
 #include <uavariant.h>
+#include <stack_fake_structures.h>
+#include <other.h>
 
 typedef UaCompatArray<UaVariant> UaVariantArray;
-
+typedef UaCompatArray<ReadValueId> UaReadValueIds;
+typedef UaCompatArray<DataValue> UaDataValues;
+typedef UaCompatArray<DiagnosticInfo> UaDiagnosticInfos;
+typedef UaCompatArray<UaStatus> UaStatusCodes;
 
 #endif /* OPEN62541_COMPAT_INCLUDE_ARRAYS_H_ */

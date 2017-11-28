@@ -41,8 +41,8 @@
 
 enum OpcUa_AccessLevels
 {
-  OpcUa_AccessLevels_CurrentRead,
-  OpcUa_AccessLevels_CurrentReadOrWrite
+  OpcUa_AccessLevels_CurrentRead = UA_ACCESSLEVELMASK_READ,
+  OpcUa_AccessLevels_CurrentReadOrWrite = UA_ACCESSLEVELMASK_WRITE
 };
 
 
@@ -73,5 +73,20 @@ class UaQualifiedName
 class UaMutexRefCounted {};
 
 #define UA_DISABLE_COPY(T) 
+
+class ServiceSettings
+{
+
+};
+
+class DiagnosticInfo
+{
+
+};
+
+enum OpcUa_TimestampsToReturn
+{
+    OpcUa_TimestampsToReturn_Both = UA_TIMESTAMPSTORETURN_BOTH
+};
 
 #endif // __OTHER_H__

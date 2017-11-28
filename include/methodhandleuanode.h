@@ -24,6 +24,7 @@
 
 
 #include <uabasenodes.h>
+#include <arrays.h>
 
 
 class MethodHandle
@@ -61,10 +62,5 @@ class UaStatusCodeArray
 
 };
 
-// FIXME wrong file
-class UaDiagnosticInfos
-{
-
-};
 
 #endif // __METHODHANDLEUANODE_H__

@@ -11,6 +11,7 @@
 
 
 #include <uaclient/uaclientsdk.h>
+#include <arrays.h>
 
 // forward-decl
 struct UA_Client;
@@ -20,6 +21,7 @@ namespace UaClientSdk
 
 class UaSession
 {
+public:
     UaSession ();
 
     UaStatus connect(

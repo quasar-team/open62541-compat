@@ -50,6 +50,8 @@ UaStatus UaSession::connect(
  * - taking into account serviceSettings (TODO)
  * - type of timestamps (TODO)
  * - maxAge (TODO)
+ *
+ * also: this code is leaking!
  */
 UaStatus UaSession::read(
             ServiceSettings &           serviceSettings,
@@ -89,11 +91,11 @@ UaStatus UaSession::read(
         {
             if (readResponse.results[i].hasValue)
             {
-                //values[i].Value = readResponse.results[i].value;
+                values[i].Value = readResponse.results[i].value;
             }
             if (readResponse.results[i].hasStatus)
             {
-                //values[i].StatusCode = readResponse.results[i].status;
+                values[i].StatusCode = readResponse.results[i].status;
             }
             else
             {
@@ -102,10 +104,8 @@ UaStatus UaSession::read(
             }
             // TODO: timestamps etc
             // TODO: free the read response
-            UA_DataValue_deleteMembers( &readResponse.results[i] );
         }
     }
-    UA_ReadRequest_deleteMembers(&readRequest);
     return serviceStatus;
 
 }

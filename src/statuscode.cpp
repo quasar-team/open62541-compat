@@ -22,10 +22,13 @@ UaString UaStatus::toString() const
     switch (m_status)
     {
         case OpcUa_Good: return "Good";
+        case OpcUa_Bad: return "Bad";
         case OpcUa_BadParentNodeIdInvalid: return "BadParentNodeIdInvalid";
         case OpcUa_BadDataEncodingInvalid: return "BadDataEncodingInvalid";
         case OpcUa_BadServerNotConnected: return "BadServerNotConnected";
         case OpcUa_BadOutOfRange: return "BadOutOfRange";
+        case OpcUa_BadNotImplemented: return "BadNotImplemented";
+        case OpcUa_BadInternalError: return "BadInternalError";
         default: return ("statuscode=0x"+toHexString(m_status)+" --missing-description--implement-me-in-statuscode.cpp--").c_str();
     }
 }

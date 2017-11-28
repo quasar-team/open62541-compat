@@ -19,6 +19,33 @@ struct UA_Client;
 namespace UaClientSdk
 {
 
+struct SessionSecurityInfo
+{
+    // TODO
+};
+
+struct SessionConnectInfo
+{
+    UaString    sApplicationName;
+    UaString    sApplicationUri;
+    UaString    sProductUri;
+};
+
+namespace UaClient
+{
+
+enum ServerStatus
+{
+
+};
+
+}
+
+class UaSessionCallback
+{
+
+};
+
 class UaSession
 {
 public:
@@ -37,6 +64,13 @@ public:
             const UaReadValueIds &      nodesToRead,
             UaDataValues &              values,
             UaDiagnosticInfos &         diagnosticInfos  );
+
+    UaStatus write(
+            ServiceSettings &       serviceSettings,
+            const UaWriteValues &   nodesToWrite,
+            UaStatusCodeArray &     results,
+            UaDiagnosticInfos &     diagnosticInfos );
+
 private:
     UA_Client *m_client;
 };

@@ -10,38 +10,10 @@
 
 
 #include <uastring.h>
-
-namespace UaClientSdk
-{
-
-struct SessionSecurityInfo
-{
-    // TODO
-};
-
-struct SessionConnectInfo
-{
-    UaString    sApplicationName;
-    UaString    sApplicationUri;
-    UaString    sProductUri;
-};
-
-namespace UaClient
-{
-
-enum ServerStatus
-{
-
-};
-
-}
-
-class UaSessionCallback
-{
-
-};
-
-}
+#include <uanodeid.h>
+#include <uavariant.h>
+#include <uabytestring.h>
+#include <uaclient/uasession.h>
 
 
 

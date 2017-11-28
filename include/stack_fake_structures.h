@@ -11,6 +11,7 @@
 // TODO: Attributes should be moved completely out of this.
 
 #include <uanodeid.h>
+#include <uadatavalue.h>
 
 enum Attributes
 {
@@ -31,6 +32,12 @@ struct DataValue
 
 };
 
-
+struct WriteValue
+{
+    WriteValue(): NodeId(0, 0), AttributeId( OpcUa_Attributes_Value), Value() {}
+    UaNodeId      NodeId;
+    Attributes    AttributeId;
+    DataValue     Value;
+};
 
 #endif /* OPEN62541_COMPAT_INCLUDE_UACLIENT_STACK_FAKE_STRUCTURES_H_ */

@@ -32,5 +32,7 @@ typedef UaCompatArray<ReadValueId> UaReadValueIds;
 typedef UaCompatArray<DataValue> UaDataValues;
 typedef UaCompatArray<DiagnosticInfo> UaDiagnosticInfos;
 typedef UaCompatArray<UaStatus> UaStatusCodes;
+typedef UaCompatArray<WriteValue> UaWriteValues;
+typedef UaCompatArray<OpcUa_StatusCode> UaStatusCodeArray;
 
 #endif /* OPEN62541_COMPAT_INCLUDE_ARRAYS_H_ */

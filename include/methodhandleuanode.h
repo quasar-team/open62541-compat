@@ -56,11 +56,5 @@ private:
 
 };
 
-// FIXME wrong file
-class UaStatusCodeArray
-{
-
-};
-
 
 #endif // __METHODHANDLEUANODE_H__

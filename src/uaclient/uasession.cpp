@@ -119,5 +119,50 @@ UaStatus UaSession::read(
 
 }
 
+UaStatus UaSession::write(
+        ServiceSettings &       serviceSettings,
+        const UaWriteValues &   nodesToWrite,
+        UaStatusCodeArray &     results,
+        UaDiagnosticInfos &     diagnosticInfos )
+{
+    if (nodesToWrite.size() != 1)
+        throw std::runtime_error("so far only implemented for single writes");
+
+    UA_WriteRequest writeRequest;
+    UA_WriteRequest_init( &writeRequest);
+
+    writeRequest.nodesToWriteSize = nodesToWrite.size();
+    writeRequest.nodesToWrite = (UA_WriteValue*) UA_Array_new(nodesToWrite.size(), &UA_TYPES[UA_TYPES_WRITEVALUE]);
+
+    UA_NodeId nodeIds [ nodesToWrite.size() ];
+
+    for (size_t i = 0; i<nodesToWrite.size(); ++i)
+    {
+        UA_NodeId_init( &writeRequest.nodesToWrite[i].nodeId );
+        nodesToWrite[i].NodeId.copyTo( &writeRequest.nodesToWrite[i].nodeId );
+        writeRequest.nodesToWrite[i].attributeId = nodesToWrite[i].AttributeId;
+
+        UA_DataValue_init(&writeRequest.nodesToWrite[i].value);
+        nodesToWrite[i].Value.Value.copyTo( &writeRequest.nodesToWrite[i].value.value );
+        writeRequest.nodesToWrite[i].value.hasValue = UA_TRUE;
+
+        writeRequest.nodesToWrite[i].value;
+    }
+
+
+    UA_WriteResponse writeResponse = UA_Client_Service_write(m_client, writeRequest);
+    UA_Array_delete(writeRequest.nodesToWrite, writeRequest.nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE]);
+
+    results.create( nodesToWrite.size() );
+    for (size_t i=0; i<nodesToWrite.size(); ++i)
+    {
+        results[i] = writeResponse.results[i];
+    }
+
+    UA_Array_delete(writeResponse.results, writeResponse.resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+
+    return writeResponse.responseHeader.serviceResult;
+}
+
 
 }

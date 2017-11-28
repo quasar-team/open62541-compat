@@ -3,6 +3,7 @@
 
 '''
 @author:     Damian Abalo Miron <damian.abalo@cern.ch>
+@author:     Piotr Nikiel <piotr@nikiel.info>
 @copyright:  2015 CERN
 @license:
 Copyright (c) 2015, CERN, Universidad de Oviedo.
@@ -75,5 +76,7 @@ def main():
 		
 	shutil.copyfile(os.path.join(open6BuildDir, 'open62541.h'), os.path.join(baseDir, 'include', 'open62541.h'))
 
-	
-main()
+        os.chdir('../../')  # FIXME: Windows?
+
+if __name__=="__main__":	
+        main()

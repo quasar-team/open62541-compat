@@ -134,8 +134,6 @@ UaStatus UaSession::write(
     writeRequest.nodesToWriteSize = nodesToWrite.size();
     writeRequest.nodesToWrite = (UA_WriteValue*) UA_Array_new(nodesToWrite.size(), &UA_TYPES[UA_TYPES_WRITEVALUE]);
 
-    UA_NodeId nodeIds [ nodesToWrite.size() ];
-
     for (size_t i = 0; i<nodesToWrite.size(); ++i)
     {
         UA_NodeId_init( &writeRequest.nodesToWrite[i].nodeId );
@@ -145,8 +143,6 @@ UaStatus UaSession::write(
         UA_DataValue_init(&writeRequest.nodesToWrite[i].value);
         nodesToWrite[i].Value.Value.copyTo( &writeRequest.nodesToWrite[i].value.value );
         writeRequest.nodesToWrite[i].value.hasValue = UA_TRUE;
-
-        writeRequest.nodesToWrite[i].value;
     }
 
 

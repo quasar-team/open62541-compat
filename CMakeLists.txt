@@ -33,6 +33,7 @@ SET( SRCS
   src/statuscode.cpp
   src/uanodeid.cpp
   src/uadatavalue.cpp
+  src/uadatetime.cpp
   src/uaclient/uasession.cpp
   )
 

@@ -29,6 +29,8 @@ class UaDateTime
 {
 public:
 	UaDateTime();
+	UaDateTime(const UA_DateTime& dateTime);
+
 	static UaDateTime now();
 
 	void addSecs(int secs);
@@ -38,7 +40,7 @@ public:
 	UaString toString() const;
 
 private:
-	UaDateTime(const UA_DateTime& dateTime);
+
 
 	UA_DateTime m_dateTime; // (64bit signed int ) num of 100 nanosec intervals since windows epoch (1601-01-01T00:00:00)
 };

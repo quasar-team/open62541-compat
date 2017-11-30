@@ -21,8 +21,10 @@ struct ReadValueId
 
 struct DataValue
 {
-    UaStatus   StatusCode;
-    UaVariant  Value;
+    UaStatus    StatusCode;
+    UaVariant   Value;
+    UaDateTime  SourceTimestamp;
+    UaDateTime  ServerTimestamp;
 
 };
 

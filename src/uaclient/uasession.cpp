@@ -108,6 +108,10 @@ UaStatus UaSession::read(
                 values[i].StatusCode = OpcUa_Good;
                 LOG(Log::WRN) << "read response carries no statuscode - somewhat fishy!";
             }
+            if (readResponse.results[i].hasSourceTimestamp)
+            {
+                values[i].SourceTimestamp = readResponse.results[i].sourceTimestamp;
+            }
             // TODO: timestamps etc
             // TODO: free the read response
         }

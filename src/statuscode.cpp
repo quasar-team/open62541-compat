@@ -29,6 +29,7 @@ UaString UaStatus::toString() const
         case OpcUa_BadOutOfRange: return "BadOutOfRange";
         case OpcUa_BadNotImplemented: return "BadNotImplemented";
         case OpcUa_BadInternalError: return "BadInternalError";
+        case OpcUa_BadWaitingForInitialData: return "BadWaitingForInitialData";
         default: return ("statuscode=0x"+toHexString(m_status)+" --missing-description--implement-me-in-statuscode.cpp--").c_str();
     }
 }

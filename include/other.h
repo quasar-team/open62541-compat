@@ -84,9 +84,4 @@ class DiagnosticInfo
 
 };
 
-enum OpcUa_TimestampsToReturn
-{
-    OpcUa_TimestampsToReturn_Both = UA_TIMESTAMPSTORETURN_BOTH
-};
-
 #endif // __OTHER_H__

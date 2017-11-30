@@ -9,7 +9,7 @@
 #define INCLUDE_UACLIENT_UASESSION_H_
 
 
-
+#include <opcua_types.h>
 #include <uaclient/uaclientsdk.h>
 #include <arrays.h>
 

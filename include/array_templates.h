@@ -21,8 +21,8 @@ public:
         m_data.insert( m_data.begin(), n, T());
     }
 
-    T& operator[](size_t i) { return m_data[i]; }
-    const T& operator[](size_t i) const { return m_data[i]; }
+    T& operator[](size_t i) { return m_data.at(i); }
+    const T& operator[](size_t i) const { return m_data.at(i); }
 
     size_t size() const { return m_data.size(); }
 

@@ -8,15 +8,9 @@
 #ifndef OPEN62541_COMPAT_INCLUDE_UACLIENT_STACK_FAKE_STRUCTURES_H_
 #define OPEN62541_COMPAT_INCLUDE_UACLIENT_STACK_FAKE_STRUCTURES_H_
 
-// TODO: Attributes should be moved completely out of this.
-
+#include <opcua_attributes.h>
 #include <uanodeid.h>
 #include <uadatavalue.h>
-
-enum Attributes
-{
-    OpcUa_Attributes_Value = UA_ATTRIBUTEID_VALUE
-};
 
 struct ReadValueId
 {

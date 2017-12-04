@@ -22,6 +22,7 @@ cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0012 NEW)
 
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
+option(STANDALONE_AUTOMATIC_LOGIT "When building in stand-alone, automatically fetch and build LogIt" ON)
 
 SET( SRCS
   src/nodemanagerbase.cpp
@@ -40,13 +41,19 @@ SET( SRCS
 if(STANDALONE_BUILD)
   add_definitions( -std=c++0x )
   include_directories( include )
-  include_directories( LogIt/include )
-  set( LOGIT_HAS_UATRACE FALSE )
-  add_subdirectory(LogIt)
+
+  if(STANDALONE_AUTOMATIC_LOGIT)
+    execute_process(COMMAND git clone https://github.com/quasar-team/LogIt.git ${PROJECT_SOURCE_DIR}/LogIt )
+    include_directories( ${PROJECT_SOURCE_DIR}/LogIt/include )
+    set( LOGIT_HAS_UATRACE FALSE )
+    add_subdirectory( ${PROJECT_SOURCE_DIR}/LogIt )
+    set( SRCS ${SRCS} $<TARGET_OBJECTS:LogIt> )
+  endif(STANDALONE_AUTOMATIC_LOGIT)
+
   add_library( open62541-compat STATIC
     ${SRCS}
-    $<TARGET_OBJECTS:LogIt>
   )
+  
 else(STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT
     ${SRCS}

@@ -110,6 +110,9 @@ UaStatus UaSession::read(
     UA_ReadRequest_init(&readRequest);
     readRequest.nodesToRead =  (UA_ReadValueId*) UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
     readRequest.nodesToReadSize = 1;
+    // The following should be safe because enum values are defined with open62541 defines
+    readRequest.timestampsToReturn = (UA_TimestampsToReturn)timeStamps;
+    readRequest.maxAge = maxAge;
 
     UA_NodeId_init(&readRequest.nodesToRead[0].nodeId);
     nodesToRead[0].NodeId.copyTo( &readRequest.nodesToRead[0].nodeId );
@@ -152,7 +155,10 @@ UaStatus UaSession::read(
             {
                 values[i].SourceTimestamp = readResponse.results[i].sourceTimestamp;
             }
-            // TODO: ServerTimestamp is not handled because it's not sure if its working (see OPCUA-935)
+            if (readResponse.results[i].hasServerTimestamp)
+            {
+                values[i].ServerTimestamp = readResponse.results[i].serverTimestamp;
+            }
         }
     }
 

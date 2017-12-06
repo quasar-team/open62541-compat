@@ -98,11 +98,11 @@ void UaNodeId::copyTo( UaNodeId* other) const
     *other = *this;
 }
 
-/** Assumption: the other is "initialized"
- *
- */
+
 void UaNodeId::copyTo( UA_NodeId* other) const
 {
+    if (!other)
+        throw std::runtime_error("passed a nullptr");
     UA_StatusCode status = UA_NodeId_copy( &this->m_impl, other );
     if (status != UA_STATUSCODE_GOOD)
         throw alloc_error();

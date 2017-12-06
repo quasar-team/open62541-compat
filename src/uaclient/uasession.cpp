@@ -126,7 +126,10 @@ UaStatus UaSession::read(
     {
         if (readResponse.resultsSize != nodesToRead.size())
         {
-            LOG(Log::ERR) << "mismatch between requested size and returned size.";
+            LOG(Log::ERR) << "after call to open62541: mismatch between requested size "
+                    << boost::lexical_cast<std::string>(readRequest.nodesToReadSize)
+                    << " and returned size "
+                    << boost::lexical_cast<std::string>(readResponse.resultsSize);
             UA_ReadRequest_deleteMembers(&readRequest);
             return OpcUa_Bad;
         }
@@ -149,8 +152,7 @@ UaStatus UaSession::read(
             {
                 values[i].SourceTimestamp = readResponse.results[i].sourceTimestamp;
             }
-            // TODO: timestamps etc
-            // TODO: free the read response
+            // TODO: ServerTimestamp is not handled because it's not sure if its working (see OPCUA-935)
         }
     }
 
@@ -167,7 +169,11 @@ UaStatus UaSession::write(
         UaDiagnosticInfos &     diagnosticInfos )
 {
     if (nodesToWrite.size() != 1)
-        throw std::runtime_error("so far only implemented for single writes");
+    {
+        throw std::runtime_error("UaSession::write(): So far only single writes are supported, but you requested a write of "
+                +boost::lexical_cast<std::string>(nodesToWrite.size())+" items. FIXME!");
+        // FIXME:implement this
+    }
 
     UA_WriteRequest writeRequest;
     UA_WriteRequest_init( &writeRequest);

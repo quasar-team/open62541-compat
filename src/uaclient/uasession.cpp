@@ -21,6 +21,8 @@
 
 #include <stdexcept>
 
+#include <boost/lexical_cast.hpp>
+
 #include <open62541.h>
 #include <open62541_compat_common.h>
 #include <uaclient/uasession.h>
@@ -90,11 +92,19 @@ UaStatus UaSession::read(
 {
     if (nodesToRead.size() != 1)
     {
-        throw std::runtime_error("So far only single reads are supported"); // FIXME
+
+        throw std::runtime_error("UaSession::read(): So far only single reads are supported, but you requested a read of "
+                +boost::lexical_cast<std::string>(nodesToRead.size())+" items. FIXME!");
+        // FIXME:implement this
     }
 
+    LOG(Log::TRC) << "UaSession::read( nodesToRead=[" << nodesToRead[0].NodeId.toString().toUtf8() << "] )";
+
     if (nodesToRead.size() != values.size())
-        throw std::runtime_error("Size of provided values must match size of nodesToRead");
+        throw std::runtime_error("Size of provided value holders (is "
+                +boost::lexical_cast<std::string>(values.size())
+                +" must match size of provided nodesToRead (is "
+                +boost::lexical_cast<std::string>(nodesToRead.size()));
 
     UA_ReadRequest readRequest;
     UA_ReadRequest_init(&readRequest);

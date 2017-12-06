@@ -30,7 +30,10 @@ UaStatus UaSession::connect(
 {
 
     if (m_client)
+    {
+        LOG(Log::ERR) << "Connection already exists, can't call connect()";
         return OpcUa_Bad;  // Already connected!
+    }
     m_client = UA_Client_new(UA_ClientConfig_standard);
     if (!m_client)
         throw alloc_error();

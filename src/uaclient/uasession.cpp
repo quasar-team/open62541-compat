@@ -36,6 +36,16 @@ UaSession::UaSession():
 
 }
 
+UaSession::~UaSession ()
+{
+    if (m_client)
+    {
+        UA_Client_delete(m_client);
+        m_client = 0;
+    }
+
+}
+
 UaStatus UaSession::connect(
         const UaString&                endpoint,
         const SessionConnectInfo&      connectInfo,

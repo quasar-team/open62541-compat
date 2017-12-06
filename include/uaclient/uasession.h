@@ -64,6 +64,7 @@ class UaSession
 {
 public:
     UaSession ();
+    ~UaSession ();
 
     UaStatus connect(
             const UaString&                endpoint,

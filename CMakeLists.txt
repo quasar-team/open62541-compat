@@ -14,19 +14,51 @@
 # GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
 # LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# Author: Piotr Nikiel <piotr@nikiel.info> Ben Farnham <firstNm.secondNm@cern.ch>
+# Authors:
+# Piotr Nikiel <piotr@nikiel.info>
+# Ben Farnham <firstNm.secondNm@cern.ch>
 
+cmake_minimum_required(VERSION 2.8)
+cmake_policy(SET CMP0012 NEW)
 
-add_library ( open62541-compat OBJECT
+option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
+option(STANDALONE_AUTOMATIC_LOGIT "When building in stand-alone, automatically fetch and build LogIt" ON)
+
+SET( SRCS
   src/nodemanagerbase.cpp
   src/open62541_compat.cpp
   src/uabytestring.cpp
   src/uastring.cpp
   src/uavariant.cpp
   src/uadatavariablecache.cpp
-  src/arrays.cpp
   src/statuscode.cpp
   src/uanodeid.cpp
   src/uadatavalue.cpp
+  src/uadatetime.cpp
+  src/uaclient/uasession.cpp
   )
+
+if(STANDALONE_BUILD)
+  add_definitions( -std=c++0x )
+  include_directories( include )
+
+  if(STANDALONE_AUTOMATIC_LOGIT)
+    execute_process(COMMAND git clone https://github.com/quasar-team/LogIt.git ${PROJECT_SOURCE_DIR}/LogIt )
+    include_directories( ${PROJECT_SOURCE_DIR}/LogIt/include )
+    set( LOGIT_HAS_UATRACE FALSE )
+    add_subdirectory( ${PROJECT_SOURCE_DIR}/LogIt )
+    set( SRCS ${SRCS} $<TARGET_OBJECTS:LogIt> )
+  endif(STANDALONE_AUTOMATIC_LOGIT)
+
+  add_library( open62541-compat STATIC
+    ${SRCS}
+  )
+  
+else(STANDALONE_BUILD)
+  add_library ( open62541-compat OBJECT
+    ${SRCS}
+  )
+endif(STANDALONE_BUILD)
+  
+
 

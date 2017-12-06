@@ -1,14 +1,26 @@
 # open62541-compat
-Adapts open62541 API to UA Toolkit API for usage in Quasar-based projects
+Adapts open62541 API to UA Toolkit API for usage in (1)Quasar-based projects, (2) independent UASDK-based projects
 
-Quick-start guide:
-1) Enable this module (open62541-compat) in your quasar project
+For bugs or suggestions please file a GitHub ticket.
 
-./quasar.py enable_module open62541-compat
+Quick-start guide in Quasar
+---------------------------
+The procedure is documented in Quasar project.
+In Quasar repo, read:
 
-2) In order to fetch open62541 and build it, execute:
+Documentation/AlternativeBackends.html
 
-./prepare.sh
+Quick-start guide to get an stand-alone(independent) library
+-----------------------------------------------------------
+1. clone the repo
 
+2. run build_standalone.py
 
-For bugs or suggestions contact piotr.nikiel@cern.ch
+###### How do you use it in your independent UASDK server or client? ######
+
+The include directory contains UASDK-(partially)-compatible headers, and you should link with the following libs:
+* build/libopen62541-compat.a
+* open62541/build/libopen62541.a
+
+For questions/issues: file a ticket or write to piotr.nikiel@cern.ch
+

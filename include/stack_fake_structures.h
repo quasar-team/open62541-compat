@@ -1,7 +1,7 @@
 /* © Copyright Piotr Nikiel, CERN, 2017.  All rights not expressly granted are reserved.
- * nodemanagerbase.h
+ *  stack_fake_structures.h
  *
- *  Created on: 23 Apr,  2017
+ *  Created on: 27 Nov, 2017
  *      Author: Piotr Nikiel <piotr@nikiel.info>
  *
  *  This file is part of Quasar.
@@ -19,42 +19,35 @@
  *  along with Quasar.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __METHODHANDLEUANODE_H__
-#define __METHODHANDLEUANODE_H__
+#ifndef OPEN62541_COMPAT_INCLUDE_UACLIENT_STACK_FAKE_STRUCTURES_H_
+#define OPEN62541_COMPAT_INCLUDE_UACLIENT_STACK_FAKE_STRUCTURES_H_
 
+#include <opcua_attributes.h>
+#include <uanodeid.h>
+#include <uadatavalue.h>
 
-#include <uabasenodes.h>
-#include <arrays.h>
-
-
-class MethodHandle
+struct ReadValueId
 {
-public:
-	virtual ~MethodHandle() {};
+    ReadValueId() : NodeId(0, 0), AttributeId (OpcUa_Attributes_Value) {}
+    UaNodeId   NodeId;
+    Attributes AttributeId;
 };
 
-class MethodHandleUaNode: public MethodHandle
+struct DataValue
 {
-public:
-	virtual ~MethodHandleUaNode() {};
-	MethodHandleUaNode():
-		m_obj(0),
-		m_method(0)
-	{}
-
-	UaMethod * 	pUaMethod () const { return m_method; }
-	UaObject * 	pUaObject () const { return m_obj; }
-
-	void setUaNodes (UaObject* uaObject, UaMethod* uaMethod)
-	{
-		m_obj = uaObject;
-		m_method = uaMethod;
-	}
-private:
-	UaObject *m_obj;
-	UaMethod *m_method;
+    UaStatus    StatusCode;
+    UaVariant   Value;
+    UaDateTime  SourceTimestamp;
+    UaDateTime  ServerTimestamp;
 
 };
 
+struct WriteValue
+{
+    WriteValue(): NodeId(0, 0), AttributeId( OpcUa_Attributes_Value), Value() {}
+    UaNodeId      NodeId;
+    Attributes    AttributeId;
+    DataValue     Value;
+};
 
-#endif // __METHODHANDLEUANODE_H__
+#endif /* OPEN62541_COMPAT_INCLUDE_UACLIENT_STACK_FAKE_STRUCTURES_H_ */

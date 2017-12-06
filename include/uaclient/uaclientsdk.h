@@ -1,6 +1,7 @@
-/* © Copyright Piotr Nikiel, CERN, 2015.  All rights not expressly granted are reserved.
+/* © Copyright Piotr Nikiel, CERN, 2017.  All rights not expressly granted are reserved.
+ *  uaclientsdk.h
  *
- *  Created on: 1 May, 2017
+ *  Created on: 24 Nov, 2017
  *      Author: Piotr Nikiel <piotr@nikiel.info>
  *
  *  This file is part of Quasar.
@@ -18,21 +19,16 @@
  *  along with Quasar.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef OPEN62541_COMPAT_INCLUDE_ARRAYS_H_
-#define OPEN62541_COMPAT_INCLUDE_ARRAYS_H_
+#ifndef OPEN62541_COMPAT_INCLUDE_UACLIENT_UACLIENTSDK_H_
+#define OPEN62541_COMPAT_INCLUDE_UACLIENT_UACLIENTSDK_H_
 
-#include <array_templates.h>
-#include <statuscode.h>
+
+#include <uastring.h>
+#include <uanodeid.h>
 #include <uavariant.h>
-#include <stack_fake_structures.h>
-#include <other.h>
+#include <uabytestring.h>
+#include <uaclient/uasession.h>
 
-typedef UaCompatArray<UaVariant> UaVariantArray;
-typedef UaCompatArray<ReadValueId> UaReadValueIds;
-typedef UaCompatArray<DataValue> UaDataValues;
-typedef UaCompatArray<DiagnosticInfo> UaDiagnosticInfos;
-typedef UaCompatArray<UaStatus> UaStatusCodes;
-typedef UaCompatArray<WriteValue> UaWriteValues;
-typedef UaCompatArray<OpcUa_StatusCode> UaStatusCodeArray;
 
-#endif /* OPEN62541_COMPAT_INCLUDE_ARRAYS_H_ */
+
+#endif /* OPEN62541_COMPAT_INCLUDE_UACLIENT_UACLIENTSDK_H_ */

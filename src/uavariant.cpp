@@ -120,6 +120,11 @@ UaVariant::UaVariant( const UaVariant& other)
     LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
+UaVariant::UaVariant( const UaByteString& v)
+:m_impl(createAndCheckOpen62541Variant())
+{
+    setByteString(v, /*detach*/ false);
+}
 
 void UaVariant::operator= (const UaVariant &other)
 {
@@ -363,4 +368,8 @@ UaStatus UaVariant::toSimpleType( const UA_DataType* dataType, T* out ) const
     return OpcUa_Good;
 }
 
+UaStatus UaVariant::copyTo ( UA_Variant* to) const
+{
+    return UA_Variant_copy(m_impl, to);
+}
 

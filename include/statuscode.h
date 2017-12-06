@@ -55,14 +55,16 @@ class UaStatus
 {
 public:
     UaStatus (OpcUa_StatusCode s): m_status(s) {} // from status code
-UaStatus(): m_status(0x66666) {} // uninitialized
+    UaStatus(): m_status(OpcUa_Bad) {} // by default, initialize to Bad
+
+    const UaStatus& operator=(OpcUa_StatusCode status) { m_status = status; return *this; }
+
     bool isGood() const { return m_status == UA_STATUSCODE_GOOD; }
     bool isNotGood() const { return !isGood(); }
     bool isBad() const;
     UaString toString() const;
 
-//TODO: check??
-    int statusCode() const { return m_status; }
+    OpcUa_StatusCode statusCode() const { return m_status; }
     operator UA_StatusCode() const { return (UA_StatusCode)m_status; }
 private:
     OpcUa_StatusCode m_status;

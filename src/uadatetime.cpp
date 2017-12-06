@@ -1,7 +1,9 @@
-/* © Copyright Piotr Nikiel, CERN, 2015.  All rights not expressly granted are reserved.
+/* © Copyright CERN, 2017.  All rights not expressly granted are reserved.
+ *  opcua_types.h
  *
- *  Created on: 15 Nov,  2015
- *      Author: Piotr Nikiel <piotr@nikiel.info>
+ *    Moved on: 30 Nov 2017  
+ *      Author: Ben Farnham 
+ *              Piotr Nikiel <piotr@nikiel.info>
  *
  *  This file is part of Quasar.
  *
@@ -19,30 +21,12 @@
  */
 
 
-#ifndef __UADATETIME_H_
-#define __UADATETIME_H_
+#include <uadatetime.h>
 
-#include <open62541.h>
-#include <uastring.h>
-
-class UaDateTime
+UaDateTime::UaDateTime(const UA_DateTime& dateTime):
+    m_dateTime(dateTime)
 {
-public:
-	UaDateTime();
-	UaDateTime(const UA_DateTime& dateTime);
 
-	static UaDateTime now();
-
-	void addSecs(int secs);
-	void addMilliSecs(int msecs);
-
-	static UaDateTime fromString(const UaString&);
-	UaString toString() const;
-
-private:
+}
 
 
-	UA_DateTime m_dateTime; // (64bit signed int ) num of 100 nanosec intervals since windows epoch (1601-01-01T00:00:00)
-};
-
-#endif // __UADATETIME_H_

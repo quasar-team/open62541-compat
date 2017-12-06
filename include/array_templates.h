@@ -1,7 +1,7 @@
 /* © Copyright Piotr Nikiel, CERN, 2017.  All rights not expressly granted are reserved.
- * nodemanagerbase.h
+ * array_templates.h
  *
- *  Created on: 23 Apr,  2017
+ *  Created on: 27 Nov,  2017
  *      Author: Piotr Nikiel <piotr@nikiel.info>
  *
  *  This file is part of Quasar.
@@ -19,42 +19,31 @@
  *  along with Quasar.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __METHODHANDLEUANODE_H__
-#define __METHODHANDLEUANODE_H__
+#ifndef OPEN62541_COMPAT_INCLUDE_ARRAY_TEMPLATES_H_
+#define OPEN62541_COMPAT_INCLUDE_ARRAY_TEMPLATES_H_
 
+#include <vector>
 
-#include <uabasenodes.h>
-#include <arrays.h>
-
-
-class MethodHandle
+template<typename T>
+class UaCompatArray
 {
 public:
-	virtual ~MethodHandle() {};
-};
 
-class MethodHandleUaNode: public MethodHandle
-{
-public:
-	virtual ~MethodHandleUaNode() {};
-	MethodHandleUaNode():
-		m_obj(0),
-		m_method(0)
-	{}
+    void create(size_t n)
+    {
+        m_data.clear();
+        m_data.insert( m_data.begin(), n, T());
+    }
 
-	UaMethod * 	pUaMethod () const { return m_method; }
-	UaObject * 	pUaObject () const { return m_obj; }
+    T& operator[](size_t i) { return m_data.at(i); }
+    const T& operator[](size_t i) const { return m_data.at(i); }
 
-	void setUaNodes (UaObject* uaObject, UaMethod* uaMethod)
-	{
-		m_obj = uaObject;
-		m_method = uaMethod;
-	}
+    size_t size() const { return m_data.size(); }
+
 private:
-	UaObject *m_obj;
-	UaMethod *m_method;
-
+    std::vector<T> m_data;
 };
 
 
-#endif // __METHODHANDLEUANODE_H__
+
+#endif /* OPEN62541_COMPAT_INCLUDE_ARRAY_TEMPLATES_H_ */

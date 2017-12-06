@@ -46,6 +46,7 @@ public:
     UaNodeId ( const UaNodeId& other);
     ~UaNodeId ();
     
+    const UaNodeId& operator=(const UaNodeId & other);
     unsigned int namespaceIndex() const { return m_impl.namespaceIndex; }
     UaString identifierString() const;
     unsigned int identifierNumeric() const { return m_impl.identifier.numeric; }
@@ -56,11 +57,13 @@ public:
     UA_NodeId impl() const { return m_impl; }
     const UA_NodeId* pimpl() const { return &m_impl; }
 
+    void copyTo( UA_NodeId* other) const;
+    void copyTo( UaNodeId* other) const;
     bool operator==(const UaNodeId& other) const;
 private:
     /* UaString m_stringId; */
     UA_NodeId m_impl;
-    UaNodeId operator=(const UaNodeId & other);
+
 };
 
 

@@ -70,6 +70,7 @@ class UaVariant
   UaVariant( OpcUa_Float v );
   UaVariant( OpcUa_Double v );
   UaVariant( OpcUa_Boolean v );
+  UaVariant( const UaByteString& v );
   
 
   ~UaVariant();
@@ -112,7 +113,8 @@ class UaVariant
   UaString toFullString() const;
   
   // copy-To has a signature with UaVariant however it should be the stack type. This is best effort compat we can get at the moment. (pnikiel)
-  UaStatus copyTo ( UaVariant* to ) { *to = UaVariant( *m_impl ); return OpcUa_Good; }
+  UaStatus copyTo ( UaVariant* to ) const { *to = UaVariant( *m_impl ); return OpcUa_Good; }
+  UaStatus copyTo ( UA_Variant* to) const;
 
   const UA_Variant* impl() const { return m_impl; }
  private:

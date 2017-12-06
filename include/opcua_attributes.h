@@ -1,7 +1,7 @@
 /* © Copyright Piotr Nikiel, CERN, 2017.  All rights not expressly granted are reserved.
- * nodemanagerbase.h
+ *  opcua_attributes.h
  *
- *  Created on: 23 Apr,  2017
+ *  Created on: 30 Nov, 2017
  *      Author: Piotr Nikiel <piotr@nikiel.info>
  *
  *  This file is part of Quasar.
@@ -19,42 +19,15 @@
  *  along with Quasar.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __METHODHANDLEUANODE_H__
-#define __METHODHANDLEUANODE_H__
+
+#ifndef OPEN62541_COMPAT_INCLUDE_OPCUA_ATTRIBUTES_H_
+#define OPEN62541_COMPAT_INCLUDE_OPCUA_ATTRIBUTES_H_
 
 
-#include <uabasenodes.h>
-#include <arrays.h>
-
-
-class MethodHandle
+enum Attributes
 {
-public:
-	virtual ~MethodHandle() {};
-};
-
-class MethodHandleUaNode: public MethodHandle
-{
-public:
-	virtual ~MethodHandleUaNode() {};
-	MethodHandleUaNode():
-		m_obj(0),
-		m_method(0)
-	{}
-
-	UaMethod * 	pUaMethod () const { return m_method; }
-	UaObject * 	pUaObject () const { return m_obj; }
-
-	void setUaNodes (UaObject* uaObject, UaMethod* uaMethod)
-	{
-		m_obj = uaObject;
-		m_method = uaMethod;
-	}
-private:
-	UaObject *m_obj;
-	UaMethod *m_method;
-
+    OpcUa_Attributes_Value = UA_ATTRIBUTEID_VALUE
 };
 
 
-#endif // __METHODHANDLEUANODE_H__
+#endif /* OPEN62541_COMPAT_INCLUDE_OPCUA_ATTRIBUTES_H_ */

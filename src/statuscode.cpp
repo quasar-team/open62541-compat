@@ -7,7 +7,6 @@
 
 #include <statuscode.h>
 #include <sstream>
-#include <open62541.h>
 #include <string>
 
 template<typename T>

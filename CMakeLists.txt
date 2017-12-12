@@ -23,6 +23,7 @@ cmake_policy(SET CMP0012 NEW)
 
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 option(STANDALONE_AUTOMATIC_LOGIT "When building in stand-alone, automatically fetch and build LogIt" ON)
+option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 
 SET( SRCS
   src/nodemanagerbase.cpp
@@ -50,9 +51,16 @@ if(STANDALONE_BUILD)
     set( SRCS ${SRCS} $<TARGET_OBJECTS:LogIt> )
   endif(STANDALONE_AUTOMATIC_LOGIT)
 
-  add_library( open62541-compat STATIC
-    ${SRCS}
-  )
+  if (STANDALONE_BUILD_SHARED)
+     add_library( open62541-compat SHARED
+     ${SRCS}
+     )
+  else(STANDALONE_BUILD_SHARED)
+     add_library( open62541-compat STATIC
+     ${SRCS}
+     )
+  endif(STANDALONE_BUILD_SHARED)
+  
   
 else(STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT

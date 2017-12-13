@@ -20,15 +20,12 @@ static std::string toHexString (const T t)
 
 UaString UaStatus::toString() const
 {
-  std::string buf(UA_StatusCode_name(m_status));
 
-  if ( buf != "Unknown" )
-  {
+	std::string buf(UA_StatusCode_name(m_status));
 	buf.append(": ");
 	buf.append(UA_StatusCode_explanation(m_status));
+	buf.append(" StatusCode (0x"+toHexString(m_status)+")");
+
 	return buf.c_str();
-  }
-  else
-    return (buf+": StatusCode (0x"+toHexString(m_status)+")").c_str();
 
 }

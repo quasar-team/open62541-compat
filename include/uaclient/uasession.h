@@ -22,7 +22,7 @@
 #ifndef INCLUDE_UACLIENT_UASESSION_H_
 #define INCLUDE_UACLIENT_UASESSION_H_
 
-#include <boost/thread/mutex.hpp>
+#include <mutex>
 
 #include <opcua_types.h>
 #include <uaclient/uaclientsdk.h>
@@ -94,7 +94,7 @@ public:
 
 private:
     UA_Client     *m_client;
-    boost::mutex  m_accessMutex; // used to make all UaSession's methods synchronized
+    std::mutex    m_accessMutex; // used to make all UaSession's methods synchronized
 };
 
 }

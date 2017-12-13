@@ -22,6 +22,7 @@
 #ifndef INCLUDE_UACLIENT_UASESSION_H_
 #define INCLUDE_UACLIENT_UASESSION_H_
 
+#include <boost/thread/mutex.hpp>
 
 #include <opcua_types.h>
 #include <uaclient/uaclientsdk.h>
@@ -86,8 +87,14 @@ public:
             UaStatusCodeArray &     results,
             UaDiagnosticInfos &     diagnosticInfos );
 
+    UaStatus disconnect(
+            ServiceSettings &       serviceSettings,
+            OpcUa_Boolean           deleteSubscriptions
+        );
+
 private:
-    UA_Client *m_client;
+    UA_Client     *m_client;
+    boost::mutex  m_accessMutex; // used to make all UaSession's methods synchronized
 };
 
 }

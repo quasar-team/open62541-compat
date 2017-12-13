@@ -22,6 +22,7 @@
 #include <stdexcept>
 
 #include <boost/lexical_cast.hpp>
+#include <boost/thread/lock_guard.hpp>
 
 #include <open62541.h>
 #include <open62541_compat_common.h>
@@ -42,8 +43,10 @@ UaSession::~UaSession ()
 {
     if (m_client)
     {
-        UA_Client_delete(m_client);
-        m_client = 0;
+        ServiceSettings standardServiceSettings;
+        this->disconnect(
+                standardServiceSettings,
+                /*delete subscriptions*/ OpcUa_True);
     }
 
 }
@@ -54,6 +57,7 @@ UaStatus UaSession::connect(
         const SessionSecurityInfo&     securityInfo,
         UaSessionCallback*             callback)
 {
+    boost::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
 
     if (m_client)
     {
@@ -74,6 +78,30 @@ UaStatus UaSession::connect(
 }
 
 /**
+ * TODO: serviceSettings,
+ * TODO: deleteSubscriptions
+ */
+UaStatus UaSession::disconnect(
+        ServiceSettings &       serviceSettings,
+        OpcUa_Boolean           deleteSubscriptions
+    )
+{
+    boost::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
+    if (! m_client)
+    {
+        LOG(Log::WRN) << "Can't disconnect because not connected.";
+        return OpcUa_BadInvalidState;  // can't disconnect if not connected...
+    }
+    UaStatus status = UA_Client_disconnect(m_client);
+    if (m_client)
+    {
+        UA_Client_delete(m_client);
+        m_client = 0;
+    }
+    return status;
+}
+
+/**
  * What's not implemented:
  * - diagnostic infos (TODO)
  * - taking into account serviceSettings (TODO)
@@ -90,6 +118,7 @@ UaStatus UaSession::read(
             UaDataValues &              values,
             UaDiagnosticInfos &         diagnosticInfos  )
 {
+    boost::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
     if (nodesToRead.size() != 1)
     {
 
@@ -174,6 +203,7 @@ UaStatus UaSession::write(
         UaStatusCodeArray &     results,
         UaDiagnosticInfos &     diagnosticInfos )
 {
+    boost::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
     if (nodesToWrite.size() != 1)
     {
         throw std::runtime_error("UaSession::write(): So far only single writes are supported, but you requested a write of "

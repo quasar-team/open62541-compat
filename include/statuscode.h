@@ -48,6 +48,8 @@
 #define OpcUa_BadUnexpectedError UA_STATUSCODE_BADUNEXPECTEDERROR
 #define OpcUa_BadParentNodeIdInvalid UA_STATUSCODE_BADPARENTNODEIDINVALID
 #define OpcUa_BadServerNotConnected UA_STATUSCODE_BADSERVERNOTCONNECTED
+#define OpcUa_BadServerNotConnected UA_STATUSCODE_BADSERVERNOTCONNECTED
+#define OpcUa_BadIndexRangeInvalid UA_STATUSCODE_BADINDEXRANGEINVALID
 
 typedef OpcUa_UInt32 OpcUa_StatusCode;
 

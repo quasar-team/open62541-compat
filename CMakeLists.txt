@@ -22,7 +22,6 @@ cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0012 NEW)
 
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
-option(STANDALONE_AUTOMATIC_LOGIT "When building in stand-alone, automatically fetch and build LogIt" ON)
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 
 SET( SRCS
@@ -40,32 +39,78 @@ SET( SRCS
   )
 
 if(STANDALONE_BUILD)
+  
   add_definitions( -std=c++0x )
   include_directories( include )
 
-  if(STANDALONE_AUTOMATIC_LOGIT)
+  #
+  # How does the stand-alone open62541-compat build want to use LogIt?
+  #
+  set(LOGIT_BUILD_OPTION "LOGIT_AS_INT_SRC" CACHE STRING "\
+    LogIt is a mandatory dependency of the open62541-compat, but, there are options as to how it's included:\
+    LOGIT_AS_INT_SRC: The LogIt source code is retrieved and built straight into open62541-compat as part of the library\
+    LOGIT_AS_EXT_SHARED: LogIt is an external *shared* library, obviously this only makes sense if you are building open62541-compat as a shared library\
+    LOGIT_AS_EXT_STATIC: LogIt is an external *static* library")
+  set_property(CACHE LOGIT_BUILD_OPTION PROPERTY STRINGS LOGIT_AS_INT_SRC LOGIT_AS_EXT_SHARED LOGIT_AS_EXT_STATIC)
+  message(STATUS "LogIt build option LOGIT_BUILD_OPTION [${LOGIT_BUILD_OPTION}]")
+
+  set(LOGIT_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/LogIt/include CACHE PATH "Path to the LogIt include directory. Use absolute path, or relative to [${PROJECT_SOURCE_DIR}/]")
+  set(LOGIT_EXT_LIB "UNINIALIZED" CACHE FILEPATH "Path to the LogIt shared/static library binary file. Use absolute path, or relative to [${PROJECT_SOURCE_DIR}/]")
+
+  if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
+    message(STATUS "Using LogIt from source code, the code will be retrieved and built into the open62541-compat library")
     execute_process(COMMAND git clone https://github.com/quasar-team/LogIt.git ${PROJECT_SOURCE_DIR}/LogIt )
-    include_directories( ${PROJECT_SOURCE_DIR}/LogIt/include )
     set( LOGIT_HAS_UATRACE FALSE )
     add_subdirectory( ${PROJECT_SOURCE_DIR}/LogIt )
     set( SRCS ${SRCS} $<TARGET_OBJECTS:LogIt> )
-  endif(STANDALONE_AUTOMATIC_LOGIT)
+  elseif("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
+    message(STATUS "Using LogIt as an external shared library")
+    add_library(libLogIt SHARED IMPORTED)
+    set_property(TARGET libLogIt PROPERTY IMPORTED_LOCATION ${LOGIT_EXT_LIB})
+  elseif("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_STATIC")
+    message(STATUS "Using LogIt as an external static library")
+    add_library(libLogIt STATIC IMPORTED)
+    set_property(TARGET libLogIt PROPERTY IMPORTED_LOCATION ${LOGIT_EXT_LIB})
+  else()
+    message(FATAL_ERROR "No command given as to how to use LogIt in the open62541-compat library, see documentaton for property [LOGIT_BUILD_OPTION]")
+  endif()
+
+  if( EXISTS ${LOGIT_INCLUDE_DIR} )
+    message(STATUS "Using LogIt include directory [${LOGIT_INCLUDE_DIR}]")
+    include_directories( ${LOGIT_INCLUDE_DIR} )        
+  else()
+    message(FATAL_ERROR "Cannot build with LogIt. No LogIt include directory found at [${LOGIT_INCLUDE_DIR}]. If building with LogIt as an external shared/static library - please specify using [-DLOGIT_INCLUDE_DIR=path_to_external_include_dir]")
+  endif()  
+
+
+#  if(STANDALONE_WITH_LOGIT_BUILT_IN)
+#    message(STATUS "Obtaining LogIt source code and building it into this library")
+#
+#  else()
+#
+#    message(STATUS "Using LogIt as an external shared library. Building with options LOGIT_INCLUDE_DIR [${LOGIT_INCLUDE_DIR}] LOGIT_SHARED_LIB [${LOGIT_SHARED_LIB}]")
+#
+#
+#    
+#    if( EXISTS ${LOGIT_SHARED_LIB} )
+#      add_library(libLogIt SHARED IMPORTED)
+#      set_property(TARGET libLogIt PROPERTY IMPORTED_LOCATION ${LOGIT_SHARED_LIB})
+#    else()
+#      message(FATAL_ERROR "Cannot build with LogIt. No LogIt shared library found at [${LOGIT_SHARED_LIB}]")
+#    endif()
+#
+#
+#  endif(STANDALONE_WITH_LOGIT_BUILT_IN)
 
   if (STANDALONE_BUILD_SHARED)
-     add_library( open62541-compat SHARED
-     ${SRCS}
-     )
-  else(STANDALONE_BUILD_SHARED)
-     add_library( open62541-compat STATIC
-     ${SRCS}
-     )
-  endif(STANDALONE_BUILD_SHARED)
+     add_library( open62541-compat SHARED ${SRCS} )
+  else()
+     add_library( open62541-compat STATIC ${SRCS} )
+  endif()
   
   
 else(STANDALONE_BUILD)
-  add_library ( open62541-compat OBJECT
-    ${SRCS}
-  )
+  add_library ( open62541-compat OBJECT ${SRCS} )
 endif(STANDALONE_BUILD)
   
 

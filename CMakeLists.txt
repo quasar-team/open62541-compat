@@ -73,11 +73,7 @@ else()
   # - External shared
   # - External static.
   #
-  set(LOGIT_BUILD_OPTION "LOGIT_AS_INT_SRC" CACHE STRING "\
-    LogIt is a mandatory dependency of the open62541-compat, but, there are options as to how it's included:\
-    \n LOGIT_AS_INT_SRC: The LogIt source code is retrieved and built into open62541-compat as part of the library\
-    \n LOGIT_AS_EXT_SHARED: LogIt is an external *shared* library, obviously this only makes sense if you are building open62541-compat as a shared library\
-    \n LOGIT_AS_EXT_STATIC: LogIt is an external *static* library")
+  set(LOGIT_BUILD_OPTION "LOGIT_AS_INT_SRC" CACHE STRING "LogIt is a mandatory dependency of open62541-compat. Inclusion options LOGIT_AS_INT_SRC, LOGIT_AS_EXT_SHARED, LOGIT_AS_EXT_STATIC")
   set_property(CACHE LOGIT_BUILD_OPTION PROPERTY STRINGS LOGIT_AS_INT_SRC LOGIT_AS_EXT_SHARED LOGIT_AS_EXT_STATIC)
   message(STATUS "LogIt build option LOGIT_BUILD_OPTION [${LOGIT_BUILD_OPTION}]")
 
@@ -118,7 +114,7 @@ else()
   SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
   find_library(
     OPEN62541_SDK_LIB NAMES open62541 
-    PATHS open62541/ open62541/Release/ NO_DEFAULT_PATH
+    PATHS open62541/build open62541/Release/ NO_DEFAULT_PATH
   )
   message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
 

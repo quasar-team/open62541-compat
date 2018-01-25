@@ -44,6 +44,15 @@ if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
 else()
   #
+  # Load stand-alone build toolchain file (used for defining build-specific boost (BOOST_LIBS), amongst other things)
+  #
+  if(DEFINED CMAKE_TOOLCHAIN_FILE)
+  	message("CMAKE_TOOLCHAIN_FILE is defined -- including [[${CMAKE_TOOLCHAIN_FILE}]]")
+  	include(${CMAKE_TOOLCHAIN_FILE})  	
+  endif()
+  message(STATUS "Using boost libraries: BOOST_LIBS [${BOOST_LIBS}]")
+
+  #
   # Decide on open62541-compat build output (shared/static)
   #
   if (STANDALONE_BUILD_SHARED)
@@ -56,18 +65,6 @@ else()
   include_directories( include )
   include_directories( open62541 )
   
-  #
-  # Boost headers and libs. If environment variables are set, they go into the makefile (otherwise system path assumed)
-  #
-  message(STATUS "Boost - include environment variable BOOST_PATH_HEADERS [$ENV{BOOST_PATH_HEADERS}] libs environment variable BOOST_PATH_LIBS [$ENV{BOOST_PATH_LIBS}]")
-  include_directories( $ENV{BOOST_PATH_HEADERS} )
-  SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
-  find_library(
-    BOOST_LIB_DATE_TIME NAMES libboost_1_66_0_date_time-vc141-mt-x64-1_66 # nasty: FIXME, how do we avoid using brutal form?
-    PATHS $ENV{BOOST_PATH_LIBS}  # use env variable as a guess (if exists), plus system paths.
-  )
-  message(STATUS "BOOST_LIB_DATE_TIME [${BOOST_LIB_DATE_TIME}]")
-
   #
   # How does the stand-alone open62541-compat build want to use LogIt? Possible options:
   # - Source
@@ -111,7 +108,7 @@ else()
   include_directories( ${LOGIT_INCLUDE_DIR} )
 
   #
-  # Resolve the open62541 SDK library
+  # Resolve open62541 SDK library
   #
   SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
   find_library(
@@ -123,7 +120,7 @@ else()
   #
   # Set required libs, note windows build requires winsock.
   #
-  set( REQUIRED_LIBS "${LOGITLIB}" "${BOOST_LIB_DATE_TIME}" "${OPEN62541_SDK_LIB}")
+  set( REQUIRED_LIBS "${LOGITLIB}" "${BOOST_LIBS}" "${OPEN62541_SDK_LIB}")
   if(WIN32)
     set( REQUIRED_LIBS ${REQUIRED_LIBS} ws2_32 ) 
   endif()  

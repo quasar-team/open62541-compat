@@ -6,3 +6,10 @@ open62541/
 cmake_install.cmake
 LogIt/
 CMakeCache.txt
+Release/
+*.vcxproj*
+*.sln
+x64/
+*.dir/
+.vs/
+prepare.pyc

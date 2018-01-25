@@ -17,7 +17,7 @@
 # Authors:
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
-project(open62541-compat)
+project(open62541-compat CXX)
 cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0012 NEW)
 
@@ -44,15 +44,6 @@ if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
 else()
   #
-  # Load stand-alone build toolchain file (used for defining build-specific boost (BOOST_LIBS), amongst other things)
-  #
-  if(DEFINED CMAKE_TOOLCHAIN_FILE)
-  	message("CMAKE_TOOLCHAIN_FILE is defined -- including [[${CMAKE_TOOLCHAIN_FILE}]]")
-  	include(${CMAKE_TOOLCHAIN_FILE})  	
-  endif()
-  message(STATUS "Using boost libraries: BOOST_LIBS [${BOOST_LIBS}]")
-
-  #
   # Decide on open62541-compat build output (shared/static)
   #
   if (STANDALONE_BUILD_SHARED)
@@ -64,6 +55,18 @@ else()
   add_definitions( -std=c++0x )
   include_directories( include )
   include_directories( open62541 )
+
+  #
+  # Load stand-alone build toolchain file (used for defining build-specific boost (BOOST_LIBS), amongst other things)
+  #
+  if(DEFINED CMAKE_TOOLCHAIN_FILE)
+    message("CMAKE_TOOLCHAIN_FILE is defined -- including [[${CMAKE_TOOLCHAIN_FILE}]]")
+    include(${CMAKE_TOOLCHAIN_FILE})    
+  endif()
+  if( NOT DEFINED BOOST_LIBS)
+    message(FATAL_ERROR "Required variable BOOST_LIBS has not been defined. You must define a toolchain file describing (as a minimum) how boost headers/libs are resolved in the target build environment")
+  endif() 
+  message(STATUS "Using boost libraries: BOOST_LIBS [${BOOST_LIBS}]")  
   
   #
   # How does the stand-alone open62541-compat build want to use LogIt? Possible options:

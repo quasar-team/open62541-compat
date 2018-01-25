@@ -47,9 +47,9 @@ else()
   # Decide on open62541-compat build output (shared/static)
   #
   if (STANDALONE_BUILD_SHARED)
-     add_library( open62541-compat SHARED ${SRCS})
+  	 set(OPEN62541_LIB_FORMAT SHARED)
   else()
-     add_library( open62541-compat STATIC ${SRCS})
+     set(OPEN62541_LIB_FORMAT STATIC)
   endif()
 
   add_definitions( -std=c++0x )
@@ -79,26 +79,31 @@ else()
   message(STATUS "LogIt build option LOGIT_BUILD_OPTION [${LOGIT_BUILD_OPTION}]")
 
   #
-  # Resolve LogIt library (to LOGITLIB)
+  # Resolve LogIt library
   #
   set(LOGIT_EXT_LIB_DIR "UNINIALIZED" CACHE PATH "Path to the directory containing the LogIt shared/static library binary file. Use absolute path, or relative to [${PROJECT_SOURCE_DIR}/]")
+  message(STATUS "Using LogIt build option [${LOGIT_BUILD_OPTION}]")
   if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
     message(STATUS "!!! *** WARNING *** !!! currently cloning quasar-team/LogIt with a dev branch - remove any instances of branch specifier [stand-alone-LogIt-with-strings-V3] in this file once LogIt's dev branch merged to master")
     execute_process(COMMAND git clone -b stand-alone-LogIt-with-strings-V3 https://github.com/quasar-team/LogIt.git)
     set( LOGIT_HAS_UATRACE FALSE )
     add_subdirectory( ${PROJECT_SOURCE_DIR}/LogIt )
-    add_dependencies (open62541-compat LogIt)
-    set( LOGITLIB $<TARGET_OBJECTS:LogIt> )
-  elseif("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
-    SET(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".lib") # windows looks for lib file to link to target dll: lib contains dll exports, symbols etc (see LogIt.h SHARED_LIB_EXPORT_DEFN)
-    find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )    
-  elseif("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_STATIC")
-    SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
-    find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )
+    message(STATUS "LogIt added as compiled object code from sub-directory LogIt")
+    add_library( open62541-compat ${OPEN62541_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt>)
   else()
-    message(FATAL_ERROR "No command given as to how to use LogIt in the open62541-compat library, see documentaton for property [LOGIT_BUILD_OPTION]")
+  	add_library( open62541-compat ${OPEN62541_LIB_FORMAT} ${SRCS} )
+    if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
+      SET(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".lib") # windows looks for lib file to link to target dll: lib contains dll exports, symbols etc (see LogIt.h SHARED_LIB_EXPORT_DEFN)
+      find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )          
+    elseif("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_STATIC")
+      SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
+      find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )
+    else()
+      message(FATAL_ERROR "No command given as to how to use LogIt in the open62541-compat library, see documentaton for property [LOGIT_BUILD_OPTION]")
+    endif()
+    target_link_libraries( open62541-compat ${LOGITLIB} )
+    message(STATUS "LogIt added as external library dependency LOGITLIB [${LOGITLIB}]")
   endif()
-  message(STATUS "Using LogIt build option [${LOGIT_BUILD_OPTION}], LogIt library resolved to LOGITLIB [${LOGITLIB}]")
 
   #
   # Resolve LogIt include
@@ -123,11 +128,9 @@ else()
   #
   # Set required libs, note windows build requires winsock.
   #
-  set( REQUIRED_LIBS "${LOGITLIB}" "${BOOST_LIBS}" "${OPEN62541_SDK_LIB}")
+  target_link_libraries( open62541-compat ${BOOST_LIBS} ${OPEN62541_SDK_LIB})
   if(WIN32)
-    set( REQUIRED_LIBS ${REQUIRED_LIBS} ws2_32 ) 
+    target_link_libraries( open62541-compat ws2_32 )
   endif()  
-  message(STATUS "REQUIRED_LIBS [${REQUIRED_LIBS}]")
-  target_link_libraries( open62541-compat  ${REQUIRED_LIBS})
 
 endif()

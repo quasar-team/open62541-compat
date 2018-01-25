@@ -13,3 +13,5 @@ x64/
 *.dir/
 .vs/
 prepare.pyc
+libopen62541-compat.a
+libopen62541-compat.so

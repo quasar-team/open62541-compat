@@ -4,3 +4,5 @@ include/open62541.h
 src/open62541.c
 open62541/
 cmake_install.cmake
+LogIt/
+CMakeCache.txt

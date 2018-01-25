@@ -17,12 +17,13 @@
 # Authors:
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
-
+project(open62541-compat)
 cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0012 NEW)
 
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
+message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
 
 SET( SRCS
   src/nodemanagerbase.cpp
@@ -40,7 +41,7 @@ SET( SRCS
 
 
 if(NOT STANDALONE_BUILD)
-  add_library ( open62541-compat OBJECT ${SRCS} ) 
+  add_library ( open62541-compat OBJECT ${SRCS} )
 else()
   #
   # Decide on open62541-compat build output (shared/static)
@@ -86,6 +87,7 @@ else()
     execute_process(COMMAND git clone -b stand-alone-LogIt-with-strings-V3 https://github.com/quasar-team/LogIt.git)
     set( LOGIT_HAS_UATRACE FALSE )
     add_subdirectory( ${PROJECT_SOURCE_DIR}/LogIt )
+    add_dependencies (open62541-compat LogIt)
     set( LOGITLIB $<TARGET_OBJECTS:LogIt> )
   elseif("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
     SET(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".lib") # windows looks for lib file to link to target dll: lib contains dll exports, symbols etc (see LogIt.h SHARED_LIB_EXPORT_DEFN)

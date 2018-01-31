@@ -16,7 +16,7 @@
 
 # Authors:
 # Ben Farnham <firstNm.secondNm@cern.ch>
-message(STATUS "Using file [custom_boost_win_VS2017.cmake] toolchain file")
+message(STATUS "Using file [boost_custom_win_VS2017.cmake] toolchain file")
 message(STATUS "Boost - include environment variable BOOST_PATH_HEADERS [$ENV{BOOST_PATH_HEADERS}] libs environment variable BOOST_PATH_LIBS [$ENV{BOOST_PATH_LIBS}]")
 
 #-------

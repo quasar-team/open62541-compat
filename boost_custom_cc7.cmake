@@ -16,7 +16,7 @@
 
 # Authors:
 # Ben Farnham <firstNm.secondNm@cern.ch>
-message(STATUS "Using file [custom_boost_cc7.cmake] toolchain file")
+message(STATUS "Using file [boost_custom_cc7.cmake] toolchain file")
 
 message(STATUS "environment vars: BOOST_HOME [$ENV{BOOST_HOME}] UNIFIED_AUTOMATION_HOME [$ENV{UNIFIED_AUTOMATION_HOME}]")
 message(STATUS "Boost - include environment variable BOOST_PATH_HEADERS [$ENV{BOOST_PATH_HEADERS}] libs environment variable BOOST_PATH_LIBS [$ENV{BOOST_PATH_LIBS}]")

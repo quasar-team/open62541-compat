@@ -25,6 +25,13 @@ option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
 
+function ( clone_LogIt )
+  message(STATUS "!!! *** WARNING *** !!! currently cloning quasar-team/LogIt with a dev branch - remove any instances of branch specifier [stand-alone-LogIt-with-strings-V3] in this file once LogIt's dev branch merged to master")
+  execute_process(COMMAND git clone -b stand-alone-LogIt-with-strings-V3 https://github.com/quasar-team/LogIt.git)
+  set( LOGIT_HAS_UATRACE FALSE )
+  message(STATUS "LogIt cloned from LogIt repo")	
+endfunction()
+
 SET( SRCS
   src/nodemanagerbase.cpp
   src/open62541_compat.cpp
@@ -84,9 +91,7 @@ else()
   set(LOGIT_EXT_LIB_DIR "UNINIALIZED" CACHE PATH "Path to the directory containing the LogIt shared/static library binary file. Use absolute path, or relative to [${PROJECT_SOURCE_DIR}/]")
   message(STATUS "Using LogIt build option [${LOGIT_BUILD_OPTION}]")
   if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
-    message(STATUS "!!! *** WARNING *** !!! currently cloning quasar-team/LogIt with a dev branch - remove any instances of branch specifier [stand-alone-LogIt-with-strings-V3] in this file once LogIt's dev branch merged to master")
-    execute_process(COMMAND git clone -b stand-alone-LogIt-with-strings-V3 https://github.com/quasar-team/LogIt.git)
-    set( LOGIT_HAS_UATRACE FALSE )
+  	clone_LogIt()
     add_subdirectory( ${PROJECT_SOURCE_DIR}/LogIt )
     message(STATUS "LogIt added as compiled object code from sub-directory LogIt")
     add_library( open62541-compat ${OPEN62541_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt>)

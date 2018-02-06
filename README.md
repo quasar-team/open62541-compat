@@ -42,7 +42,7 @@ Quick-start guide to get an stand-alone(independent) library
      cmake -DCMAKE_TOOLCHAIN_FILE=boost_custom_win_VS2017.cmake -DSTANDALONE_BUILD=ON -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release
      ```
      Note! We don't know how your boost build/installation looks, but take a look at the sample custom toolchain file (__boost_custom_win_VS2017.cmake__)
-     for inspiration and write your own.
+     for inspiration, write your own and use it in your build via the build option **CMAKE_TOOLCHAIN_FILE**
      
      Note! Our custom toolchain file (__boost_custom_win_VS2017.cmake__) requires that you specify where your boost headers and libraries are via an
      environment variables (dumped below).

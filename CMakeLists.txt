@@ -68,7 +68,7 @@ build_open62541()
 SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
 find_library(
   OPEN62541_SDK_LIB NAMES open62541 
-  PATHS open62541 open62541/build open62541/Release/ NO_DEFAULT_PATH
+  PATHS open62541 open62541/build open62541/Release/ open62541/Debug/ NO_DEFAULT_PATH
 )
 message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
 

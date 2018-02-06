@@ -15,8 +15,11 @@ Quick-start guide to get an stand-alone(independent) library
 1. clone the repo
 
 2. generate the makefiles / VS solution using cmake. A few options here, depending on
+
    (a) do you want to build open62541-compat as a shared or static library?
+
    (b) open62541-compat requires the boost library, do you want to use the system boost library or do you have a custom boost build?
+
    (c) open62541-compat depends on the quasar module LogIt, should the compat module clone, build and link LogIt source directly into 
        the compat library or should the compat library consume LogIt from some external build.
 
@@ -40,6 +43,7 @@ Quick-start guide to get an stand-alone(independent) library
      ```
      Note! We don't know how your boost build/installation looks, but take a look at the sample custom toolchain file (__boost_custom_win_VS2017.cmake__)
      for inspiration and write your own.
+     
      Note! Our custom toolchain file (__boost_custom_win_VS2017.cmake__) requires that you specify where your boost headers and libraries are via an
      environment variables (dumped below).
      ```

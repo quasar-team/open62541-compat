@@ -24,13 +24,17 @@ Quick-start guide to get an stand-alone(independent) library
 
    - Build open62541-compat as a shared library on linux. Use whatever the system installation of boost-devel is and build LogIt 
      directly into the compat shared library.
-     ```cmake -DCMAKE_TOOLCHAIN_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON
+     ```
+     cmake -DCMAKE_TOOLCHAIN_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON
+     ```
 
    - Build open62541-compat as a shared library on windows (visual studio 2017). Use a custom boost build (perhaps you built boost yourself, or have 
      several boost installations available). Build LogIt directly into the compat shared library.
-     ```cmake -DCMAKE_TOOLCHAIN_FILE=boost_custom_win_VS2017.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release
+     ```
+     cmake -DCMAKE_TOOLCHAIN_FILE=boost_custom_win_VS2017.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release
+     ```
 
-   
+
 
 ###### How do you use it in your independent UASDK server or client? ######
 

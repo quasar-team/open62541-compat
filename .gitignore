@@ -15,3 +15,4 @@ x64/
 prepare.pyc
 libopen62541-compat.a
 libopen62541-compat.so
+Debug/

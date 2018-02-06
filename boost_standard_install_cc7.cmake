@@ -16,7 +16,22 @@
 
 # Authors:
 # Ben Farnham <firstNm.secondNm@cern.ch>
+cmake_minimum_required( VERSION 2.8 )
+#project( FindSystemBoost CXX )
 message(STATUS "Using file [boost_standard_install_cc7.cmake] toolchain file")
+
+message(STATUS "CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES [${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES}]")
+
+#
+# Warning: *Distinctly* suspect that these should require be set but otherwise
+# no boost libs are found. Possibly fixed in some later version, but not in
+# cmake v2.8's FindBoost package
+#
+set(BOOST_INCLUDEDIR "/usr/include/")
+set(BOOST_LIBRARYDIR "/usr/lib64/")
+
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".so")
+set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
 
 find_package(Boost REQUIRED
 	program_options system filesystem chrono date_time thread)
@@ -27,4 +42,5 @@ else()
 	message(STATUS "Found system boost, version [${Boost_VERSION}], include dir [${Boost_INCLUDE_DIRS}] library dir [${Boost_LIBRARY_DIRS}], libs [${Boost_LIBRARIES}]")
 endif()	
 
-set( BOOST_LIBS ${Boost_LIBRARIES})
+include( ${Boost_INCLUDE_DIRS} )
+set( BOOST_LIBS ${Boost_LIBRARIES} )

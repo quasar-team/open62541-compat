@@ -25,11 +25,28 @@ option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
 
+function ( clone_open62541 )
+  SET (OPEN62541_VERSION "0.2")
+  message(STATUS "cloning open62541 from github. *NOTE* cloning tag [${OPEN62541_VERSION}]")
+  execute_process(COMMAND git clone -b ${OPEN62541_VERSION} https://github.com/open62541/open62541.git)
+  SET( UA_ENABLE_AMALGAMATION ON )
+  SET( UA_ENABLE_METHODCALLS ON )
+  message(STATUS "open62541 cloned")    
+endfunction()
+
+function ( build_open62541 )
+  message(STATUS "generating platform specific build for open62541 library")
+  execute_process( COMMAND "${CMAKE_COMMAND}" G "${CMAKE_GENERATOR}" . WORKING_DIRECTORY open62541 )
+  message(STATUS "executing platform specific build for open62541 library")
+  execute_process( COMMAND "${CMAKE_COMMAND}" --build . WORKING_DIRECTORY open62541 )
+endfunction()
+
 function ( clone_LogIt )
-  message(STATUS "!!! *** WARNING *** !!! currently cloning quasar-team/LogIt with a dev branch - remove any instances of branch specifier [stand-alone-LogIt-with-strings-V3] in this file once LogIt's dev branch merged to master")
-  execute_process(COMMAND git clone -b stand-alone-LogIt-with-strings-V3 https://github.com/quasar-team/LogIt.git)
+  SET (LOGIT_VERSION "stand-alone-LogIt-with-strings-V3") #change to master post-merge
+  message(STATUS "cloning LogIt from github. *NOTE* cloning version [${LOGIT_VERSION}]")
+  execute_process(COMMAND git clone -b ${LOGIT_VERSION} https://github.com/quasar-team/LogIt.git)
   set( LOGIT_HAS_UATRACE FALSE )
-  message(STATUS "LogIt cloned from LogIt repo")	
+  message(STATUS "LogIt cloned from LogIt repo")
 endfunction()
 
 SET( SRCS
@@ -44,8 +61,16 @@ SET( SRCS
   src/uadatavalue.cpp
   src/uadatetime.cpp
   src/uaclient/uasession.cpp
-  )
+)
 
+clone_open62541()
+build_open62541()
+SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
+find_library(
+  OPEN62541_SDK_LIB NAMES open62541 
+  PATHS open62541 open62541/build open62541/Release/ NO_DEFAULT_PATH
+)
+message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
 
 if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
@@ -54,9 +79,9 @@ else()
   # Decide on open62541-compat build output (shared/static)
   #
   if (STANDALONE_BUILD_SHARED)
-  	 set(OPEN62541_LIB_FORMAT SHARED)
+  	 set(OPEN62541_COMPAT_LIB_FORMAT SHARED)
   else()
-     set(OPEN62541_LIB_FORMAT STATIC)
+     set(OPEN62541_COMPAT_LIB_FORMAT STATIC)
   endif()
 
   add_definitions( -std=c++0x )
@@ -94,9 +119,9 @@ else()
   	clone_LogIt()
     add_subdirectory( ${PROJECT_SOURCE_DIR}/LogIt )
     message(STATUS "LogIt added as compiled object code from sub-directory LogIt")
-    add_library( open62541-compat ${OPEN62541_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt>)
+    add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt>)
   else()
-  	add_library( open62541-compat ${OPEN62541_LIB_FORMAT} ${SRCS} )
+  	add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} )
     if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
       SET(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".lib") # windows looks for lib file to link to target dll: lib contains dll exports, symbols etc (see LogIt.h SHARED_LIB_EXPORT_DEFN)
       find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )          
@@ -119,16 +144,6 @@ else()
   endif()
   message(STATUS "Using LogIt include directory [${LOGIT_INCLUDE_DIR}]")
   include_directories( ${LOGIT_INCLUDE_DIR} )
-
-  #
-  # Resolve open62541 SDK library
-  #
-  SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
-  find_library(
-    OPEN62541_SDK_LIB NAMES open62541 
-    PATHS open62541/build open62541/Release/ NO_DEFAULT_PATH
-  )
-  message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
 
   #
   # Set required libs, note windows build requires winsock.

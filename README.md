@@ -22,8 +22,13 @@ Quick-start guide to get an stand-alone(independent) library
 
    Time for an example...
 
-   - Build open62541-compat as a shared library on linux. Use whatever the system installation of boost-devel is and build LogIt 
-     directly into the compat shared library.
+   - Build open62541 as a static library on linux. Use whatever the system installation of boost-devel is and build LogIt
+     directly into the compat library
+     ```
+     cmake -DCMAKE_TOOLCHAIN_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON
+     ```
+
+   - Build open62541-compat as a **shared** library on linux (and boost/LogIt treated as above) - just add **STANDALONE_BUILD_SHARED**
      ```
      cmake -DCMAKE_TOOLCHAIN_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON
      ```

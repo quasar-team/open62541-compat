@@ -28,7 +28,7 @@ message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [
 function ( clone_open62541 )
   SET (OPEN62541_VERSION "0.2")
   message(STATUS "cloning open62541 from github. *NOTE* cloning tag [${OPEN62541_VERSION}]")
-  execute_process(COMMAND git clone -b ${OPEN62541_VERSION} https://github.com/open62541/open62541.git)
+  execute_process(COMMAND git clone -b ${OPEN62541_VERSION} https://github.com/open62541/open62541.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR} )
   SET( UA_ENABLE_AMALGAMATION ON )
   SET( UA_ENABLE_METHODCALLS ON )
   message(STATUS "open62541 cloned")    
@@ -36,15 +36,15 @@ endfunction()
 
 function ( build_open62541 )
   message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
-  execute_process( COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" . WORKING_DIRECTORY open62541 )
+  execute_process( COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
   message(STATUS "executing platform specific build for open62541 library")
-  execute_process( COMMAND "${CMAKE_COMMAND}" --build . WORKING_DIRECTORY open62541 )
+  execute_process( COMMAND "${CMAKE_COMMAND}" --build . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
 endfunction()
 
 function ( clone_LogIt )
   SET (LOGIT_VERSION "stand-alone-LogIt-with-strings-V3") #change to master post-merge
   message(STATUS "cloning LogIt from github. *NOTE* cloning version [${LOGIT_VERSION}]")
-  execute_process(COMMAND git clone -b ${LOGIT_VERSION} https://github.com/quasar-team/LogIt.git)
+  execute_process(COMMAND git clone -b ${LOGIT_VERSION} https://github.com/quasar-team/LogIt.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR}  )
   set( LOGIT_HAS_UATRACE FALSE )
   message(STATUS "LogIt cloned from LogIt repo")
 endfunction()
@@ -68,7 +68,7 @@ build_open62541()
 SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
 find_library(
   OPEN62541_SDK_LIB NAMES open62541 
-  PATHS open62541 open62541/build open62541/Release/ open62541/Debug/ NO_DEFAULT_PATH
+  PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
 )
 message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
 
@@ -86,7 +86,7 @@ else()
 
   add_definitions( -std=c++0x )
   include_directories( include )
-  include_directories( open62541 )
+  include_directories( ${PROJECT_BINARY_DIR}/open62541 )
 
   #
   # Load stand-alone build toolchain file (used for defining build-specific boost (BOOST_LIBS), amongst other things)

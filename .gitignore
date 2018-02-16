@@ -4,3 +4,15 @@ include/open62541.h
 src/open62541.c
 open62541/
 cmake_install.cmake
+LogIt/
+CMakeCache.txt
+Release/
+*.vcxproj*
+*.sln
+x64/
+*.dir/
+.vs/
+prepare.pyc
+libopen62541-compat.a
+libopen62541-compat.so
+Debug/

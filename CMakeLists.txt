@@ -42,7 +42,7 @@ function ( build_open62541 )
 endfunction()
 
 function ( clone_LogIt )
-  SET (LOGIT_VERSION "stand-alone-LogIt-with-strings-V3") #change to master post-merge
+  SET (LOGIT_VERSION "master") #change to master post-merge
   message(STATUS "cloning LogIt from github. *NOTE* cloning version [${LOGIT_VERSION}]")
   execute_process(COMMAND git clone -b ${LOGIT_VERSION} https://github.com/quasar-team/LogIt.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR}  )
   set( LOGIT_HAS_UATRACE FALSE )

@@ -25,6 +25,7 @@ Quick-start guide to get an stand-alone(independent) library
 
    Time for an example...
 
+### Linux examples
    - Build open62541-compat as a static library on linux. Use whatever the system installation of boost-devel is and build LogIt
      directly into the compat library
      ```
@@ -36,31 +37,30 @@ Quick-start guide to get an stand-alone(independent) library
      cmake -DCMAKE_TOOLCHAIN_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON
      ```
      
-   - Build open62541-compat as a shared library on linux but with the LogIt library pulled in from some external build location (here LogIt is consumed as a shared library from /tmp/LogIt/). Note the **-DLOGIT** options
+   - Build open62541-compat as a shared library on linux but with the LogIt library pulled in from some external build location (here LogIt is consumed as a shared library from /tmp/LogIt/). Note the **-DLOGIT** options define how LogIt is built into open62541-compat.
      ```
      cmake -DCMAKE_TOOLCHAIN_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -DLOGIT_BUILD_OPTION=LOGIT_AS_EXT_SHARED -DLOGIT_EXT_LIB_DIR=/tmp/LogIt/ -DLOGIT_INCLUDE_DIR=/tmp/LogIt/include/
      ```
-
-   - Build Build open62541-compat as a static library on windows (visual studio 2017). Use a custom boost build (perhaps you built boost 
+### Windows examples (using a mingw 'git bash' command prompt)
+   - Build open62541-compat as a static library on windows (visual studio 2017). Use a custom boost build (perhaps you built boost 
      yourself, or have several boost installations available to choose from). Build LogIt directly into the compat library.
      ```
+     # (comment) - set environment variables to point to the custom boost headers/libs directories (required by the toolchain file)
+     export BOOST_PATH_HEADERS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/include/
+     export BOOST_PATH_LIBS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/lib/
+     
      cmake -DCMAKE_TOOLCHAIN_FILE=boost_custom_win_VS2017.cmake -DSTANDALONE_BUILD=ON -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release
      ```
-     Note! We don't know how your boost build/installation looks, but take a look at the sample custom toolchain file (__boost_custom_win_VS2017.cmake__)
+     Note! Your boost build/installation may be more exotic than ours, take a look at the sample custom toolchain file (__boost_custom_win_VS2017.cmake__)
      for inspiration, write your own and use it in your build via the build option **CMAKE_TOOLCHAIN_FILE**
      
-     Note! Our custom toolchain file (__boost_custom_win_VS2017.cmake__) requires that you specify where your boost headers and libraries are via an
-     environment variables (dumped below).
+   - Build open62541-compat as a shared library on windows (visual studio 2017). Use a custom boost build. Use the LogIt library (here as a shared library) from some external build (as with the linux build above, the **-DLOGIT** options define how LogIt is built into open62541-compat).
      ```
-     $ env | grep BOOST
-	 BOOST_PATH_HEADERS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/include/
-     BOOST_PATH_LIBS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/lib/
-     ```
-
-   - Build open62541-compat as a shared library on windows (visual studio 2017). Use a custom boost build (perhaps you built boost yourself, or have 
-     several boost installations available). Build LogIt directly into the compat shared library.
-     ```
-     cmake -DCMAKE_TOOLCHAIN_FILE=boost_custom_win_VS2017.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release
+     # (comment) - set environment variables to point to the custom boost headers/libs directories (required by the toolchain file)
+     export BOOST_PATH_HEADERS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/include/
+     export BOOST_PATH_LIBS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/lib/
+     
+     cmake -DCMAKE_TOOLCHAIN_FILE=boost_custom_win_VS2017.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release -DLOGIT_BUILD_OPTION=LOGIT_AS_EXT_SHARED -DLOGIT_EXT_LIB_DIR=/c/workspace/OPC-UA/LogIt/Release/ -DLOGIT_INCLUDE_DIR=/c/workspace/OPC-UA/LogIt/include/
      ```
 
 

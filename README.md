@@ -35,6 +35,11 @@ Quick-start guide to get an stand-alone(independent) library
      ```
      cmake -DCMAKE_TOOLCHAIN_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON
      ```
+     
+   - Build open62541-compat as a shared library on linux but with the LogIt library pulled in from some external build location (here LogIt is consumed as a shared library from /tmp/LogIt/). Note the **-DLOGIT** options
+     ```
+     cmake -DCMAKE_TOOLCHAIN_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -DLOGIT_BUILD_OPTION=LOGIT_AS_EXT_SHARED -DLOGIT_EXT_LIB_DIR=/tmp/LogIt/ -DLOGIT_INCLUDE_DIR=/tmp/LogIt/include/
+     ```
 
    - Build Build open62541-compat as a static library on windows (visual studio 2017). Use a custom boost build (perhaps you built boost 
      yourself, or have several boost installations available to choose from). Build LogIt directly into the compat library.

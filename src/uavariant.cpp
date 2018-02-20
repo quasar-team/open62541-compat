@@ -338,7 +338,14 @@ UaString UaVariant::toFullString() const
 	std::ostringstream result;
 	if(m_impl)
 	{
-		result << "type ["<<(m_impl->type)<<"] dimensions count ["<<m_impl->arrayDimensionsSize<<"]";
+		if(m_impl->type == &UA_TYPES[UA_TYPES_STRING])
+		{
+			result << toString().toUtf8();
+		}
+		else
+		{
+			result << "type ["<<(m_impl->type)<<"] dimensions count ["<<m_impl->arrayDimensionsSize<<"]";
+		}
 	}
 	else
 	{

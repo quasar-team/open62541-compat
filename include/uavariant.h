@@ -127,6 +127,8 @@ class UaVariant
   //! Will convert stored value to a simple type, if possible
   template<typename T>
     UaStatus toSimpleType( const UA_DataType* dataType, T* out ) const;
+
+  bool isScalarValue() const;
 };
 
 

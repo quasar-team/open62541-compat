@@ -338,7 +338,14 @@ UaString UaVariant::toFullString() const
 	std::ostringstream result;
 	if(m_impl)
 	{
-		result << "type ["<<(m_impl->type)<<"] dimensions count ["<<m_impl->arrayDimensionsSize<<"]";
+		if(m_impl->type == &UA_TYPES[UA_TYPES_STRING] && isScalarValue())
+		{
+			result << toString().toUtf8();
+		}
+		else
+		{
+			result << "type ["<<(m_impl->type)<<"] dimensions count ["<<m_impl->arrayDimensionsSize<<"]";
+		}
 	}
 	else
 	{
@@ -373,3 +380,21 @@ UaStatus UaVariant::copyTo ( UA_Variant* to) const
     return UA_Variant_copy(m_impl, to);
 }
 
+/**
+ * Returns true if the value the variant holds is a scalar, otherwise false.
+ * Assumption: if a variant has an internal value then
+ * (a) dimension info is explicitly set - great: decision based on info
+ * (b) dimension info is omitted - less great: absent dimension info => scalar
+ */
+bool UaVariant::isScalarValue() const
+{
+	if(m_impl && m_impl->data) // internal value exists and has data
+	{
+		// (a) explicit dimension info
+		if(m_impl->arrayDimensionsSize == 1 && m_impl->arrayDimensions && m_impl->arrayDimensions[0] == 1) return true;
+
+		// (b) absent dimension info
+		if(m_impl->arrayDimensionsSize == 0 && !m_impl->arrayDimensions) return true;
+	}
+	return false;
+}

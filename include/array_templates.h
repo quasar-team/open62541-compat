@@ -35,6 +35,11 @@ public:
         m_data.insert( m_data.begin(), n, T());
     }
 
+    void resize(size_t n)
+    {
+        m_data.resize(n, T());
+    }
+
     T& operator[](size_t i) { return m_data.at(i); }
     const T& operator[](size_t i) const { return m_data.at(i); }
 

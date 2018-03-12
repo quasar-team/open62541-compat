@@ -13,10 +13,14 @@
 
 #include <array_templates.h>
 
+typedef UaCompatArray<OpcUa_SByte>  UaSByteArray;
+typedef UaCompatArray<OpcUa_Byte>   UaByteArray;
 typedef UaCompatArray<OpcUa_Int16>  UaInt16Array;
 typedef UaCompatArray<OpcUa_UInt16> UaUInt16Array;
 typedef UaCompatArray<OpcUa_Int32>  UaInt32Array;
 typedef UaCompatArray<OpcUa_UInt32> UaUInt32Array;
+typedef UaCompatArray<OpcUa_Int64>  UaInt64Array;
+typedef UaCompatArray<OpcUa_UInt64> UaUInt64Array;
 typedef UaCompatArray<OpcUa_Float>  UaFloatArray;
 typedef UaCompatArray<OpcUa_Double> UaDoubleArray;
 

@@ -117,6 +117,8 @@ class UaVariant
   UaString toString( ) const;
   UaString toFullString() const;
   
+  UaStatus toInt16Array( UaInt16Array& out ) const;
+
   // copy-To has a signature with UaVariant however it should be the stack type. This is best effort compat we can get at the moment. (pnikiel)
   UaStatus copyTo ( UaVariant* to ) const { *to = UaVariant( *m_impl ); return OpcUa_Good; }
   UaStatus copyTo ( UA_Variant* to) const;
@@ -133,6 +135,9 @@ class UaVariant
   UA_Variant * m_impl;
   //! Will assign a supplied newValue to the variant's value. If possible (matching old/new types) a realloc is avoided.
   void reuseOrRealloc( const UA_DataType* dataType, void* newValue );
+
+  void set1DArray( const UA_DataType* dataType, void* newValue, size_t sz );
+
   //! Will convert stored value to a simple type, if possible
   template<typename T>
     UaStatus toSimpleType( const UA_DataType* dataType, T* out ) const;

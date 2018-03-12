@@ -256,31 +256,40 @@ void UaVariant::setByteString( const UaByteString& value, bool detach)
 {
 	if (detach)
 		throw std::runtime_error("value detachment not yet implemented");
-    if (m_impl->data != 0)
-        UA_Variant_deleteMembers( m_impl );
+
     UA_StatusCode s = UA_Variant_setScalarCopy( m_impl, value.impl(), &UA_TYPES[UA_TYPES_BYTESTRING]);
     if (s != UA_STATUSCODE_GOOD)
         throw alloc_error();
 }
 
+void UaVariant::set1DArray( const UA_DataType* dataType, void* newValue, size_t sz )
+{
+    if (m_impl->data != 0)
+        UA_Variant_deleteMembers( m_impl );
+    if (UA_Variant_setArrayCopy(
+            m_impl,
+            newValue,
+            sz,
+            dataType) != UA_STATUSCODE_GOOD)
+        throw alloc_error();
+}
+
 void UaVariant::setInt16Array(
-        UaInt16Array &      val,
+        UaInt16Array &      input,
         OpcUa_Boolean       bDetach
     )
 {
-    if (bDetach)
-        throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_INT16], &input[0], input.size() );
+}
 
-    //todo free from whatever was ther evefore
-
-    UA_Variant_setArrayCopy(
-            m_impl,
-            &val[0],
-            val.size(),
-            &UA_TYPES[UA_TYPES_INT16]);
-
-
-
+void UaVariant::setUInt16Array(
+        UaUInt16Array &      input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_UINT16], &input[0], input.size() );
 }
 
 UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
@@ -372,6 +381,20 @@ UaString UaVariant::toFullString() const
 		result << "type [EMPTY!]";
 	}
 	return UaString(result.str().c_str());
+}
+
+UaStatus UaVariant::toInt16Array( UaInt16Array& out ) const
+{
+    if (UA_Variant_hasArrayType(m_impl, &UA_TYPES[UA_TYPES_INT16] ))
+    {
+        size_t sz = m_impl->arrayLength;
+        out.create( sz );
+        OpcUa_Int16* input = static_cast<OpcUa_Int16*> (m_impl->data);
+        std::copy(input, input+sz, &out[0] );
+        return OpcUa_Good;
+    }
+    else
+        return OpcUa_BadDataEncodingInvalid;
 }
 
 template<typename T>

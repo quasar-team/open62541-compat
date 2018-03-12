@@ -250,13 +250,15 @@ UaStatus NodeManagerBase::addNodeAndReference(
 	    UA_VariableAttributes_init(&attr);
  	    attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
 	    attr.displayName = *displayName.impl();
+	    attr.dataType = to->typeDefinitionId().impl();
+	    attr.valueRank = static_cast<OpcUa::BaseDataVariableType*>(to)->valueRank();
 	    UA_StatusCode s =
 		UA_Server_addDataSourceVariableNode(m_server,
 						    to->nodeId().impl(),
 						    parent->nodeId().impl(),
 						    refType.impl(),
 						    to->browseName().impl(),
-						    to->typeDefinitionId().impl(),
+						    UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE ,0).impl() ,
 						    attr,
 						    dateDataSource,
 						    NULL

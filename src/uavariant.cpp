@@ -263,6 +263,26 @@ void UaVariant::setByteString( const UaByteString& value, bool detach)
         throw alloc_error();
 }
 
+void UaVariant::setInt16Array(
+        UaInt16Array &      val,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach)
+        throw std::runtime_error("value detachment not yet implemented");
+
+    //todo free from whatever was ther evefore
+
+    UA_Variant_setArrayCopy(
+            m_impl,
+            &val[0],
+            val.size(),
+            &UA_TYPES[UA_TYPES_INT16]);
+
+
+
+}
+
 UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_BOOLEAN], &out );
@@ -397,4 +417,21 @@ bool UaVariant::isScalarValue() const
 		if(m_impl->arrayDimensionsSize == 0 && !m_impl->arrayDimensions) return true;
 	}
 	return false;
+}
+
+void UaVariant::arrayDimensions( UaUInt32Array &arrayDimensions ) const
+{
+    if (isScalarValue())
+        arrayDimensions.create(0);
+    else
+    {
+        arrayDimensions.create( m_impl->arrayDimensionsSize );
+        for (unsigned int i=0; i<m_impl->arrayDimensionsSize; ++i)
+                 arrayDimensions[i] = m_impl->arrayDimensions[i];
+    }
+}
+
+OpcUa_Boolean UaVariant::isArray    (       )   const
+{
+    return !this->isScalarValue();
 }

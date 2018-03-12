@@ -91,7 +91,9 @@ namespace OpcUa
 
         m_browseName( browseNameNameSpaceIndex, name),
         m_currentValue( initialValue, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ),
-		m_nodeId (nodeId)
+		m_nodeId (nodeId),
+		m_typeDefinitionId( OpcUaType_Variant, 0),
+		m_valueRank(-1) // by default: scalar
 							   
     {
         //      std::cout << __PRETTY_FUNCTION__ <<" (nodeId="<<nodeId.toString().toUtf8()<<")" << std::endl;

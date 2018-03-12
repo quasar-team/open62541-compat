@@ -39,6 +39,7 @@ public:
     const T& operator[](size_t i) const { return m_data.at(i); }
 
     size_t size() const { return m_data.size(); }
+    size_t length() const { return size(); } // TODO is this really necessary ...
 
 private:
     std::vector<T> m_data;

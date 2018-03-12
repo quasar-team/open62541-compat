@@ -26,6 +26,7 @@
 #include <uanodeid.h>
 #include <uadatavalue.h>
 
+
 struct ReadValueId
 {
     ReadValueId() : NodeId(0, 0), AttributeId (OpcUa_Attributes_Value) {}

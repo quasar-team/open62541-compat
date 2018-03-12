@@ -32,41 +32,46 @@
 namespace OpcUa
 {
 
-    class BaseDataVariableType: public UaNode
-    {
-    public:
-	BaseDataVariableType(
-	    const UaNodeId&    nodeId,
-	    const UaString&    name,
-	    OpcUa_UInt16       browseNameNameSpaceIndex,
-	    const UaVariant&   initialValue,
-	    OpcUa_Byte         accessLevel,
-	    NodeManagerConfig* pNodeConfig,
-	    UaMutexRefCounted* pSharedMutex = NULL);
-	virtual ~BaseDataVariableType() {};
- 
-	virtual UaStatus setValue( 
-	    Session *session,
-	    const UaDataValue& dataValue,
-	    OpcUa_Boolean checkAccessLevel
-	    );
-	virtual UaDataValue value(Session* session) ;
-	virtual UaQualifiedName browseName() const { return m_browseName; }
-	virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE,0); }
-	virtual void setDataType( const UaNodeId& typeref ) {}
-	virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Variable; }
-	virtual UaNodeId nodeId() const { return m_nodeId; }
+class BaseDataVariableType: public UaNode
+{
+public:
+    BaseDataVariableType(
+            const UaNodeId&    nodeId,
+            const UaString&    name,
+            OpcUa_UInt16       browseNameNameSpaceIndex,
+            const UaVariant&   initialValue,
+            OpcUa_Byte         accessLevel,
+            NodeManagerConfig* pNodeConfig,
+            UaMutexRefCounted* pSharedMutex = NULL);
+    virtual ~BaseDataVariableType() {};
 
-        const UA_DataValue* valueImpl() const { return m_currentValue.impl(); }
+    virtual UaStatus setValue(
+            Session *session,
+            const UaDataValue& dataValue,
+            OpcUa_Boolean checkAccessLevel
+    );
+    virtual UaDataValue value(Session* session) ;
+    virtual UaQualifiedName browseName() const { return m_browseName; }
+    virtual UaNodeId typeDefinitionId() const { return m_typeDefinitionId; }
+    virtual void setDataType( const UaNodeId& typeref ) { m_typeDefinitionId = typeref; }
+    virtual void setValueRank (OpcUa_Int32 valueRank) { m_valueRank = valueRank; }
+    virtual void setArrayDimensions( const UaUInt32Array &arrayDimensions ) {} // TODO not implemented
+    virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Variable; }
+    virtual UaNodeId nodeId() const { return m_nodeId; }
+    virtual OpcUa_Int32 valueRank() const { return m_valueRank; }
 
-    private:
-	UaQualifiedName m_browseName;
-	UaDataValue m_currentValue;
-	UaNodeId m_nodeId;
-    };
+    const UA_DataValue* valueImpl() const { return m_currentValue.impl(); }
+
+private:
+    UaQualifiedName m_browseName;
+    UaDataValue m_currentValue;
+    UaNodeId m_nodeId;
+    UaNodeId m_typeDefinitionId;
+    OpcUa_Int32 m_valueRank;
+};
 
 
-  
+
 }
 
 #endif // __OPCUA_BASEDATAVARIABLETYPE_H__

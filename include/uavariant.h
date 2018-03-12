@@ -28,6 +28,8 @@
 #include <statuscode.h>
 #include <uadatetime.h>
 #include <uabytestring.h>
+#include <other.h>
+#include <simple_arrays.h>
 
 enum OpcUaType
   {
@@ -50,8 +52,6 @@ enum OpcUaType
 	OpcUaType_Variant    =  UA_NS0ID_BASEDATATYPE
     // support for remaining types, i.e. nodeid or statuscode also still missing
   };
-
-
 
 class UaVariant
 {
@@ -94,8 +94,15 @@ class UaVariant
 
   void setByteString( const UaByteString& value, bool detach);
 
+  void setInt16Array(
+          UaInt16Array &      val,
+          OpcUa_Boolean       bDetach = OpcUa_False
+      );
+
   void clear () {}; // TODO:
   
+
+
   // getters
   UaStatus toBool( OpcUa_Boolean& value) const;
   UaStatus toInt16( OpcUa_Int16& value) const;
@@ -117,6 +124,10 @@ class UaVariant
   UaStatus copyTo ( UA_Variant* to) const;
 
   const UA_Variant* impl() const { return m_impl; }
+
+  void arrayDimensions( UaUInt32Array &arrayDimensions ) const;
+  OpcUa_Boolean isArray  () const;
+
  private:
   static UA_Variant* createAndCheckOpen62541Variant();
   static void destroyOpen62541Variant(UA_Variant* open62541Variant);

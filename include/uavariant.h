@@ -94,10 +94,8 @@ class UaVariant
 
   void setByteString( const UaByteString& value, bool detach);
 
-  void setInt16Array(
-          UaInt16Array &      val,
-          OpcUa_Boolean       bDetach = OpcUa_False
-      );
+  void setInt16Array( UaInt16Array& val, OpcUa_Boolean bDetach = OpcUa_False);
+  void setUInt16Array( UaUInt16Array& val, OpcUa_Boolean bDetach = OpcUa_False );
 
   void clear () {}; // TODO:
   

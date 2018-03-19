@@ -94,6 +94,7 @@ class UaVariant
 
   void setByteString( const UaByteString& value, bool detach);
 
+  void setBoolArray( UaBooleanArray& val, OpcUa_Boolean bDetach = OpcUa_False);
   void setSByteArray( UaSByteArray& val, OpcUa_Boolean bDetach = OpcUa_False);
   void setByteArray( UaByteArray& val, OpcUa_Boolean bDetach = OpcUa_False );
   void setInt16Array( UaInt16Array& val, OpcUa_Boolean bDetach = OpcUa_False);
@@ -104,6 +105,7 @@ class UaVariant
   void setUInt64Array( UaUInt64Array& val, OpcUa_Boolean bDetach = OpcUa_False );
   void setFloatArray( UaFloatArray& val, OpcUa_Boolean bDetach = OpcUa_False);
   void setDoubleArray( UaDoubleArray& val, OpcUa_Boolean bDetach = OpcUa_False );
+//  void setStringArray( UaStringArray& val, OpcUa_Boolean bDetach = OpcUa_False );
 
   void clear () {}; // TODO:
   
@@ -125,6 +127,7 @@ class UaVariant
   UaString toString( ) const;
   UaString toFullString() const;
 
+  UaStatus toBoolArray( UaBooleanArray& out ) const;
   UaStatus toSByteArray( UaSByteArray& out ) const;
   UaStatus toByteArray( UaByteArray& out ) const;
   UaStatus toInt16Array( UaInt16Array& out ) const;
@@ -135,9 +138,7 @@ class UaVariant
   UaStatus toUInt64Array( UaUInt64Array& out ) const;
   UaStatus toFloatArray( UaFloatArray& out ) const;
   UaStatus toDoubleArray( UaDoubleArray& out ) const;
-
-
-
+//  UaStatus toStringArray( UaStringArray& out) const;
 
   // copy-To has a signature with UaVariant however it should be the stack type. This is best effort compat we can get at the moment. (pnikiel)
   UaStatus copyTo ( UaVariant* to ) const { *to = UaVariant( *m_impl ); return OpcUa_Good; }

@@ -274,6 +274,15 @@ void UaVariant::set1DArray( const UA_DataType* dataType, void* newValue, size_t 
         throw alloc_error();
 }
 
+void UaVariant::setBoolArray(
+        UaBooleanArray &    input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_BOOLEAN], &input[0], input.size() );
+}
+
 void UaVariant::setSByteArray(
         UaSByteArray &      input,
         OpcUa_Boolean       bDetach
@@ -352,7 +361,7 @@ void UaVariant::setFloatArray(
     )
 {
     if (bDetach) throw std::runtime_error("value detachment not yet implemented");
-    set1DArray( &UA_TYPES[UA_TYPES_INT32], &input[0], input.size() );
+    set1DArray( &UA_TYPES[UA_TYPES_FLOAT], &input[0], input.size() );
 }
 
 void UaVariant::setDoubleArray(
@@ -361,8 +370,17 @@ void UaVariant::setDoubleArray(
     )
 {
     if (bDetach) throw std::runtime_error("value detachment not yet implemented");
-    set1DArray( &UA_TYPES[UA_TYPES_UINT32], &input[0], input.size() );
+    set1DArray( &UA_TYPES[UA_TYPES_DOUBLE], &input[0], input.size() );
 }
+//
+//void UaVariant::setStringArray(
+//        UaStringArray &    input,
+//        OpcUa_Boolean      bDetach
+//    )
+//{
+//    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+//    set1DArray( &UA_TYPES[UA_TYPES_STRING], &input[0], input.size() );
+//}
 
 UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
 {
@@ -486,11 +504,16 @@ UaStatus UaVariant::toArray( const UA_DataType* dataType, U& out) const
         size_t sz = m_impl->arrayLength;
         out.create( sz );
         T* input = static_cast<T*> (m_impl->data);
-        std::copy(input, input+sz, &out[0] );
+        std::copy(input, input+sz, out.begin() );
         return OpcUa_Good;
     }
     else
         return OpcUa_BadDataEncodingInvalid;
+}
+
+UaStatus UaVariant::toBoolArray( UaBooleanArray& out ) const
+{
+    return this->toArray<OpcUa_Boolean, UaBooleanArray>( &UA_TYPES[UA_TYPES_BOOLEAN], out );
 }
 
 UaStatus UaVariant::toSByteArray( UaSByteArray& out ) const
@@ -542,6 +565,11 @@ UaStatus UaVariant::toDoubleArray( UaDoubleArray& out ) const
 {
     return this->toArray<OpcUa_Double, UaDoubleArray>( &UA_TYPES[UA_TYPES_DOUBLE], out );
 }
+
+//UaStatus UaVariant::toStringArray( UaStringArray& out) const
+//{
+//    return this->toArray<UaString, UaStringArray>( &UA_TYPES[UA_TYPES_STRING], out );
+//}
 
 UaStatus UaVariant::copyTo ( UA_Variant* to) const
 {

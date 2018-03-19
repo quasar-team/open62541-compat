@@ -46,6 +46,8 @@ public:
     size_t size() const { return m_data.size(); }
     size_t length() const { return size(); } // TODO is this really necessary ...
 
+    typename std::vector<T>::iterator begin() { return m_data.begin(); }
+
 private:
     std::vector<T> m_data;
 };

@@ -33,6 +33,6 @@ typedef UaCompatArray<OpcUa_Int64>   UaInt64Array;
 typedef UaCompatArray<OpcUa_UInt64>  UaUInt64Array;
 typedef UaCompatArray<OpcUa_Float>   UaFloatArray;
 typedef UaCompatArray<OpcUa_Double>  UaDoubleArray;
-//typedef UaCompatArray<UaString>      UaStringArray;
+typedef UaCompatArray<UaString>      UaStringArray;
 
 #endif /* OPEN62541_COMPAT_INCLUDE_SIMPLE_ARRAYS_H_ */

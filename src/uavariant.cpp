@@ -373,14 +373,25 @@ void UaVariant::setDoubleArray(
     set1DArray( &UA_TYPES[UA_TYPES_DOUBLE], &input[0], input.size() );
 }
 //
-//void UaVariant::setStringArray(
-//        UaStringArray &    input,
-//        OpcUa_Boolean      bDetach
-//    )
-//{
-//    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
-//    set1DArray( &UA_TYPES[UA_TYPES_STRING], &input[0], input.size() );
-//}
+void UaVariant::setStringArray(
+        UaStringArray &    input,
+        OpcUa_Boolean      bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (m_impl->data != 0)
+        UA_Variant_deleteMembers( m_impl );
+    /* Hate void* but hey, it seems open62541 way. */
+    UA_String* array = static_cast<UA_String*> (UA_Array_new(input.size(), &UA_TYPES[UA_TYPES_STRING])) ;
+    for (unsigned int i=0; i<input.size(); ++i)
+    {
+        UaStatus status = UA_String_copy( input[i].impl(), &array[i] );
+        if (!status.isGood())
+            throw std::runtime_error("UA_String_copy:"+status.toString().toUtf8());
+    }
+    UA_Variant_setArray( m_impl, array, input.size(), &UA_TYPES[UA_TYPES_STRING]);
+
+}
 
 UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
 {
@@ -566,10 +577,11 @@ UaStatus UaVariant::toDoubleArray( UaDoubleArray& out ) const
     return this->toArray<OpcUa_Double, UaDoubleArray>( &UA_TYPES[UA_TYPES_DOUBLE], out );
 }
 
-//UaStatus UaVariant::toStringArray( UaStringArray& out) const
-//{
-//    return this->toArray<UaString, UaStringArray>( &UA_TYPES[UA_TYPES_STRING], out );
-//}
+UaStatus UaVariant::toStringArray( UaStringArray& out) const
+{
+    throw std::runtime_error("not-implemented");
+    return this->toArray<UaString, UaStringArray>( &UA_TYPES[UA_TYPES_STRING], out );
+}
 
 UaStatus UaVariant::copyTo ( UA_Variant* to) const
 {

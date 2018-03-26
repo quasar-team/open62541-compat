@@ -184,25 +184,21 @@ UA_LocalizedText make_localised( UaString text )
     out.text = *(new UaString(text))->impl();
     return out;
 }
-    
+
 UaStatus NodeManagerBase::addNodeAndReference( 
     UaNode* parent,
     UaNode* to,
     const UaNodeId& refType)
 {
-   // std::cout << __FUNCTION__ << "from.id=" << from.toString().toUtf8() << " to.id=" << to->nodeId().toString().toUtf8() <<  std::endl;
-    // std::cout << "ref=" << refType.toString().toUtf8() << endl;
     UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
-
-
-	
+    UaLocalizedText dummyDescription( "en_US", "DummyDescription" );
     switch( to->nodeClass() )
     {
     case OpcUa_NodeClass_Object:
 	{
 	    UA_ObjectAttributes objectAttributes;
 	    UA_ObjectAttributes_init( &objectAttributes );
-	    objectAttributes.description = UA_LOCALIZEDTEXT("en_US","the answer");
+	    objectAttributes.description = *dummyDescription.impl();
 	    objectAttributes.displayName = *displayName.impl();
 	    UA_NodeId out;
 	    UA_StatusCode s = UA_Server_addObjectNode(
@@ -248,7 +244,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
 		    };
 	    UA_VariableAttributes attr;
 	    UA_VariableAttributes_init(&attr);
- 	    attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
+ 	    attr.description = *dummyDescription.impl();
 	    attr.displayName = *displayName.impl();
 	    UA_StatusCode s =
 		UA_Server_addDataSourceVariableNode(m_server,
@@ -278,7 +274,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
     	attr.executable = true;
     	attr.userExecutable = true;
     	attr.displayName = *displayName.impl();
-    	attr.description = UA_LOCALIZEDTEXT("en_US","the description");
+    	attr.description = *dummyDescription.impl();
 
     	MethodHandleUaNode *handle = new MethodHandleUaNode;
     	handle->setUaNodes( static_cast<UaObject*>(parent), static_cast<UaMethod*>(to) );

@@ -1,11 +1,25 @@
-/*
- * simple_arrays.h
+/* © Copyright Piotr Nikiel, CERN, 2018.  All rights not expressly granted are reserved.
+ *  simple_arrays.h
  *
  *  Created on: 12 Mar 2018
- *      Author: pnikiel
+ *      Author: Piotr Nikiel <piotr@nikiel.info>
  *
- * Simple arrays are those which don't require UaVariant declaration,
- * therefore they can be directly included in UaVariant.h
+ *       Simple arrays are those which don't require UaVariant declaration,
+ *       therefore they can be directly included in UaVariant.h
+ *
+ *  This file is part of Quasar.
+ *
+ *  Quasar is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public Licence as published by
+ *  the Free Software Foundation, either version 3 of the Licence.
+ *
+ *  Quasar is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public Licence for more details.
+ *
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with Quasar.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef OPEN62541_COMPAT_INCLUDE_SIMPLE_ARRAYS_H_
@@ -13,7 +27,14 @@
 
 #include <array_templates.h>
 
-// TODO: describe why we're doing this
+/* Piotr:
+ * Here is a comment why we have the class below (AvoidStdVectorBoolSpecializationProblem).
+ * It comes from a questionable decision of STL that std::vector<bool> is specialized
+ * as a bitmap. While it clearly has some advantages (e.g. it is memory compact) it has
+ * disadvantages: you can't get a reference to a particular element of the vector.
+ * So we have this class below which hopefully evaluates to sizeof(bool) in the terms of
+ * memory consumption. First and foremost though, std::vector<> of it is quite sane!
+ */
 
 struct AvoidStdVectorBoolSpecializationProblem
 {

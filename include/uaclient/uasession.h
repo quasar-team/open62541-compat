@@ -44,6 +44,13 @@ struct SessionConnectInfo
     UaString    sApplicationName;
     UaString    sApplicationUri;
     UaString    sProductUri;
+    OpcUa_UInt32  internalServiceCallTimeout;
+    SessionConnectInfo() :
+        sApplicationName("OPC-UA client"),
+        sApplicationUri("OPC-UA client"),
+        sProductUri("OPC-UA client"),
+        internalServiceCallTimeout(5000)
+    {}
 };
 
 namespace UaClient

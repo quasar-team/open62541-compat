@@ -29,6 +29,4 @@
 #include <uabytestring.h>
 #include <uaclient/uasession.h>
 
-
-
 #endif /* OPEN62541_COMPAT_INCLUDE_UACLIENT_UACLIENTSDK_H_ */

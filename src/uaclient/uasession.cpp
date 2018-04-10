@@ -231,11 +231,16 @@ UaStatus UaSession::write(
     UA_WriteResponse writeResponse = UA_Client_Service_write(m_client, writeRequest);
     UA_Array_delete(writeRequest.nodesToWrite, writeRequest.nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE]);
 
-    results.create( nodesToWrite.size() );
-    for (size_t i=0; i<nodesToWrite.size(); ++i)
+    if (UaStatus(writeResponse.responseHeader.serviceResult).isGood())
     {
-        results[i] = writeResponse.results[i];
+        results.create( writeResponse.resultsSize );
+        for (size_t i=0; i<writeResponse.resultsSize; ++i)
+        {
+            results[i] = writeResponse.results[i];
+        }
     }
+    else
+        results.create(0); // assume there are no results when the service call failed
 
     UA_Array_delete(writeResponse.results, writeResponse.resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 

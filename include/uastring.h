@@ -39,10 +39,15 @@ public:
     UaString( const char* s);
     //! From another UaString
     UaString( const UaString& other );
-//! From UA_String (open6xxxx)
+    //! From UA_String (open6xxxx)
     UaString( const UA_String* other );
+
+    UaString( const UA_String& other ): UaString(&other) {}
+
     //! Assignment operator
     const UaString& operator=(const UaString& other);    
+
+    const UaString& operator=(const UA_String& other);
 
     ~UaString ();
  
@@ -52,6 +57,10 @@ public:
     std::string toUtf8() const;
 
     const UA_String * impl() const{ return m_impl; }
+
+    UA_String* toOpcUaString() const { return m_impl; }
+
+    void detach(UaString* out);
 
     size_t length() const { return m_impl->length; /*FIXME: open62541 seems not UTF-8 aware so handle this we caution!*/ }
 

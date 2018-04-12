@@ -100,8 +100,29 @@ const UaString& UaString::operator=(const UaString& other)
     return *this;
 }
 
+const UaString& UaString::operator=(const UA_String& other)
+{
+    if (m_impl -> data)
+    UA_String_deleteMembers( m_impl );
+
+    if( UA_String_copy( &other, m_impl ) != UA_STATUSCODE_GOOD)
+    {
+        UA_String_delete( m_impl );
+        throw alloc_error();
+    }
+    return *this;
+}
+
 std::string UaString::toUtf8() const
 {
   return std::string( reinterpret_cast<const char*>(m_impl->data), m_impl->length );
 }
 
+/** Note(Piotr): this is not real detachment.
+ * It was implemented to be fit for arrays stuff but perhaps an another overloaded
+ * function should be created.
+ */
+void UaString::detach(UaString* out)
+{
+    *out = *this;
+}

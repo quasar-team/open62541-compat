@@ -23,6 +23,7 @@ cmake_policy(SET CMP0012 NEW)
 
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
+option(SKIP_TESTS "do not build the tests (not advised)" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
 
 function ( clone_open62541 )
@@ -152,5 +153,16 @@ else()
   if(WIN32)
     target_link_libraries( open62541-compat ws2_32 )
   endif()  
+
+  #
+  # Build unit tests (googletest). For the moment only build unit tests in stand-alone mode
+  # until such time as the quasar framework has a comprehensive strategy for testing optional 
+  # modules.
+  #
+  if( NOT SKIP_TESTS )
+    add_subdirectory( ${PROJECT_SOURCE_DIR}/test )
+  else()
+    message( STATUS "explicitly requested not to build unit tests!" )
+  endif()
 
 endif()

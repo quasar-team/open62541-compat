@@ -28,6 +28,8 @@
 #include <statuscode.h>
 #include <uadatetime.h>
 #include <uabytestring.h>
+#include <other.h>
+#include <simple_arrays.h>
 
 enum OpcUaType
   {
@@ -50,8 +52,6 @@ enum OpcUaType
 	OpcUaType_Variant    =  UA_NS0ID_BASEDATATYPE
     // support for remaining types, i.e. nodeid or statuscode also still missing
   };
-
-
 
 class UaVariant
 {
@@ -94,8 +94,23 @@ class UaVariant
 
   void setByteString( const UaByteString& value, bool detach);
 
+  void setBoolArray( UaBooleanArray& val, OpcUa_Boolean bDetach = OpcUa_False);
+  void setSByteArray( UaSByteArray& val, OpcUa_Boolean bDetach = OpcUa_False);
+  void setByteArray( UaByteArray& val, OpcUa_Boolean bDetach = OpcUa_False );
+  void setInt16Array( UaInt16Array& val, OpcUa_Boolean bDetach = OpcUa_False);
+  void setUInt16Array( UaUInt16Array& val, OpcUa_Boolean bDetach = OpcUa_False );
+  void setInt32Array( UaInt32Array& val, OpcUa_Boolean bDetach = OpcUa_False);
+  void setUInt32Array( UaUInt32Array& val, OpcUa_Boolean bDetach = OpcUa_False );
+  void setInt64Array( UaInt64Array& val, OpcUa_Boolean bDetach = OpcUa_False);
+  void setUInt64Array( UaUInt64Array& val, OpcUa_Boolean bDetach = OpcUa_False );
+  void setFloatArray( UaFloatArray& val, OpcUa_Boolean bDetach = OpcUa_False);
+  void setDoubleArray( UaDoubleArray& val, OpcUa_Boolean bDetach = OpcUa_False );
+  void setStringArray( UaStringArray& val, OpcUa_Boolean bDetach = OpcUa_False );
+
   void clear () {}; // TODO:
   
+
+
   // getters
   UaStatus toBool( OpcUa_Boolean& value) const;
   UaStatus toInt16( OpcUa_Int16& value) const;
@@ -111,12 +126,29 @@ class UaVariant
 
   UaString toString( ) const;
   UaString toFullString() const;
-  
+
+  UaStatus toBoolArray( UaBooleanArray& out ) const;
+  UaStatus toSByteArray( UaSByteArray& out ) const;
+  UaStatus toByteArray( UaByteArray& out ) const;
+  UaStatus toInt16Array( UaInt16Array& out ) const;
+  UaStatus toUInt16Array( UaUInt16Array& out ) const;
+  UaStatus toInt32Array( UaInt32Array& out ) const;
+  UaStatus toUInt32Array( UaUInt32Array& out ) const;
+  UaStatus toInt64Array( UaInt64Array& out ) const;
+  UaStatus toUInt64Array( UaUInt64Array& out ) const;
+  UaStatus toFloatArray( UaFloatArray& out ) const;
+  UaStatus toDoubleArray( UaDoubleArray& out ) const;
+  UaStatus toStringArray( UaStringArray& out) const;
+
   // copy-To has a signature with UaVariant however it should be the stack type. This is best effort compat we can get at the moment. (pnikiel)
   UaStatus copyTo ( UaVariant* to ) const { *to = UaVariant( *m_impl ); return OpcUa_Good; }
   UaStatus copyTo ( UA_Variant* to) const;
 
   const UA_Variant* impl() const { return m_impl; }
+
+  void arrayDimensions( UaUInt32Array &arrayDimensions ) const;
+  OpcUa_Boolean isArray  () const;
+
  private:
   static UA_Variant* createAndCheckOpen62541Variant();
   static void destroyOpen62541Variant(UA_Variant* open62541Variant);
@@ -124,9 +156,15 @@ class UaVariant
   UA_Variant * m_impl;
   //! Will assign a supplied newValue to the variant's value. If possible (matching old/new types) a realloc is avoided.
   void reuseOrRealloc( const UA_DataType* dataType, void* newValue );
+
+  void set1DArray( const UA_DataType* dataType, void* newValue, size_t sz );
+
   //! Will convert stored value to a simple type, if possible
   template<typename T>
     UaStatus toSimpleType( const UA_DataType* dataType, T* out ) const;
+
+  template<typename T, typename U>
+    UaStatus toArray( const UA_DataType* dataType, U& out) const;
 
   bool isScalarValue() const;
 };

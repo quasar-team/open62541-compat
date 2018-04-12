@@ -50,6 +50,7 @@
 #define OpcUa_BadServerNotConnected UA_STATUSCODE_BADSERVERNOTCONNECTED
 #define OpcUa_BadServerNotConnected UA_STATUSCODE_BADSERVERNOTCONNECTED
 #define OpcUa_BadIndexRangeInvalid UA_STATUSCODE_BADINDEXRANGEINVALID
+#define OpcUa_BadIndexRangeNoData UA_STATUSCODE_BADINDEXRANGENODATA
 
 typedef OpcUa_UInt32 OpcUa_StatusCode;
 

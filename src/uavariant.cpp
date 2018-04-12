@@ -263,6 +263,137 @@ void UaVariant::setByteString( const UaByteString& value, bool detach)
         throw alloc_error();
 }
 
+void UaVariant::set1DArray( const UA_DataType* dataType, void* newValue, size_t sz )
+{
+    if (m_impl->data != 0)
+        UA_Variant_deleteMembers( m_impl );
+    if (UA_Variant_setArrayCopy(
+            m_impl,
+            newValue,
+            sz,
+            dataType) != UA_STATUSCODE_GOOD)
+        throw alloc_error();
+}
+
+void UaVariant::setBoolArray(
+        UaBooleanArray &    input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_BOOLEAN], &input[0], input.size() );
+}
+
+void UaVariant::setSByteArray(
+        UaSByteArray &      input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_SBYTE], &input[0], input.size() );
+}
+
+void UaVariant::setByteArray(
+        UaByteArray &      input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_BYTE], &input[0], input.size() );
+}
+
+void UaVariant::setInt16Array(
+        UaInt16Array &      input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_INT16], &input[0], input.size() );
+}
+
+void UaVariant::setUInt16Array(
+        UaUInt16Array &      input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_UINT16], &input[0], input.size() );
+}
+
+void UaVariant::setInt32Array(
+        UaInt32Array &      input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_INT32], &input[0], input.size() );
+}
+
+void UaVariant::setUInt32Array(
+        UaUInt32Array &      input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_UINT32], &input[0], input.size() );
+}
+
+void UaVariant::setInt64Array(
+        UaInt64Array &      input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_INT64], &input[0], input.size() );
+}
+
+void UaVariant::setUInt64Array(
+        UaUInt64Array &      input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_UINT64], &input[0], input.size() );
+}
+
+void UaVariant::setFloatArray(
+        UaFloatArray &      input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_FLOAT], &input[0], input.size() );
+}
+
+void UaVariant::setDoubleArray(
+        UaDoubleArray &      input,
+        OpcUa_Boolean       bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    set1DArray( &UA_TYPES[UA_TYPES_DOUBLE], &input[0], input.size() );
+}
+//
+void UaVariant::setStringArray(
+        UaStringArray &    input,
+        OpcUa_Boolean      bDetach
+    )
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (m_impl->data != 0)
+        UA_Variant_deleteMembers( m_impl );
+    /* Hate void* but hey, it seems open62541 way. */
+    UA_String* array = static_cast<UA_String*> (UA_Array_new(input.size(), &UA_TYPES[UA_TYPES_STRING])) ;
+    for (unsigned int i=0; i<input.size(); ++i)
+    {
+        UaStatus status = UA_String_copy( input[i].impl(), &array[i] );
+        if (!status.isGood())
+            throw std::runtime_error("UA_String_copy:"+status.toString().toUtf8());
+    }
+    UA_Variant_setArray( m_impl, array, input.size(), &UA_TYPES[UA_TYPES_STRING]);
+
+}
+
 UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_BOOLEAN], &out );
@@ -354,6 +485,8 @@ UaString UaVariant::toFullString() const
 	return UaString(result.str().c_str());
 }
 
+
+
 template<typename T>
 UaStatus UaVariant::toSimpleType( const UA_DataType* dataType, T* out ) const
 {
@@ -375,26 +508,114 @@ UaStatus UaVariant::toSimpleType( const UA_DataType* dataType, T* out ) const
     return OpcUa_Good;
 }
 
+template<typename T, typename U>
+UaStatus UaVariant::toArray( const UA_DataType* dataType, U& out) const
+{
+    if (UA_Variant_hasArrayType(m_impl, dataType ))
+    {
+        size_t sz = m_impl->arrayLength;
+        out.create( sz );
+        T* input = static_cast<T*> (m_impl->data);
+        std::copy(input, input+sz, out.begin() );
+        return OpcUa_Good;
+    }
+    else
+        return OpcUa_BadDataEncodingInvalid;
+}
+
+UaStatus UaVariant::toBoolArray( UaBooleanArray& out ) const
+{
+    return this->toArray<OpcUa_Boolean, UaBooleanArray>( &UA_TYPES[UA_TYPES_BOOLEAN], out );
+}
+
+UaStatus UaVariant::toSByteArray( UaSByteArray& out ) const
+{
+    return this->toArray<OpcUa_SByte, UaSByteArray>( &UA_TYPES[UA_TYPES_SBYTE], out );
+}
+
+UaStatus UaVariant::toByteArray( UaByteArray& out ) const
+{
+    return this->toArray<OpcUa_Byte, UaByteArray>( &UA_TYPES[UA_TYPES_BYTE], out );
+}
+
+UaStatus UaVariant::toInt16Array( UaInt16Array& out ) const
+{
+    return this->toArray<OpcUa_Int16, UaInt16Array>( &UA_TYPES[UA_TYPES_INT16], out );
+}
+
+UaStatus UaVariant::toUInt16Array( UaUInt16Array& out ) const
+{
+    return this->toArray<OpcUa_UInt16, UaUInt16Array>( &UA_TYPES[UA_TYPES_UINT16], out );
+}
+
+UaStatus UaVariant::toInt32Array( UaInt32Array& out ) const
+{
+    return this->toArray<OpcUa_Int32, UaInt32Array>( &UA_TYPES[UA_TYPES_INT32], out );
+}
+
+UaStatus UaVariant::toUInt32Array( UaUInt32Array& out ) const
+{
+    return this->toArray<OpcUa_UInt32, UaUInt32Array>( &UA_TYPES[UA_TYPES_UINT32], out );
+}
+
+UaStatus UaVariant::toInt64Array( UaInt64Array& out ) const
+{
+    return this->toArray<OpcUa_Int64, UaInt64Array>( &UA_TYPES[UA_TYPES_INT64], out );
+}
+
+UaStatus UaVariant::toUInt64Array( UaUInt64Array& out ) const
+{
+    return this->toArray<OpcUa_UInt64, UaUInt64Array>( &UA_TYPES[UA_TYPES_UINT64], out );
+}
+
+UaStatus UaVariant::toFloatArray( UaFloatArray& out ) const
+{
+    return this->toArray<OpcUa_Float, UaFloatArray>( &UA_TYPES[UA_TYPES_FLOAT], out );
+}
+
+UaStatus UaVariant::toDoubleArray( UaDoubleArray& out ) const
+{
+    return this->toArray<OpcUa_Double, UaDoubleArray>( &UA_TYPES[UA_TYPES_DOUBLE], out );
+}
+
+UaStatus UaVariant::toStringArray( UaStringArray& out) const
+{
+    throw std::runtime_error("not-implemented");
+    return this->toArray<UaString, UaStringArray>( &UA_TYPES[UA_TYPES_STRING], out );
+}
+
 UaStatus UaVariant::copyTo ( UA_Variant* to) const
 {
     return UA_Variant_copy(m_impl, to);
 }
 
 /**
- * Returns true if the value the variant holds is a scalar, otherwise false.
- * Assumption: if a variant has an internal value then
- * (a) dimension info is explicitly set - great: decision based on info
- * (b) dimension info is omitted - less great: absent dimension info => scalar
+    Note(Ben, Piotr):
+    arrayDimensions, as of Apr 2018, don't seem fully available in open62541.
+    We therefore replaced the previous idea of profiting from them with a simpler approach
+    of using only arrayLength.
  */
 bool UaVariant::isScalarValue() const
 {
 	if(m_impl && m_impl->data) // internal value exists and has data
 	{
-		// (a) explicit dimension info
-		if(m_impl->arrayDimensionsSize == 1 && m_impl->arrayDimensions && m_impl->arrayDimensions[0] == 1) return true;
-
-		// (b) absent dimension info
-		if(m_impl->arrayDimensionsSize == 0 && !m_impl->arrayDimensions) return true;
+	    return m_impl->arrayLength == 0;
 	}
 	return false;
+}
+
+void UaVariant::arrayDimensions( UaUInt32Array &arrayDimensions ) const
+{
+    if (isScalarValue())
+        arrayDimensions.create(0);
+    else
+    {
+        arrayDimensions.create( 1 ); // handling only 1-dim arrays
+        arrayDimensions[0] = m_impl->arrayLength;
+    }
+}
+
+OpcUa_Boolean UaVariant::isArray ()   const
+{
+    return !this->isScalarValue();
 }

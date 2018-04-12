@@ -256,7 +256,8 @@ void UaVariant::setByteString( const UaByteString& value, bool detach)
 {
 	if (detach)
 		throw std::runtime_error("value detachment not yet implemented");
-
+    if (m_impl->data != 0)
+        UA_Variant_deleteMembers( m_impl );
     UA_StatusCode s = UA_Variant_setScalarCopy( m_impl, value.impl(), &UA_TYPES[UA_TYPES_BYTESTRING]);
     if (s != UA_STATUSCODE_GOOD)
         throw alloc_error();

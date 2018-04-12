@@ -589,20 +589,16 @@ UaStatus UaVariant::copyTo ( UA_Variant* to) const
 }
 
 /**
- * Returns true if the value the variant holds is a scalar, otherwise false.
- * Assumption: if a variant has an internal value then
- * (a) dimension info is explicitly set - great: decision based on info
- * (b) dimension info is omitted - less great: absent dimension info => scalar
+    Note(Ben, Piotr):
+    arrayDimensions, as of Apr 2018, don't seem fully available in open62541.
+    We therefore replaced the previous idea of profiting from them with a simpler approach
+    of using only arrayLength.
  */
 bool UaVariant::isScalarValue() const
 {
 	if(m_impl && m_impl->data) // internal value exists and has data
 	{
-		// (a) explicit dimension info
-		if(m_impl->arrayDimensionsSize == 1 && m_impl->arrayDimensions && m_impl->arrayDimensions[0] == 1) return true;
-
-		// (b) absent dimension info
-		if(m_impl->arrayDimensionsSize == 0 && !m_impl->arrayDimensions) return true;
+	    return m_impl->arrayLength == 0;
 	}
 	return false;
 }
@@ -613,13 +609,12 @@ void UaVariant::arrayDimensions( UaUInt32Array &arrayDimensions ) const
         arrayDimensions.create(0);
     else
     {
-        arrayDimensions.create( m_impl->arrayDimensionsSize );
-        for (unsigned int i=0; i<m_impl->arrayDimensionsSize; ++i)
-                 arrayDimensions[i] = m_impl->arrayDimensions[i];
+        arrayDimensions.create( 1 ); // handling only 1-dim arrays
+        arrayDimensions[0] = m_impl->arrayLength;
     }
 }
 
-OpcUa_Boolean UaVariant::isArray    (       )   const
+OpcUa_Boolean UaVariant::isArray ()   const
 {
     return !this->isScalarValue();
 }

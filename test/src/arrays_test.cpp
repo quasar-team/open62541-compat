@@ -24,7 +24,7 @@ TEST(ArraysTest, testInitializeAndSetValues)
 		EXPECT_EQ(UaVariant(i), testee[i]) << "element values should match index";
 	}
 }
-/* Piotr - this test fails, I didn't expect that. Is that a bug or the test is not accurate? Coudl you take a look please.
+/* Piotr - this test fails, I didn't expect that. Is that a bug or the test is not accurate? Coudl you take a look please. */
 TEST(ArraysTest, testUaVariantsHoldingArrays)
 {
 	UaInt32Array intArray;
@@ -46,4 +46,4 @@ TEST(ArraysTest, testUaVariantsHoldingArrays)
 	EXPECT_EQ(1, arrayDimensions.size()) << "should be a 1D array";
 	EXPECT_EQ(100, arrayDimensions[0]) << "should be 100 elements in the 1D";
 }
-*/
+

@@ -580,8 +580,7 @@ UaStatus UaVariant::toDoubleArray( UaDoubleArray& out ) const
 
 UaStatus UaVariant::toStringArray( UaStringArray& out) const
 {
-    throw std::runtime_error("not-implemented");
-    return this->toArray<UaString, UaStringArray>( &UA_TYPES[UA_TYPES_STRING], out );
+    return this->toArray<UA_String, UaStringArray>( &UA_TYPES[UA_TYPES_STRING], out );
 }
 
 UaStatus UaVariant::copyTo ( UA_Variant* to) const

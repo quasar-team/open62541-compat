@@ -26,6 +26,7 @@
 #include <bitset>
 #include <boost/format.hpp>
 #include <boost/date_time.hpp>
+#include <boost/numeric/conversion/cast.hpp>
 
 #include <open62541_compat_common.h>
 				 
@@ -399,7 +400,6 @@ UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
     return toSimpleType( &UA_TYPES[UA_TYPES_BOOLEAN], &out );
 }
 
-
 UaStatus UaVariant::toInt16( OpcUa_Int16& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_INT16], &out );
@@ -488,24 +488,112 @@ UaString UaVariant::toFullString() const
 
 
 template<typename T>
-UaStatus UaVariant::toSimpleType( const UA_DataType* dataType, T* out ) const
+UaStatus UaVariant::toSimpleType( const UA_DataType* targetDataType, T* out ) const
 {
-    //TODO: Add case when array
-    //TODO: in principle it should be possible to convert i.e. Int16->Int32, or Byte->Int16, or so... but this is not supported yet
+
     if (!m_impl || !m_impl->data)
     {
-    	LOG(Log::DBG) << __FUNCTION__ << " conversion failed, variant is null";
+    	LOG(Log::DBG) << __FUNCTION__ << " conversion failed, variant is null or uninitialized";
         return OpcUa_Bad;
     }
 
-    if (dataType != m_impl->type)
+    if(!targetDataType)
     {
-    	LOG(Log::DBG) << __FUNCTION__ << " conversion failed, target type ["<<dataType<<"] does not match variant type ["<<m_impl->type<<"]";
-        return OpcUa_Bad;  // Incompatible data type
+    	LOG(Log::DBG) << __FUNCTION__ << " conversion failed, target data type is null";
+    	return OpcUa_Bad;
     }
 
-    *out = *static_cast<T*>(m_impl->data);
-    return OpcUa_Good;
+    if(!isNumericType(*m_impl->type))
+    {
+		LOG(Log::DBG) << __FUNCTION__ << " conversion failed, function only handles numeric conversions. Cannot convert internal variant type ["<<m_impl->type->typeName<<"]";
+		return OpcUa_Bad;
+    }
+
+    if(!isNumericType(*targetDataType))
+    {
+		LOG(Log::DBG) << __FUNCTION__ << " conversion failed, function only handles numeric conversions. Cannot convert internal variant type ["<<m_impl->type->typeName<<"]";
+		return OpcUa_Bad;
+    }
+
+    return convertNumericType(out);
+}
+
+template<typename TTargetNumericType>
+  UaStatus UaVariant::convertNumericType(TTargetNumericType* out ) const
+{
+	try
+	{
+		switch(m_impl->type->typeIndex)
+		{
+			case UA_TYPES_BOOLEAN:
+				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Boolean*>(m_impl->data)) );
+				return OpcUa_Good;
+			case UA_TYPES_BYTE:
+				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Byte*>(m_impl->data)) );
+				return OpcUa_Good;
+			case UA_TYPES_SBYTE:
+				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_SByte*>(m_impl->data)) );
+				return OpcUa_Good;
+			case UA_TYPES_INT16:
+				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Int16*>(m_impl->data)) );
+				return OpcUa_Good;
+			case UA_TYPES_UINT16:
+				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_UInt16*>(m_impl->data)) );
+				return OpcUa_Good;
+			case UA_TYPES_INT32:
+				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Int32*>(m_impl->data)) );
+				return OpcUa_Good;
+			case UA_TYPES_UINT32:
+				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_UInt32*>(m_impl->data)) );
+				return OpcUa_Good;
+			case UA_TYPES_INT64:
+				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Int64*>(m_impl->data)) );
+				return OpcUa_Good;
+			case UA_TYPES_UINT64:
+				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_UInt64*>(m_impl->data)) );
+				return OpcUa_Good;
+			case UA_TYPES_FLOAT:
+				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Float*>(m_impl->data)) );
+				return OpcUa_Good;
+			case UA_TYPES_DOUBLE:
+				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Double*>(m_impl->data)) );
+				return OpcUa_Good;
+			default:
+				LOG(Log::DBG) << __FUNCTION__ << " conversion failed, no conversion handler for internal variant type ["<<m_impl->type->typeName<<"]";
+				return OpcUa_Bad;
+		}
+	}
+	catch(const boost::numeric::bad_numeric_cast& e)
+	{
+		LOG(Log::DBG) << __FUNCTION__ << " conversion failed for internal variant type ["<<m_impl->type->typeName<<"], boost conversion threw exception: " << e.what();
+		return OpcUa_BadOutOfRange;
+	}
+	catch(const std::runtime_error& e)
+	{
+		LOG(Log::DBG) << __FUNCTION__ << " conversion failed for internal variant type ["<<m_impl->type->typeName<<"], conversion threw exception: " << e.what();
+		return OpcUa_Bad;
+	}
+}
+
+bool UaVariant::isNumericType( const UA_DataType& dataType ) const
+{
+	switch(dataType.typeIndex)
+	{
+	case UA_TYPES_BOOLEAN:
+	case UA_TYPES_SBYTE:
+	case UA_TYPES_BYTE:
+	case UA_TYPES_INT16:
+	case UA_TYPES_UINT16:
+	case UA_TYPES_INT32:
+	case UA_TYPES_UINT32:
+	case UA_TYPES_INT64:
+	case UA_TYPES_UINT64:
+	case UA_TYPES_FLOAT:
+	case UA_TYPES_DOUBLE:
+		return true;
+	default:
+		return false;
+	}
 }
 
 template<typename T, typename U>

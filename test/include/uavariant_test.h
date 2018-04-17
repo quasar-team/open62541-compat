@@ -18,10 +18,19 @@
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with Quasar.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "gtest/gtest.h"
 
-int main(int argc, char** argv)
+#ifndef TEST_INCLUDE_UAVARIANT_TEST_H_
+#define TEST_INCLUDE_UAVARIANT_TEST_H_
+
+#include "gtest/gtest.h"
+#include "uavariant.h"
+
+class UaVariantTest : public ::testing::Test
 {
-	::testing::InitGoogleTest(&argc, argv);
-	return RUN_ALL_TESTS();
-}
+public:
+
+  UaVariant m_testee;
+};
+
+
+#endif /* TEST_INCLUDE_UAVARIANT_TEST_H_ */

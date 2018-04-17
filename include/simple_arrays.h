@@ -45,7 +45,6 @@ struct AvoidStdVectorBoolSpecializationProblem
 
 typedef UaCompatArray<AvoidStdVectorBoolSpecializationProblem>  UaBooleanArray;
 typedef UaCompatArray<OpcUa_SByte>   UaSByteArray;
-typedef UaCompatArray<OpcUa_Byte>    UaByteArray;
 typedef UaCompatArray<OpcUa_Int16>   UaInt16Array;
 typedef UaCompatArray<OpcUa_UInt16>  UaUInt16Array;
 typedef UaCompatArray<OpcUa_Int32>   UaInt32Array;
@@ -55,5 +54,12 @@ typedef UaCompatArray<OpcUa_UInt64>  UaUInt64Array;
 typedef UaCompatArray<OpcUa_Float>   UaFloatArray;
 typedef UaCompatArray<OpcUa_Double>  UaDoubleArray;
 typedef UaCompatArray<UaString>      UaStringArray;
+
+class UaByteArray: public UaCompatArray<OpcUa_Byte>
+/* UaByteArray has bit more on top of a regular array ... */
+{
+public:
+    const char* data() const { return this->size() > 0 ? reinterpret_cast<const char*> (&m_data[0]) : 0; }
+};
 
 #endif /* OPEN62541_COMPAT_INCLUDE_SIMPLE_ARRAYS_H_ */

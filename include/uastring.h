@@ -63,6 +63,7 @@ public:
     void detach(UaString* out);
 
     size_t length() const { return m_impl->length; /*FIXME: open62541 seems not UTF-8 aware so handle this we caution!*/ }
+    void copyTo( UaString * output ) const { *output = *this; }
 
 private:
     UA_String * m_impl;

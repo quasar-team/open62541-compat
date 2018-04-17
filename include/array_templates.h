@@ -48,7 +48,7 @@ public:
 
     typename std::vector<T>::iterator begin() { return m_data.begin(); }
 
-private:
+protected:
     std::vector<T> m_data;
 };
 

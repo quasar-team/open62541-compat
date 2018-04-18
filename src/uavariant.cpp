@@ -497,25 +497,28 @@ UaStatus UaVariant::toSimpleType( const UA_DataType* targetDataType, T* out ) co
         return OpcUa_Bad;
     }
 
-    if(!targetDataType)
+    if(!m_impl->type || !targetDataType)
     {
-    	LOG(Log::DBG) << __FUNCTION__ << " conversion failed, target data type is null";
+    	LOG(Log::DBG) << __FUNCTION__ << " conversion failed, variant data type ["<<(m_impl->type?m_impl->type->typeName:"NULL!")<<"] target data type ["<<(targetDataType?targetDataType->typeName:"NULL!")<<"]";
     	return OpcUa_Bad;
     }
 
-    if(!isNumericType(*m_impl->type))
+    // handle simplest case: no conversion
+    if(m_impl->type  == targetDataType)
     {
-		LOG(Log::DBG) << __FUNCTION__ << " conversion failed, function only handles numeric conversions. Cannot convert internal variant type ["<<m_impl->type->typeName<<"]";
-		return OpcUa_Bad;
+    	*out = *static_cast<T*>(m_impl->data);
+    	return OpcUa_Good;
     }
 
-    if(!isNumericType(*targetDataType))
+    // handle numeric conversion
+    if(isNumericType(*m_impl->type) && isNumericType(*targetDataType))
     {
-		LOG(Log::DBG) << __FUNCTION__ << " conversion failed, function only handles numeric conversions. Cannot convert internal variant type ["<<m_impl->type->typeName<<"]";
-		return OpcUa_Bad;
+    	return convertNumericType(out);
     }
 
-    return convertNumericType(out);
+    // no conversion possible - failure
+	LOG(Log::DBG) << __FUNCTION__ << " conversion failed; cannot convert between variant data type ["<<m_impl->type->typeName<<"] and target data type ["<<targetDataType->typeName<<"]";
+	return OpcUa_Bad;
 }
 
 template<typename TTargetNumericType>

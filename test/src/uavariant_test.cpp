@@ -33,7 +33,7 @@ TEST_F(UaVariantTest, testCannotConvertUninitalizedVariant)
 	EXPECT_EQ(OpcUa_Bad, m_testee.toInt32(result)) << "should not be able to convert an uninitialized variant to any type";
 }
 
-TEST_F(UaVariantTest, testUaVariants_convertToSameInternalType)
+TEST_F(UaVariantTest, testConvertToSameInternalType)
 {
 	OpcUa_Int32 int32Value = 123;
 	m_testee.setInt32(int32Value);
@@ -53,7 +53,69 @@ TEST_F(UaVariantTest, testUaVariants_convertToSameInternalType)
 	EXPECT_EQ("abcde", m_testee.toString().toUtf8());
 }
 
-TEST_F(UaVariantTest, testUaVariants_convertFromInt32)
+TEST_F(UaVariantTest, testConvertFromBoolean)
+{
+	m_testee.setBool(true);
+
+	OpcUa_Boolean booleanResult = false;
+	EXPECT_EQ(OpcUa_Good, m_testee.toBool(booleanResult));
+	EXPECT_TRUE(booleanResult);
+
+	OpcUa_Byte byteResult;
+	EXPECT_EQ(OpcUa_Good, m_testee.toByte(byteResult));
+	EXPECT_EQ(1, byteResult);
+
+	OpcUa_Int16 int16Result;
+	EXPECT_EQ(OpcUa_Good, m_testee.toInt16(int16Result));
+	EXPECT_EQ(1, int16Result);
+
+	OpcUa_UInt32 uint32Result;
+	EXPECT_EQ(OpcUa_Good, m_testee.toUInt32(uint32Result));
+	EXPECT_EQ(1, uint32Result);
+
+	OpcUa_UInt64 uint64Result;
+	EXPECT_EQ(OpcUa_Good, m_testee.toUInt64(uint64Result));
+	EXPECT_EQ(1, uint64Result);
+
+	OpcUa_Float floatResult;
+	EXPECT_EQ(OpcUa_Good, m_testee.toFloat(floatResult));
+	EXPECT_FLOAT_EQ(1, floatResult);
+
+	OpcUa_Double doubleResult;
+	EXPECT_EQ(OpcUa_Good, m_testee.toDouble(doubleResult));
+	EXPECT_DOUBLE_EQ(1, doubleResult);
+}
+
+TEST_F(UaVariantTest, testConvertToBoolean)
+{
+	OpcUa_Boolean booleanResult;
+
+	m_testee.setBool(true);
+	EXPECT_EQ(OpcUa_Good, m_testee.toBool(booleanResult));
+	EXPECT_TRUE(booleanResult);
+
+	m_testee.setInt16(1);
+	EXPECT_EQ(OpcUa_Good, m_testee.toBool(booleanResult));
+	EXPECT_TRUE(booleanResult);
+
+	m_testee.setUInt32(1);
+	EXPECT_EQ(OpcUa_Good, m_testee.toBool(booleanResult));
+	EXPECT_TRUE(booleanResult);
+
+	m_testee.setInt64(1);
+	EXPECT_EQ(OpcUa_Good, m_testee.toBool(booleanResult));
+	EXPECT_TRUE(booleanResult);
+
+	m_testee.setFloat(1);
+	EXPECT_EQ(OpcUa_Good, m_testee.toBool(booleanResult));
+	EXPECT_TRUE(booleanResult);
+
+	m_testee.setDouble(1);
+	EXPECT_EQ(OpcUa_Good, m_testee.toBool(booleanResult));
+	EXPECT_TRUE(booleanResult);
+}
+
+TEST_F(UaVariantTest, testConvertFromInt32)
 {
 	OpcUa_Byte byteResult;
 	OpcUa_Int16 int16Result;
@@ -93,7 +155,7 @@ TEST_F(UaVariantTest, testUaVariants_convertFromInt32)
 	EXPECT_FLOAT_EQ(numeric_limits<int32_t>::max(), floatResult);
 }
 
-TEST_F(UaVariantTest, testUaVariants_convertFromUInt32)
+TEST_F(UaVariantTest, testConvertFromUInt32)
 {
 	OpcUa_Int32 int32Result;
 

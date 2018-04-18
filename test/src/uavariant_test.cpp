@@ -48,42 +48,60 @@ TEST_F(UaVariantTest, testUaVariants_convertToSameInternalType)
 	OpcUa_UInt64 uint64Result;
 	EXPECT_EQ(OpcUa_Good, m_testee.toUInt64(uint64Result));
 	EXPECT_EQ(uint64Value, uint64Result);
+
+	m_testee.setString(UaString("abcde"));
+	EXPECT_EQ("abcde", m_testee.toString().toUtf8());
 }
 
 TEST_F(UaVariantTest, testUaVariants_convertFromInt32)
 {
 	OpcUa_Byte byteResult;
+	OpcUa_Int16 int16Result;
 	OpcUa_UInt32 uint32Result;
 	OpcUa_UInt64 uint64Result;
 	OpcUa_Float floatResult;
 
-	m_testee.setInt32(0);
+	m_testee.setInt32(1);
 	EXPECT_EQ(OpcUa_Good, m_testee.toByte(byteResult));
-	EXPECT_EQ(0, byteResult);
+	EXPECT_EQ(1, byteResult);
+	EXPECT_EQ(OpcUa_Good, m_testee.toInt16(int16Result));
+	EXPECT_EQ(1, int16Result);
 	EXPECT_EQ(OpcUa_Good, m_testee.toUInt32(uint32Result));
-	EXPECT_EQ(0, uint32Result);
+	EXPECT_EQ(1, uint32Result);
 	EXPECT_EQ(OpcUa_Good, m_testee.toUInt64(uint64Result));
-	EXPECT_EQ(0, uint64Result);
+	EXPECT_EQ(1, uint64Result);
 	EXPECT_EQ(OpcUa_Good, m_testee.toFloat(floatResult));
-	EXPECT_EQ(0, floatResult);
+	EXPECT_FLOAT_EQ(1, floatResult);
 
 	m_testee.setInt32(-1);
-	EXPECT_EQ(OpcUa_BadOutOfRange, m_testee.toUInt32(uint32Result));
+	EXPECT_EQ(OpcUa_BadOutOfRange, m_testee.toByte(byteResult))<< "expected to fail: -1 out of range for conversion to unsigned";
+	EXPECT_EQ(OpcUa_Good, m_testee.toInt16(int16Result));
+	EXPECT_EQ(-1, int16Result);
+	EXPECT_EQ(OpcUa_BadOutOfRange, m_testee.toUInt32(uint32Result))<< "expected to fail: -1 out of range for conversion to unsigned";
+	EXPECT_EQ(OpcUa_BadOutOfRange, m_testee.toUInt64(uint64Result))<< "expected to fail: -1 out of range for conversion to unsigned";
+	EXPECT_EQ(OpcUa_Good, m_testee.toFloat(floatResult));
+	EXPECT_FLOAT_EQ(-1, floatResult);
 
 	m_testee.setInt32(numeric_limits<int32_t>::max());
+	EXPECT_EQ(OpcUa_BadOutOfRange, m_testee.toByte(byteResult))<< "expected to fail: number too large for byte";
+	EXPECT_EQ(OpcUa_BadOutOfRange, m_testee.toInt16(int16Result))<< "expected to fail: number too large for 16 bit integer";
 	EXPECT_EQ(OpcUa_Good, m_testee.toUInt32(uint32Result));
-	EXPECT_EQ(static_cast< uint32_t >(numeric_limits<int32_t>::max()), uint32Result);
+	EXPECT_EQ(numeric_limits<int32_t>::max(), uint32Result);
+	EXPECT_EQ(OpcUa_Good, m_testee.toUInt64(uint64Result));
+	EXPECT_EQ(numeric_limits<int32_t>::max(), uint64Result);
+	EXPECT_EQ(OpcUa_Good, m_testee.toFloat(floatResult));
+	EXPECT_FLOAT_EQ(numeric_limits<int32_t>::max(), floatResult);
 }
 
 TEST_F(UaVariantTest, testUaVariants_convertFromUInt32)
 {
 	OpcUa_Int32 int32Result;
 
-	m_testee.setUInt32(0);
+	m_testee.setUInt32(1);
 	EXPECT_EQ(OpcUa_Good, m_testee.toInt32(int32Result));
-	EXPECT_EQ(0, int32Result);
+	EXPECT_EQ(1, int32Result);
 	EXPECT_EQ(OpcUa_Good, m_testee.toInt32(int32Result));
-	EXPECT_EQ(0, int32Result);
+	EXPECT_EQ(1, int32Result);
 
 	m_testee.setUInt32(numeric_limits<uint32_t>::max());
 	EXPECT_EQ(OpcUa_BadOutOfRange, m_testee.toInt32(int32Result));
@@ -92,9 +110,3 @@ TEST_F(UaVariantTest, testUaVariants_convertFromUInt32)
 	EXPECT_EQ(OpcUa_Good, m_testee.toInt32(int32Result));
 	EXPECT_EQ(numeric_limits<int32_t>::max(), int32Result);
 }
-
-
-
-
-
-

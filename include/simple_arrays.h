@@ -26,6 +26,9 @@
 #define OPEN62541_COMPAT_INCLUDE_SIMPLE_ARRAYS_H_
 
 #include <array_templates.h>
+#include <opcua_platformdefs.h>
+#include <uastring.h>
+
 
 /* Piotr:
  * Here is a comment why we have the class below (AvoidStdVectorBoolSpecializationProblem).
@@ -59,7 +62,10 @@ class UaByteArray: public UaCompatArray<OpcUa_Byte>
 /* UaByteArray has bit more on top of a regular array ... */
 {
 public:
-    const char* data() const { return this->size() > 0 ? reinterpret_cast<const char*> (&m_data[0]) : 0; }
+    UaByteArray();
+    UaByteArray(const char* data, unsigned int sz);
+
+    const char* data() const;
 };
 
 #endif /* OPEN62541_COMPAT_INCLUDE_SIMPLE_ARRAYS_H_ */

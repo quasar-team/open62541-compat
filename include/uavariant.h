@@ -161,7 +161,12 @@ class UaVariant
 
   //! Will convert stored value to a simple type, if possible
   template<typename T>
-    UaStatus toSimpleType( const UA_DataType* dataType, T* out ) const;
+    UaStatus toSimpleType( const UA_DataType* targetDataType, T* out ) const;
+
+  template<typename TTargetNumericType>
+    UaStatus convertNumericType(TTargetNumericType* out ) const;
+
+  bool isNumericType( const UA_DataType& dataType ) const;
 
   template<typename T, typename U>
     UaStatus toArray( const UA_DataType* dataType, U& out) const;

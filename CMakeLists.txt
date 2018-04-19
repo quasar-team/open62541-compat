@@ -114,11 +114,11 @@ else()
   #
   # Resolve LogIt library
   #
-  set(LOGIT_EXT_LIB_DIR "UNINIALIZED" CACHE PATH "Path to the directory containing the LogIt shared/static library binary file. Use absolute path, or relative to [${PROJECT_SOURCE_DIR}/]")
+  set(LOGIT_EXT_LIB_DIR "UNINIALIZED" CACHE PATH "Path to the directory containing the LogIt shared/static library binary file. Use absolute path, or relative to [${PROJECT_BINARY_DIR}/]")
   message(STATUS "Using LogIt build option [${LOGIT_BUILD_OPTION}]")
   if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
   	clone_LogIt()
-    add_subdirectory( ${PROJECT_SOURCE_DIR}/LogIt )
+    add_subdirectory( ${PROJECT_BINARY_DIR}/LogIt )
     message(STATUS "LogIt added as compiled object code from sub-directory LogIt")
     add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt>)
   else()
@@ -139,9 +139,9 @@ else()
   #
   # Resolve LogIt include
   #
-  set(LOGIT_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/LogIt/include CACHE PATH "Path to LogIt include directory. If building with LogIt as external shared/static library this must be specified using -DLOGIT_INCLUDE_DIR=path. Path can be absolute or relative to [${PROJECT_SOURCE_DIR}/]")
+  set(LOGIT_INCLUDE_DIR ${PROJECT_BINARY_DIR}/LogIt/include CACHE PATH "Path to LogIt include directory. If building with LogIt as external shared/static library this must be specified using -DLOGIT_INCLUDE_DIR=path. Path can be absolute or relative to [${PROJECT_BINARY_DIR}/]")
   if( NOT EXISTS ${LOGIT_INCLUDE_DIR} )
-    message(FATAL_ERROR "Cannot build with LogIt. No LogIt include directory found at [${LOGIT_INCLUDE_DIR}]. If building with LogIt as external shared/static library this must be specified using -DLOGIT_INCLUDE_DIR=path. Path can be absolute or relative to [${PROJECT_SOURCE_DIR}/]")
+    message(FATAL_ERROR "Cannot build with LogIt. No LogIt include directory found at [${LOGIT_INCLUDE_DIR}]. If building with LogIt as external shared/static library this must be specified using -DLOGIT_INCLUDE_DIR=path. Path can be absolute or relative to [${PROJECT_BINARY_DIR}/]")
   endif()
   message(STATUS "Using LogIt include directory [${LOGIT_INCLUDE_DIR}]")
   include_directories( ${LOGIT_INCLUDE_DIR} )

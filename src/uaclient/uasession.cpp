@@ -233,15 +233,94 @@ UaStatus UaSession::write(
     UA_WriteResponse writeResponse = UA_Client_Service_write(m_client, writeRequest);
     UA_Array_delete(writeRequest.nodesToWrite, writeRequest.nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE]);
 
-    results.create( nodesToWrite.size() );
-    for (size_t i=0; i<nodesToWrite.size(); ++i)
+    if (UaStatus(writeResponse.responseHeader.serviceResult).isGood())
     {
-        results[i] = writeResponse.results[i];
+        results.create( writeResponse.resultsSize );
+        for (size_t i=0; i<writeResponse.resultsSize; ++i)
+        {
+            results[i] = writeResponse.results[i];
+        }
     }
+    else
+        results.create(0); // assume there are no results when the service call failed
 
     UA_Array_delete(writeResponse.results, writeResponse.resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 
     return writeResponse.responseHeader.serviceResult;
+}
+
+
+/* What's not implemented:
+ * - diagnosticInfos
+ */
+UaStatus UaSession::call(
+        ServiceSettings &       serviceSettings,
+        const CallIn &          callIn,
+        CallOut &               callOut
+    )
+{
+    std::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
+
+    UA_CallMethodRequest methodCallRequest;
+    UA_CallMethodRequest_init(&methodCallRequest);
+    methodCallRequest.methodId = callIn.methodId.impl();
+    methodCallRequest.objectId = callIn.objectId.impl();
+    methodCallRequest.inputArgumentsSize = callIn.inputArguments.size();
+    methodCallRequest.inputArguments = (UA_Variant*)UA_Array_new( callIn.inputArguments.size(), &UA_TYPES[UA_TYPES_VARIANT] );
+
+    if (!methodCallRequest.inputArguments)
+        throw std::runtime_error("UA_Array_new failed to allocate an array");
+
+    bool anyArgumentFailed = false;
+    for (unsigned int i=0; i<callIn.inputArguments.size(); ++i)
+    {
+        UA_Variant_init(&methodCallRequest.inputArguments[i]);
+        UaStatus status = UA_Variant_copy(callIn.inputArguments[i].impl(), &methodCallRequest.inputArguments[i] );
+        if (!status.isGood())
+        {
+            LOG(Log::ERR) << "UA_Variant_copy said: " << status.toString().toUtf8();
+            anyArgumentFailed = true;
+        }
+    }
+    if (anyArgumentFailed)
+    { // free all, no point in continuing
+        UA_Array_delete(methodCallRequest.inputArguments, callIn.inputArguments.size(), &UA_TYPES[UA_TYPES_VARIANT]);
+        throw std::runtime_error("Failed to copy arguments through UA_Variant_copy, potentially memory issue.");
+    }
+
+    UA_CallRequest callRequest;
+    UA_CallRequest_init( &callRequest);
+
+    callRequest.methodsToCallSize = 1;
+    callRequest.methodsToCall = &methodCallRequest;
+
+    UA_CallResponse callResponse;
+    UA_CallResponse_init(&callResponse);
+    callResponse = UA_Client_Service_call(m_client, callRequest);
+
+    UA_Array_delete(methodCallRequest.inputArguments, callIn.inputArguments.size(), &UA_TYPES[UA_TYPES_VARIANT]);
+
+    callOut.inputArgumentDiagnosticInfos.create(0);
+    callOut.inputArgumentResults.create(0);
+
+    // there should be at least one callResponse result because we called one method
+    if (callResponse.resultsSize != 1)
+        throw std::logic_error("One method called so expected one call response, but instead got: "+boost::lexical_cast<std::string>(callResponse.resultsSize)+", open62541 error?");
+
+    UA_CallMethodResult *result = &callResponse.results[0];
+
+    callOut.outputArguments.create( result->outputArgumentsSize );
+    for (unsigned int i=0; i<result->outputArgumentsSize; ++i)
+    {
+        callOut.outputArguments[i] = result->outputArguments[i];
+    }
+
+    callOut.callResult = callResponse.responseHeader.serviceResult;
+
+    UA_Array_delete( callResponse.results, callResponse.resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT] );
+
+    return callOut.callResult;
+
 }
 
 

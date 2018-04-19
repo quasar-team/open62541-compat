@@ -53,6 +53,24 @@ struct SessionConnectInfo
     {}
 };
 
+struct CallIn
+{
+    CallIn(): objectId(0, 0), methodId(0,0) {}
+
+    UaNodeId         objectId;
+    UaNodeId         methodId;
+    UaVariantArray   inputArguments;
+};
+
+struct CallOut
+{
+    UaStatus          callResult;
+    UaStatusCodeArray inputArgumentResults;
+    UaDiagnosticInfos inputArgumentDiagnosticInfos;
+    UaVariantArray    outputArguments;
+
+};
+
 namespace UaClient
 {
 
@@ -94,10 +112,17 @@ public:
             UaStatusCodeArray &     results,
             UaDiagnosticInfos &     diagnosticInfos );
 
+    UaStatus call(
+            ServiceSettings &       serviceSettings,
+            const CallIn &          callRequest,
+            CallOut &               callResponse
+        );
+
     UaStatus disconnect(
             ServiceSettings &       serviceSettings,
             OpcUa_Boolean           deleteSubscriptions
         );
+
 
 private:
     UA_Client     *m_client;

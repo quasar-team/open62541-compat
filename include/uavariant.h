@@ -127,18 +127,18 @@ class UaVariant
   UaString toString( ) const;
   UaString toFullString() const;
 
-  UaStatus toBoolArray( UaBooleanArray& out ) const;
-  UaStatus toSByteArray( UaSByteArray& out ) const;
-  UaStatus toByteArray( UaByteArray& out ) const;
-  UaStatus toInt16Array( UaInt16Array& out ) const;
-  UaStatus toUInt16Array( UaUInt16Array& out ) const;
-  UaStatus toInt32Array( UaInt32Array& out ) const;
-  UaStatus toUInt32Array( UaUInt32Array& out ) const;
-  UaStatus toInt64Array( UaInt64Array& out ) const;
-  UaStatus toUInt64Array( UaUInt64Array& out ) const;
-  UaStatus toFloatArray( UaFloatArray& out ) const;
-  UaStatus toDoubleArray( UaDoubleArray& out ) const;
-  UaStatus toStringArray( UaStringArray& out) const;
+  OpcUa_StatusCode toBoolArray( UaBooleanArray& out ) const;
+  OpcUa_StatusCode toSByteArray( UaSByteArray& out ) const;
+  OpcUa_StatusCode toByteArray( UaByteArray& out ) const;
+  OpcUa_StatusCode toInt16Array( UaInt16Array& out ) const;
+  OpcUa_StatusCode toUInt16Array( UaUInt16Array& out ) const;
+  OpcUa_StatusCode toInt32Array( UaInt32Array& out ) const;
+  OpcUa_StatusCode toUInt32Array( UaUInt32Array& out ) const;
+  OpcUa_StatusCode toInt64Array( UaInt64Array& out ) const;
+  OpcUa_StatusCode toUInt64Array( UaUInt64Array& out ) const;
+  OpcUa_StatusCode toFloatArray( UaFloatArray& out ) const;
+  OpcUa_StatusCode toDoubleArray( UaDoubleArray& out ) const;
+  OpcUa_StatusCode toStringArray( UaStringArray& out) const;
 
   // copy-To has a signature with UaVariant however it should be the stack type. This is best effort compat we can get at the moment. (pnikiel)
   UaStatus copyTo ( UaVariant* to ) const { *to = UaVariant( *m_impl ); return OpcUa_Good; }
@@ -157,7 +157,8 @@ class UaVariant
   //! Will assign a supplied newValue to the variant's value. If possible (matching old/new types) a realloc is avoided.
   void reuseOrRealloc( const UA_DataType* dataType, void* newValue );
 
-  void set1DArray( const UA_DataType* dataType, void* newValue, size_t sz );
+  template<typename ArrayType>
+  void set1DArray( const UA_DataType* dataType, const ArrayType& input );
 
   //! Will convert stored value to a simple type, if possible
   template<typename T>
@@ -169,7 +170,7 @@ class UaVariant
   bool isNumericType( const UA_DataType& dataType ) const;
 
   template<typename T, typename U>
-    UaStatus toArray( const UA_DataType* dataType, U& out) const;
+  OpcUa_StatusCode toArray( const UA_DataType* dataType, U& out) const;
 
   bool isScalarValue() const;
 };

@@ -61,6 +61,7 @@ SET( SRCS
   src/uanodeid.cpp
   src/uadatavalue.cpp
   src/uadatetime.cpp
+  src/uabytearray.cpp
   src/uaclient/uasession.cpp
 )
 

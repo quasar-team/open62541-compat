@@ -29,26 +29,26 @@ class UaCompatArray
 {
 public:
 
-    void create(size_t n)
+    void create(std::size_t n)
     {
         m_data.clear();
         m_data.insert( m_data.begin(), n, T());
     }
 
-    void resize(size_t n)
+    void resize(std::size_t n)
     {
         m_data.resize(n, T());
     }
 
-    T& operator[](size_t i) { return m_data.at(i); }
-    const T& operator[](size_t i) const { return m_data.at(i); }
+    T& operator[](std::size_t i) { return m_data.at(i); }
+    const T& operator[](std::size_t i) const { return m_data.at(i); }
 
-    size_t size() const { return m_data.size(); }
-    size_t length() const { return size(); } // TODO is this really necessary ...
+    std::size_t size() const { return m_data.size(); }
+    std::size_t length() const { return size(); } // TODO is this really necessary ...
 
     typename std::vector<T>::iterator begin() { return m_data.begin(); }
 
-private:
+protected:
     std::vector<T> m_data;
 };
 

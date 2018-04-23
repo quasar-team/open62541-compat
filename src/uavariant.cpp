@@ -211,6 +211,11 @@ void UaVariant::setInt16( OpcUa_Int16 value )
     reuseOrRealloc( &UA_TYPES[UA_TYPES_INT16], &value );
 }
 
+void UaVariant::setUInt16( OpcUa_UInt16 value )
+{
+    reuseOrRealloc( &UA_TYPES[UA_TYPES_UINT16], &value );
+}
+
 void UaVariant::setInt32( OpcUa_Int32 value )
 {
     reuseOrRealloc( &UA_TYPES[UA_TYPES_INT32], &value );

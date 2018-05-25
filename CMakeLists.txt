@@ -87,7 +87,7 @@ else()
      set(OPEN62541_COMPAT_LIB_FORMAT STATIC)
   endif()
 
-  add_definitions( -std=c++0x )
+  set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -std=c++0x )
   include_directories( include )
   include_directories( ${PROJECT_BINARY_DIR}/open62541 )
 

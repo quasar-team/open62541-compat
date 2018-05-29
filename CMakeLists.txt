@@ -39,8 +39,8 @@ function ( build_open62541 )
   message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
   #execute_process( COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
   add_subdirectory( ${PROJECT_BINARY_DIR}/open62541 )
-  message(STATUS "executing platform specific build for open62541 library")
-  execute_process( COMMAND "${CMAKE_COMMAND}" --build . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
+  #message(STATUS "executing platform specific build for open62541 library")
+  #execute_process( COMMAND "${CMAKE_COMMAND}" --build . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
 endfunction()
 
 function ( clone_LogIt )
@@ -76,7 +76,13 @@ find_library(
 message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
 
 if(NOT STANDALONE_BUILD)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x" )
+  SET( WHERE_IS_OPEN62541_H  ${PROJECT_BINARY_DIR}/open62541 )
+  message( "open62541.h should be in: ${WHERE_IS_OPEN62541_H}" )
+  include_directories( ${WHERE_IS_OPEN62541_H}  ) 
   add_library ( open62541-compat OBJECT ${SRCS} )
+  add_dependencies( open62541-compat open62541 )
+
 else()
   #
   # Decide on open62541-compat build output (shared/static)
@@ -87,9 +93,9 @@ else()
      set(OPEN62541_COMPAT_LIB_FORMAT STATIC)
   endif()
 
-  set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -std=c++0x )
+  
   include_directories( include )
-  include_directories( ${PROJECT_BINARY_DIR}/open62541 )
+  include_directories( ${PROJECT_BINARY_DIR}/open62541-compat/open62541 )
 
   #
   # Load stand-alone build toolchain file (used for defining build-specific boost (BOOST_LIBS), amongst other things)

@@ -37,12 +37,9 @@ endfunction()
 
 function ( build_open62541 )
   message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
-  #execute_process( COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
   add_subdirectory( ${PROJECT_BINARY_DIR}/open62541
   		    EXCLUDE_FROM_ALL  # EXCLUDE_FROM_ALL will not add install() targets from open62541 which we clearly don't want/need
 		    )
-  #message(STATUS "executing platform specific build for open62541 library")
-  #execute_process( COMMAND "${CMAKE_COMMAND}" --build . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
 endfunction()
 
 function ( clone_LogIt )
@@ -78,13 +75,10 @@ find_library(
 message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
 
 if(NOT STANDALONE_BUILD)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x" )
-  SET( WHERE_IS_OPEN62541_H  ${PROJECT_BINARY_DIR}/open62541 )
-  message( "open62541.h should be in: ${WHERE_IS_OPEN62541_H}" )
-  include_directories( ${WHERE_IS_OPEN62541_H}  ) 
+  include_directories( ${PROJECT_BINARY_DIR}/open62541 )
   add_library ( open62541-compat OBJECT ${SRCS} )
   add_dependencies( open62541-compat open62541 )
-
+  add_custom_target( quasar-uasdk DEPENDS open62541-compat )
 else()
   #
   # Decide on open62541-compat build output (shared/static)

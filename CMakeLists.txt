@@ -73,12 +73,14 @@ find_library(
   PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
 )
 message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
-
+  
 if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
-  add_dependencies( open62541-compat open62541 )
   add_custom_target( quasar-uasdk DEPENDS open62541-compat )
 else()
+  # We need some C++11
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wno-literal-suffix" )
+  
   #
   # Decide on open62541-compat build output (shared/static)
   #
@@ -169,3 +171,5 @@ else()
   endif()
 
 endif()
+
+add_dependencies( open62541-compat open62541 )

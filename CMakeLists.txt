@@ -38,7 +38,9 @@ endfunction()
 function ( build_open62541 )
   message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
   #execute_process( COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
-  add_subdirectory( ${PROJECT_BINARY_DIR}/open62541 )
+  add_subdirectory( ${PROJECT_BINARY_DIR}/open62541
+  		    EXCLUDE_FROM_ALL  # EXCLUDE_FROM_ALL will not add install() targets from open62541 which we clearly don't want/need
+		    )
   #message(STATUS "executing platform specific build for open62541 library")
   #execute_process( COMMAND "${CMAKE_COMMAND}" --build . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
 endfunction()

@@ -75,7 +75,6 @@ find_library(
 message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
 
 if(NOT STANDALONE_BUILD)
-  include_directories( ${PROJECT_BINARY_DIR}/open62541 )
   add_library ( open62541-compat OBJECT ${SRCS} )
   add_dependencies( open62541-compat open62541 )
   add_custom_target( quasar-uasdk DEPENDS open62541-compat )
@@ -91,7 +90,7 @@ else()
 
   
   include_directories( include )
-  include_directories( ${PROJECT_BINARY_DIR}/open62541-compat/open62541 )
+  include_directories( ${PROJECT_BINARY_DIR}/open62541 )
 
   #
   # Load stand-alone build toolchain file (used for defining build-specific boost (BOOST_LIBS), amongst other things)

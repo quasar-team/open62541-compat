@@ -92,21 +92,30 @@ static UA_StatusCode unifiedRead(
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode unifiedWrite(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range)
+static UA_StatusCode unifiedWrite(
+			   UA_Server *server,
+			   const UA_NodeId *sessionId,
+                           void *sessionContext,
+			   const UA_NodeId *nodeId,
+                           void *nodeContext,
+			   const UA_NumericRange *range,
+                           const UA_DataValue *dataValue
+				  )
+				  //void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range)
 {
-    if ( !data )
+    if ( !dataValue )
     {
-        std::cout << "unifiedWrite data=" << data << std::endl;
+        LOG(Log::ERR) << "unifiedWrite data=" << dataValue;
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if ( !handle )
+    if ( !nodeContext )
     {
-        std::cout << "unifiedWrite handle=0" << std::endl;
+        LOG(Log::ERR) << "nodeContext is null";
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     // we expect that the handle points to an object of subclass of BaseDataVariableType
-    OpcUa::BaseDataVariableType *variable = static_cast<OpcUa::BaseDataVariableType*>(handle);
-    UaVariant variant ( *data );
+    OpcUa::BaseDataVariableType *variable = static_cast<OpcUa::BaseDataVariableType*>(nodeContext);
+    UaVariant variant ( dataValue->value );
     UaStatus status = variable->setValue( /*anything non zero*/(Session*)-1, UaDataValue( variant, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ), OpcUa_True );
     return status;
 }
@@ -267,7 +276,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
 						    UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE ,0).impl() ,
 						    attr,
 						    dateDataSource,
-						    static_cast<void*>to,  // this is our nodeContext - we'll use it to map to the variable
+						    static_cast<void*>(to),  // this is our nodeContext - we'll use it to map to the variable
 						    nullptr
 		    );
  	    if (UA_STATUSCODE_GOOD == s)

@@ -178,8 +178,9 @@ UaStatus UaSession::read(
             }
             else
             {
+                // Look at OPCUA-938
+                // This is actually a safe assumption: when the statuscode is good(0) it is not transmitted on the wire
                 values[i].StatusCode = OpcUa_Good;
-                LOG(Log::WRN) << "read response carries no statuscode - somewhat fishy!";
             }
             if (readResponse.results[i].hasSourceTimestamp)
             {

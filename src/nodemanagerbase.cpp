@@ -28,8 +28,8 @@
 #include <uadatavariablecache.h>
 
 NodeManagerBase::NodeManagerBase( const char* uri, bool sth, int hashtablesize ):
-  m_server(0),
-  m_nameSpaceUri(uri)
+    m_server(0),
+    m_nameSpaceUri(uri)
 {
 
 }
@@ -42,41 +42,41 @@ NodeManagerBase::~NodeManagerBase()
     std::cout << "m_listNodes.size=" << m_listNodes.size() << std::endl;
     while (!m_listNodes.empty())
     {
-	auto node = m_listNodes.back();
-	m_listNodes.pop_back();
+        auto node = m_listNodes.back();
+        m_listNodes.pop_back();
 
-	delete node;
+        delete node;
     }
-    
+
 }
 
 UaNode* NodeManagerBase::getNode( const UaNodeId& nodeId ) const
 {
     //TODO: the code belove is probably shitty - shall be decided one and forever whether getNode shall be const or not ...
     if (nodeId == m_serverRootNode.nodeId())
-	return (UaNode*)(&m_serverRootNode);
+        return (UaNode*)(&m_serverRootNode);
 
     BOOST_FOREACH (UaNode* node,  m_listNodes)
     {
-	if (node->nodeId() == nodeId)
-	    return node;
+        if (node->nodeId() == nodeId)
+            return node;
     }
     return 0; // not found
 }
 
 
 static UA_StatusCode unifiedRead(
-			  UA_Server *server,
-			  const UA_NodeId *sessionId, 
-                          void *sessionContext,
-			  const UA_NodeId *nodeId, 
-                          void *nodeContext,
-			  UA_Boolean includeSourceTimeStamp,
-                          const UA_NumericRange *range,
-			  UA_DataValue *dataValue)
+    UA_Server *server,
+    const UA_NodeId *sessionId,
+    void *sessionContext,
+    const UA_NodeId *nodeId,
+    void *nodeContext,
+    UA_Boolean includeSourceTimeStamp,
+    const UA_NumericRange *range,
+    UA_DataValue *dataValue)
 
-				 
-				
+
+
 {
     // we expect that the handle points to an object of subclass of BaseDataVariableType -- cause it's how we add then
     OpcUa::BaseDataVariableType *variable = static_cast<OpcUa::BaseDataVariableType*>(nodeContext);
@@ -88,20 +88,20 @@ static UA_StatusCode unifiedRead(
     // dataValue->hasValue = true;
     // double v = rand();
     // UA_Variant_setScalarCopy(&dataValue->value, &v, &UA_TYPES[UA_TYPES_DOUBLE]);
-    
+
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode unifiedWrite(
-			   UA_Server *server,
-			   const UA_NodeId *sessionId,
-                           void *sessionContext,
-			   const UA_NodeId *nodeId,
-                           void *nodeContext,
-			   const UA_NumericRange *range,
-                           const UA_DataValue *dataValue
-				  )
-				  //void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range)
+    UA_Server *server,
+    const UA_NodeId *sessionId,
+    void *sessionContext,
+    const UA_NodeId *nodeId,
+    void *nodeContext,
+    const UA_NumericRange *range,
+    const UA_DataValue *dataValue
+)
+//void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range)
 {
     if ( !dataValue )
     {
@@ -123,80 +123,84 @@ static UA_StatusCode unifiedWrite(
 class SynchronousMethodCallback: public MethodManagerCallback
 {
 public:
-	virtual ~SynchronousMethodCallback () {}
+    virtual ~SynchronousMethodCallback () {}
 
-	virtual UaStatus 	finishCall (
-			OpcUa_UInt32 callbackHandle,
-			UaStatusCodeArray &inputArgumentResults,
-			UaDiagnosticInfos &inputArgumentDiag,
-			UaVariantArray &outputArguments,
-			UaStatus &statusCode)
-	{
-		// TODO: store the answer
-		this->m_resultStatus = statusCode;
-		m_outputs = outputArguments;
-		return OpcUa_Good;
-	}
+    virtual UaStatus 	finishCall (
+        OpcUa_UInt32 callbackHandle,
+        UaStatusCodeArray &inputArgumentResults,
+        UaDiagnosticInfos &inputArgumentDiag,
+        UaVariantArray &outputArguments,
+        UaStatus &statusCode)
+    {
+        // TODO: store the answer
+        this->m_resultStatus = statusCode;
+        m_outputs = outputArguments;
+        return OpcUa_Good;
+    }
 
-	UaStatus getStatusCode () const { return m_resultStatus; }
-	UaVariantArray& outputs() { return m_outputs; }
+    UaStatus getStatusCode () const {
+        return m_resultStatus;
+    }
+    UaVariantArray& outputs() {
+        return m_outputs;
+    }
 
 private:
-	UaStatus m_resultStatus;
-	UaVariantArray m_outputs;
+    UaStatus m_resultStatus;
+    UaVariantArray m_outputs;
 
 };
 
 UA_StatusCode unifiedCall(
-		void *methodHandle,
-		const UA_NodeId objectId,
-        size_t inputSize,
-		const UA_Variant *input,
-        size_t outputSize,
-		UA_Variant *output)
+    void *methodHandle,
+    const UA_NodeId objectId,
+    size_t inputSize,
+    const UA_Variant *input,
+    size_t outputSize,
+    UA_Variant *output)
 {
-	LOG(Log::INF) << "called! handle=" << methodHandle << " size=" << inputSize;
-	MethodHandleUaNode *handle = static_cast<MethodHandleUaNode*> (methodHandle);
-	OpcUa::BaseObjectType *receiver = static_cast<OpcUa::BaseObjectType*> ( handle->pUaObject() );
+    LOG(Log::INF) << "called! handle=" << methodHandle << " size=" << inputSize;
+    MethodHandleUaNode *handle = static_cast<MethodHandleUaNode*> (methodHandle);
+    OpcUa::BaseObjectType *receiver = static_cast<OpcUa::BaseObjectType*> ( handle->pUaObject() );
 
-	ServiceContext sc;
-	UaVariantArray inputArgs;
+    ServiceContext sc;
+    UaVariantArray inputArgs;
 
-	inputArgs.create( inputSize );
-	for (size_t i=0; i<inputSize; ++i)
-	{
-		inputArgs[i] = UaVariant( input[i] );
-	}
+    inputArgs.create( inputSize );
+    for (size_t i=0; i<inputSize; ++i)
+    {
+        inputArgs[i] = UaVariant( input[i] );
+    }
 
-	SynchronousMethodCallback synchronousCallback;
+    SynchronousMethodCallback synchronousCallback;
 
-	UaStatus status =
-	receiver->beginCall(
-			&synchronousCallback  /* callback */,
-			sc /* fake service context */,
-			0 /* fake callback handle */,
-			handle /* fake method handle */,
-			inputArgs
-			);
+    UaStatus status =
+        receiver->beginCall(
+            &synchronousCallback  /* callback */,
+            sc /* fake service context */,
+            0 /* fake callback handle */,
+            handle /* fake method handle */,
+            inputArgs
+        );
 
-	if (status.isNotGood())
-		return status; // beginning failed ...
-
-
-
-	for (size_t i=0; i<outputSize; ++i)
-	{
-		const UA_Variant* from = synchronousCallback.outputs()[i].impl();
-		UA_Variant_copy(from, output+i);
-	}
+    if (status.isNotGood())
+        return status; // beginning failed ...
 
 
-	return synchronousCallback.getStatusCode();
+
+    for (size_t i=0; i<outputSize; ++i)
+    {
+        const UA_Variant* from = synchronousCallback.outputs()[i].impl();
+        UA_Variant_copy(from, output+i);
+    }
+
+
+    return synchronousCallback.getStatusCode();
 }
 
 
-    UaString localisationCode("en_US");
-    
+UaString localisationCode("en_US");
+
 UA_LocalizedText make_localised( UaString text )
 {
     UA_LocalizedText out;
@@ -205,7 +209,7 @@ UA_LocalizedText make_localised( UaString text )
     return out;
 }
 
-UaStatus NodeManagerBase::addNodeAndReference( 
+UaStatus NodeManagerBase::addNodeAndReference(
     UaNode* parent,
     UaNode* to,
     const UaNodeId& refType)
@@ -215,166 +219,166 @@ UaStatus NodeManagerBase::addNodeAndReference(
     switch( to->nodeClass() )
     {
     case OpcUa_NodeClass_Object:
-	{
-	    UA_ObjectAttributes objectAttributes;
-	    UA_ObjectAttributes_init( &objectAttributes );
-	    objectAttributes.description = *dummyDescription.impl();
-	    objectAttributes.displayName = *displayName.impl();
-	    UA_NodeId out;
-	    UA_StatusCode s = UA_Server_addObjectNode(
-		/*server*/ m_server,
-		/*newnodeid*/ to->nodeId().impl(),
-		/*parentid*/ parent->nodeId().impl(),
-		/*ref id*/ refType.impl(),
-		/*browsename*/ to->browseName().impl(),
-		/*type def*/ to->typeDefinitionId().impl(),
-		/* object attrs*/ objectAttributes,
-                /* instantiation cbk*/ 0,
-		/*out new node id*/ &out
-		);    
+    {
+        UA_ObjectAttributes objectAttributes;
+        UA_ObjectAttributes_init( &objectAttributes );
+        objectAttributes.description = *dummyDescription.impl();
+        objectAttributes.displayName = *displayName.impl();
+        UA_NodeId out;
+        UA_StatusCode s = UA_Server_addObjectNode(
+                              /*server*/ m_server,
+                              /*newnodeid*/ to->nodeId().impl(),
+                              /*parentid*/ parent->nodeId().impl(),
+                              /*ref id*/ refType.impl(),
+                              /*browsename*/ to->browseName().impl(),
+                              /*type def*/ to->typeDefinitionId().impl(),
+                              /* object attrs*/ objectAttributes,
+                              /* instantiation cbk*/ 0,
+                              /*out new node id*/ &out
+                          );
 
-	    LOG(Log::INF) << "obtained output: ns=" << out.namespaceIndex << "," << UaString(&out.identifier.string).toUtf8();
-	    if (UA_STATUSCODE_GOOD == s)
-	    {
-			m_listNodes.push_back( to );
-			parent->addReferencedTarget( to, refType );
-	    }
-	    else
-	    	LOG(Log::ERR) << "Failed to add new node: " << std::hex << s;
-	    return s;
-	}
+        LOG(Log::INF) << "obtained output: ns=" << out.namespaceIndex << "," << UaString(&out.identifier.string).toUtf8();
+        if (UA_STATUSCODE_GOOD == s)
+        {
+            m_listNodes.push_back( to );
+            parent->addReferencedTarget( to, refType );
+        }
+        else
+            LOG(Log::ERR) << "Failed to add new node: " << std::hex << s;
+        return s;
+    }
     case OpcUa_NodeClass_Variable:
-	{
-		// skip HasProperty
+    {
+        // skip HasProperty
 
-		if (refType == OpcUaId_HasProperty)
-		{
-			// We don't add Properties to the Address Space when open62541-compat is in use
-			// open62541 does it differently: when you add a method, then you specify the properties
-			parent->addReferencedTarget(to, refType);
-			return OpcUa_Good;
+        if (refType == OpcUaId_HasProperty)
+        {
+            // We don't add Properties to the Address Space when open62541-compat is in use
+            // open62541 does it differently: when you add a method, then you specify the properties
+            parent->addReferencedTarget(to, refType);
+            return OpcUa_Good;
 
-		}
+        }
 
-	    UA_DataSource dateDataSource 
-	    {
-		    unifiedRead,
-		    unifiedWrite
-	    };
-	    UA_VariableAttributes attr;
-	    UA_VariableAttributes_init(&attr);
- 	    attr.description = *dummyDescription.impl();
-	    attr.displayName = *displayName.impl();
-	    attr.dataType = to->typeDefinitionId().impl();
-	    attr.valueRank = static_cast<OpcUa::BaseDataVariableType*>(to)->valueRank();
-	    UA_StatusCode s =
-  	        UA_Server_addDataSourceVariableNode(m_server,
-						    to->nodeId().impl(),
-						    parent->nodeId().impl(),
-						    refType.impl(),
-						    to->browseName().impl(),
-						    UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE ,0).impl() ,
-						    attr,
-						    dateDataSource,
-						    static_cast<void*>(to),  // this is our nodeContext - we'll use it to map to the variable
-						    nullptr
-		    );
- 	    if (UA_STATUSCODE_GOOD == s)
-	    {
-		m_listNodes.push_back( to );
-		parent->addReferencedTarget( to, refType );
-	    }
+        UA_DataSource dateDataSource
+        {
+            unifiedRead,
+            unifiedWrite
+        };
+        UA_VariableAttributes attr;
+        UA_VariableAttributes_init(&attr);
+        attr.description = *dummyDescription.impl();
+        attr.displayName = *displayName.impl();
+        attr.dataType = to->typeDefinitionId().impl();
+        attr.valueRank = static_cast<OpcUa::BaseDataVariableType*>(to)->valueRank();
+        UA_StatusCode s =
+            UA_Server_addDataSourceVariableNode(m_server,
+                                                to->nodeId().impl(),
+                                                parent->nodeId().impl(),
+                                                refType.impl(),
+                                                to->browseName().impl(),
+                                                UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE ,0).impl() ,
+                                                attr,
+                                                dateDataSource,
+                                                static_cast<void*>(to),  // this is our nodeContext - we'll use it to map to the variable
+                                                nullptr
+                                               );
+        if (UA_STATUSCODE_GOOD == s)
+        {
+            m_listNodes.push_back( to );
+            parent->addReferencedTarget( to, refType );
+        }
 
 
-	    return s;
-	}
+        return s;
+    }
 
     case OpcUa_NodeClass_Method:
     {
-    	UA_MethodAttributes attr;
-    	UA_MethodAttributes_init(&attr);
-    	attr.executable = true;
-    	attr.userExecutable = true;
-    	attr.displayName = *displayName.impl();
-    	attr.description = *dummyDescription.impl();
+        UA_MethodAttributes attr;
+        UA_MethodAttributes_init(&attr);
+        attr.executable = true;
+        attr.userExecutable = true;
+        attr.displayName = *displayName.impl();
+        attr.description = *dummyDescription.impl();
 
-    	MethodHandleUaNode *handle = new MethodHandleUaNode;
-    	handle->setUaNodes( static_cast<UaObject*>(parent), static_cast<UaMethod*>(to) );
+        MethodHandleUaNode *handle = new MethodHandleUaNode;
+        handle->setUaNodes( static_cast<UaObject*>(parent), static_cast<UaMethod*>(to) );
 
-    	LOG(Log::INF) << "parent node: " << parent->nodeId().toFullString().toUtf8();
+        LOG(Log::INF) << "parent node: " << parent->nodeId().toFullString().toUtf8();
 
-    	const std::list<UaNode::ReferencedTarget>* referenced =  to->referencedTargets();
-    	LOG(Log::INF) << "Referenced nodes: " << referenced->size();
+        const std::list<UaNode::ReferencedTarget>* referenced =  to->referencedTargets();
+        LOG(Log::INF) << "Referenced nodes: " << referenced->size();
 
-    	UA_Argument *inArgs = 0;
-    	int inArgsSize = 0;
-    	UA_Argument *outArgs = 0;
-    	int outArgsSize = 0;
+        UA_Argument *inArgs = 0;
+        int inArgsSize = 0;
+        UA_Argument *outArgs = 0;
+        int outArgsSize = 0;
 
-    	for ( std::list<UaNode::ReferencedTarget>::const_iterator it = referenced->cbegin(); it!=referenced->cend(); it++ )
-    	{
-    		const UaNode::ReferencedTarget& refTarget = *it;
-    		if (refTarget.referenceTypeId == OpcUaId_HasProperty)
-    		{
-    			const UaPropertyMethodArgument* property = dynamic_cast<const UaPropertyMethodArgument*> ( refTarget.target );
-    			if (property->argumentType() == UaPropertyMethodArgument::INARGUMENTS)
-    			{
-					inArgsSize = property->numArguments();
-					inArgs = new UA_Argument[ property->numArguments() ];
-					for (unsigned int i=0; i < property->numArguments(); ++i )
-					{
-						inArgs[i] = property->implArgument(i);
-						//LOG(Log::INF) << "Configured: " << inArgs[i].name.data;
-					}
-    			}
-    			else
-    			{
-					outArgsSize = property->numArguments();
-					outArgs = new UA_Argument[ property->numArguments() ];
-					for (unsigned int i=0; i < property->numArguments(); ++i )
-					{
-						outArgs[i] = property->implArgument(i);
-						//LOG(Log::INF) << "Configured: " << outArgs[i].name.data;
-					}
-    			}
+        for ( std::list<UaNode::ReferencedTarget>::const_iterator it = referenced->cbegin(); it!=referenced->cend(); it++ )
+        {
+            const UaNode::ReferencedTarget& refTarget = *it;
+            if (refTarget.referenceTypeId == OpcUaId_HasProperty)
+            {
+                const UaPropertyMethodArgument* property = dynamic_cast<const UaPropertyMethodArgument*> ( refTarget.target );
+                if (property->argumentType() == UaPropertyMethodArgument::INARGUMENTS)
+                {
+                    inArgsSize = property->numArguments();
+                    inArgs = new UA_Argument[ property->numArguments() ];
+                    for (unsigned int i=0; i < property->numArguments(); ++i )
+                    {
+                        inArgs[i] = property->implArgument(i);
+                        //LOG(Log::INF) << "Configured: " << inArgs[i].name.data;
+                    }
+                }
+                else
+                {
+                    outArgsSize = property->numArguments();
+                    outArgs = new UA_Argument[ property->numArguments() ];
+                    for (unsigned int i=0; i < property->numArguments(); ++i )
+                    {
+                        outArgs[i] = property->implArgument(i);
+                        //LOG(Log::INF) << "Configured: " << outArgs[i].name.data;
+                    }
+                }
 
-    		}
+            }
 
-    	}
+        }
 
-    	UaStatus s =
-    	UA_Server_addMethodNode(
-    			m_server,
-				to->nodeId().impl(),
-				parent->nodeId().impl(),
-				refType.impl(),
-				to->browseName().impl(),
-				attr,
-    	        unifiedCall,
-				/*void *handle*/ (void*)handle,
-    	        /*size_t inputArgumentsSize*/ inArgsSize,
-    	        /*const UA_Argument* inputArguments*/ inArgs,
-    	        /*size_t outputArgumentsSize*/ outArgsSize,
-				/*const UA_Argument* outputArguments*/ outArgs,
-    	        NULL);
-    	if (! s.isGood())
-    	{
-    	    throw std::runtime_error("failed to add the method node:"+std::string(s.toString().toUtf8()));
-    	}
-		m_listNodes.push_back( to );
-		parent->addReferencedTarget( to, refType );
-    	return 0;
+        UaStatus s =
+            UA_Server_addMethodNode(
+                m_server,
+                to->nodeId().impl(),
+                parent->nodeId().impl(),
+                refType.impl(),
+                to->browseName().impl(),
+                attr,
+                unifiedCall,
+                /*void *handle*/ (void*)handle,
+                /*size_t inputArgumentsSize*/ inArgsSize,
+                /*const UA_Argument* inputArguments*/ inArgs,
+                /*size_t outputArgumentsSize*/ outArgsSize,
+                /*const UA_Argument* outputArguments*/ outArgs,
+                NULL);
+        if (! s.isGood())
+        {
+            throw std::runtime_error("failed to add the method node:"+std::string(s.toString().toUtf8()));
+        }
+        m_listNodes.push_back( to );
+        parent->addReferencedTarget( to, refType );
+        return 0;
     };
 
     default:
-    	throw std::runtime_error("not-impl");
-		
+        throw std::runtime_error("not-impl");
+
     }
 
 }
 
 
-UaStatus NodeManagerBase::addNodeAndReference( 
+UaStatus NodeManagerBase::addNodeAndReference(
     const UaNodeId& from,
     UaNode* to,
     const UaNodeId& refType)
@@ -388,8 +392,8 @@ UaStatus NodeManagerBase::addNodeAndReference(
 
 void NodeManagerBase::linkServer( UA_Server* server )
 {
-	m_server = server;
-	const int nsIndex = UA_Server_addNamespace( m_server, m_nameSpaceUri.c_str() );
-	if (nsIndex != 2)
-		throw std::logic_error("UA_Server_addNamespace: namespace added to nsindex different than 2. ");
+    m_server = server;
+    const int nsIndex = UA_Server_addNamespace( m_server, m_nameSpaceUri.c_str() );
+    if (nsIndex != 2)
+        throw std::logic_error("UA_Server_addNamespace: namespace added to nsindex different than 2. ");
 }

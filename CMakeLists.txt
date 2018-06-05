@@ -25,7 +25,7 @@ option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 option(SKIP_TESTS "do not build the tests (not advised)" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
-SET (OPEN62541_VERSION "0.2" CACHE STRING "Which open62541 commit/tag/branch to take")
+SET (OPEN62541_VERSION "0.3" CACHE STRING "Which open62541 commit/tag/branch to take")
 
 function ( clone_open62541 )
   message(STATUS "cloning open62541 from github. *NOTE* cloning tag [${OPEN62541_VERSION}]")

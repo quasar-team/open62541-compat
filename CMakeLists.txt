@@ -21,6 +21,8 @@ project(open62541-compat CXX)
 cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0012 NEW)
 
+include(ExternalProject)
+
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 option(SKIP_TESTS "do not build the tests (not advised)" OFF)
@@ -29,7 +31,12 @@ message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [
 function ( clone_open62541 )
   SET (OPEN62541_VERSION "0.2")
   message(STATUS "cloning open62541 from github. *NOTE* cloning tag [${OPEN62541_VERSION}]")
-  execute_process(COMMAND git clone -b ${OPEN62541_VERSION} https://github.com/open62541/open62541.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR} )
+  #execute_process(COMMAND git clone -b ${OPEN62541_VERSION} https://github.com/open62541/open62541.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR} )
+  ExternalProject_Add( open62541
+  		       GIT_REPOSITORY https://github.com/open62541/open62541.git
+		       GIT_TAG ${OPEN62541_VERSION}
+		       SOURCE_DIR ${PROJECT_BINARY_DIR}/open62541
+  )
   SET( UA_ENABLE_AMALGAMATION ON )
   SET( UA_ENABLE_METHODCALLS ON )
   message(STATUS "open62541 cloned")    

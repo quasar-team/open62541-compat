@@ -29,17 +29,17 @@ Quick-start guide to get an stand-alone(independent) library
    - Build open62541-compat as a static library on linux. Use whatever the system installation of boost-devel is and build LogIt
      directly into the compat library
      ```
-     cmake -DCMAKE_TOOLCHAIN_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON
+     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON
      ```
 
    - Build open62541-compat as a **shared** library on linux (and boost/LogIt treated as above) - just add **STANDALONE_BUILD_SHARED**
      ```
-     cmake -DCMAKE_TOOLCHAIN_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON
+     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON
      ```
      
    - Build open62541-compat as a shared library on linux but with the LogIt library pulled in from some external build location (here LogIt is consumed as a shared library from /tmp/LogIt/). Note the **-DLOGIT** options define how LogIt is built into open62541-compat.
      ```
-     cmake -DCMAKE_TOOLCHAIN_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -DLOGIT_BUILD_OPTION=LOGIT_AS_EXT_SHARED -DLOGIT_EXT_LIB_DIR=/tmp/LogIt/ -DLOGIT_INCLUDE_DIR=/tmp/LogIt/include/
+     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -DLOGIT_BUILD_OPTION=LOGIT_AS_EXT_SHARED -DLOGIT_EXT_LIB_DIR=/tmp/LogIt/ -DLOGIT_INCLUDE_DIR=/tmp/LogIt/include/
      ```
 ### Windows examples (using a mingw 'git bash' command prompt)
    - Build open62541-compat as a static library on windows (visual studio 2017). Use a custom boost build (perhaps you built boost 
@@ -49,10 +49,10 @@ Quick-start guide to get an stand-alone(independent) library
      export BOOST_PATH_HEADERS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/include/
      export BOOST_PATH_LIBS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/lib/
      
-     cmake -DCMAKE_TOOLCHAIN_FILE=boost_custom_win_VS2017.cmake -DSTANDALONE_BUILD=ON -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release
+     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_custom_win_VS2017.cmake -DSTANDALONE_BUILD=ON -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release
      ```
      Note! Your boost build/installation may be more exotic than ours, take a look at the sample custom toolchain file (__boost_custom_win_VS2017.cmake__)
-     for inspiration, write your own and use it in your build via the build option **CMAKE_TOOLCHAIN_FILE**
+     for inspiration, write your own and use it in your build via the build option **OPEN62541-COMPAT_BUILD_CONFIG_FILE**
      
    - Build open62541-compat as a shared library on windows (visual studio 2017). Use a custom boost build. Use the LogIt library (here as a shared library) from some external build (as with the linux build above, the **-DLOGIT** options define how LogIt is built into open62541-compat).
      ```
@@ -60,7 +60,7 @@ Quick-start guide to get an stand-alone(independent) library
      export BOOST_PATH_HEADERS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/include/
      export BOOST_PATH_LIBS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/lib/
      
-     cmake -DCMAKE_TOOLCHAIN_FILE=boost_custom_win_VS2017.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release -DLOGIT_BUILD_OPTION=LOGIT_AS_EXT_SHARED -DLOGIT_EXT_LIB_DIR=/c/workspace/OPC-UA/LogIt/Release/ -DLOGIT_INCLUDE_DIR=/c/workspace/OPC-UA/LogIt/include/
+     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_custom_win_VS2017.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release -DLOGIT_BUILD_OPTION=LOGIT_AS_EXT_SHARED -DLOGIT_EXT_LIB_DIR=/c/workspace/OPC-UA/LogIt/Release/ -DLOGIT_INCLUDE_DIR=/c/workspace/OPC-UA/LogIt/include/
      ```
 
 ### Unit tests
@@ -77,7 +77,7 @@ Writing unit tests (and running unit tests) is a good habit; developers - if you
 #### Skipping tests
 If, for some reason, you feel you must omit unit tests from the build then there is a way, just add __-DSKIP_TESTS=ON__ to your cmake invocation command line. Taking the example of the stand-alone static library build on linux above the command line would be
 ```
-cmake -DCMAKE_TOOLCHAIN_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSKIP_TESTS=ON
+cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSKIP_TESTS=ON
 ```
 (and feel guilty.)
 

@@ -63,7 +63,7 @@ UaStatus UaSession::connect(
         LOG(Log::ERR) << "Connection already exists, can't call connect()";
         return OpcUa_Bad;  // Already connected!
     }
-    UA_ClientConfig clientConfig = UA_ClientConfig_standard;
+    UA_ClientConfig clientConfig = UA_ClientConfig_default;
     clientConfig.timeout = connectInfo.internalServiceCallTimeout;
     m_client = UA_Client_new(clientConfig);
     if (!m_client)

@@ -151,16 +151,31 @@ private:
 
 };
 
+
+//! IMPORTANT: in adding methods we pass nodeContext but where is this routed to in the end? To methodContext or objectContext?
 UA_StatusCode unifiedCall(
-    void *methodHandle,
-    const UA_NodeId objectId,
+    UA_Server *server,
+    const UA_NodeId *sessionId,
+    void *sessionContext,
+    const UA_NodeId *methodId,
+    void *methodContext,
+    const UA_NodeId *objectId,
+    void *objectContext,
     size_t inputSize,
     const UA_Variant *input,
     size_t outputSize,
-    UA_Variant *output)
+    UA_Variant *output
+)
+
+// void *methodHandle,
+// const UA_NodeId objectId,
+// size_t inputSize,
+// const UA_Variant *input,
+// size_t outputSize,
+// UA_Variant *output)
 {
-    LOG(Log::INF) << "called! handle=" << methodHandle << " size=" << inputSize;
-    MethodHandleUaNode *handle = static_cast<MethodHandleUaNode*> (methodHandle);
+    LOG(Log::TRC) << "called! handle=" << methodContext << " size=" << inputSize;
+    MethodHandleUaNode *handle = static_cast<MethodHandleUaNode*> (methodContext);
     OpcUa::BaseObjectType *receiver = static_cast<OpcUa::BaseObjectType*> ( handle->pUaObject() );
 
     ServiceContext sc;
@@ -355,12 +370,12 @@ UaStatus NodeManagerBase::addNodeAndReference(
                 to->browseName().impl(),
                 attr,
                 unifiedCall,
-                /*void *handle*/ (void*)handle,
                 /*size_t inputArgumentsSize*/ inArgsSize,
                 /*const UA_Argument* inputArguments*/ inArgs,
                 /*size_t outputArgumentsSize*/ outArgsSize,
                 /*const UA_Argument* outputArguments*/ outArgs,
-                NULL);
+                /*void *nodeContext */ (void*)handle,
+                nullptr);
         if (! s.isGood())
         {
             throw std::runtime_error("failed to add the method node:"+std::string(s.toString().toUtf8()));

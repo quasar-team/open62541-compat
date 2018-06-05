@@ -94,9 +94,9 @@ else()
   #
   # Load stand-alone build toolchain file (used for defining build-specific boost (BOOST_LIBS), amongst other things)
   #
-  if(DEFINED CMAKE_TOOLCHAIN_FILE)
-    message("CMAKE_TOOLCHAIN_FILE is defined -- including [[${CMAKE_TOOLCHAIN_FILE}]]")
-    include(${CMAKE_TOOLCHAIN_FILE})    
+  if(DEFINED OPEN62541-COMPAT_BUILD_CONFIG_FILE)
+    message("OPEN62541-COMPAT_BUILD_CONFIG_FILE is defined -- including [[${OPEN62541-COMPAT_BUILD_CONFIG_FILE}]]")
+    include(${OPEN62541-COMPAT_BUILD_CONFIG_FILE})    
   endif()
   if( NOT DEFINED BOOST_LIBS)
     message(FATAL_ERROR "Required variable BOOST_LIBS has not been defined. You must define a toolchain file describing (as a minimum) how boost headers/libs are resolved in the target build environment")

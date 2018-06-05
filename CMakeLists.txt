@@ -25,9 +25,9 @@ option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 option(SKIP_TESTS "do not build the tests (not advised)" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
+SET (OPEN62541_VERSION "0.2" CACHE STRING "Which open62541 commit/tag/branch to take")
 
 function ( clone_open62541 )
-  SET (OPEN62541_VERSION "0.2")
   message(STATUS "cloning open62541 from github. *NOTE* cloning tag [${OPEN62541_VERSION}]")
   execute_process(COMMAND git clone -b ${OPEN62541_VERSION} https://github.com/open62541/open62541.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR} )
   SET( UA_ENABLE_AMALGAMATION ON )
@@ -70,7 +70,7 @@ build_open62541()
 SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
 find_library(
   OPEN62541_SDK_LIB NAMES open62541 
-  PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
+  PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/bin ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
 )
 message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
 

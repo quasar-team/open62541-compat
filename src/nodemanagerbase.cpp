@@ -65,10 +65,21 @@ UaNode* NodeManagerBase::getNode( const UaNodeId& nodeId ) const
 }
 
 
-static UA_StatusCode unifiedRead(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *dataValue) 
+static UA_StatusCode unifiedRead(
+			  UA_Server *server,
+			  const UA_NodeId *sessionId, 
+                          void *sessionContext,
+			  const UA_NodeId *nodeId, 
+                          void *nodeContext,
+			  UA_Boolean includeSourceTimeStamp,
+                          const UA_NumericRange *range,
+			  UA_DataValue *dataValue)
+
+				 
+				
 {
-    // we expect that the handle points to an object of subclass of BaseDataVariableType
-    OpcUa::BaseDataVariableType *variable = static_cast<OpcUa::BaseDataVariableType*>(handle);
+    // we expect that the handle points to an object of subclass of BaseDataVariableType -- cause it's how we add then
+    OpcUa::BaseDataVariableType *variable = static_cast<OpcUa::BaseDataVariableType*>(nodeContext);
 
     UaDataValue aCopy( variable->value(0) ); // internally cloned so we can do anything with this object
     UA_DataValue_copy( aCopy.impl(), dataValue );
@@ -238,10 +249,9 @@ UaStatus NodeManagerBase::addNodeAndReference(
 
 	    UA_DataSource dateDataSource 
 	    {
-		static_cast<void*>(to),
 		    unifiedRead,
 		    unifiedWrite
-		    };
+	    };
 	    UA_VariableAttributes attr;
 	    UA_VariableAttributes_init(&attr);
  	    attr.description = *dummyDescription.impl();
@@ -249,7 +259,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
 	    attr.dataType = to->typeDefinitionId().impl();
 	    attr.valueRank = static_cast<OpcUa::BaseDataVariableType*>(to)->valueRank();
 	    UA_StatusCode s =
-		UA_Server_addDataSourceVariableNode(m_server,
+  	        UA_Server_addDataSourceVariableNode(m_server,
 						    to->nodeId().impl(),
 						    parent->nodeId().impl(),
 						    refType.impl(),
@@ -257,7 +267,8 @@ UaStatus NodeManagerBase::addNodeAndReference(
 						    UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE ,0).impl() ,
 						    attr,
 						    dateDataSource,
-						    NULL
+						    static_cast<void*>to,  // this is our nodeContext - we'll use it to map to the variable
+						    nullptr
 		    );
  	    if (UA_STATUSCODE_GOOD == s)
 	    {

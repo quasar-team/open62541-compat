@@ -121,9 +121,8 @@ else()
   	clone_LogIt()
     add_subdirectory( ${PROJECT_BINARY_DIR}/LogIt )
     message(STATUS "LogIt added as compiled object code from sub-directory LogIt")
-    add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt>)
+    set(LOGIT_OBJECTS $<TARGET_OBJECTS:LogIt>)
   else()
-  	add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} )
     if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
       SET(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".lib") # windows looks for lib file to link to target dll: lib contains dll exports, symbols etc (see LogIt.h SHARED_LIB_EXPORT_DEFN)
       find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )          
@@ -150,7 +149,9 @@ else()
   #
   # Set required libs, note windows build requires winsock.
   #
-  target_link_libraries( open62541-compat ${BOOST_LIBS} ${OPEN62541_SDK_LIB})
+  add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} ${LOGIT_OBJECTS})
+
+  target_link_libraries( open62541-compat  ${BOOST_LIBS} ${OPEN62541_SDK_LIB})
   if(WIN32)
     target_link_libraries( open62541-compat ws2_32 )
   endif()  

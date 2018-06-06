@@ -26,19 +26,21 @@ option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared libra
 option(SKIP_TESTS "do not build the tests (not advised)" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
 SET (OPEN62541_VERSION "0.3" CACHE STRING "Which open62541 commit/tag/branch to take")
+option (UA_ENABLE_AMALGAMATION "Whether open62541 should amalgamate" ON )
+option (UA_ENABLE_METHODCALLS  "Whether open62541 should have methods enabled" ON )
 
 function ( clone_open62541 )
   message(STATUS "cloning open62541 from github. *NOTE* cloning tag [${OPEN62541_VERSION}]")
   execute_process(COMMAND git clone -b ${OPEN62541_VERSION} https://github.com/open62541/open62541.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR} )
-  SET( UA_ENABLE_AMALGAMATION ON )
-  SET( UA_ENABLE_METHODCALLS ON )
   message(STATUS "open62541 cloned")    
 endfunction()
 
 function ( build_open62541 )
   message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
   add_subdirectory( ${PROJECT_BINARY_DIR}/open62541
+  		    ${PROJECT_BINARY_DIR}/open62541
   		    EXCLUDE_FROM_ALL  # EXCLUDE_FROM_ALL will not add install() targets from open62541 which we clearly don't want/need
+		    
 		    )
 endfunction()
 
@@ -67,12 +69,14 @@ SET( SRCS
 
 clone_open62541()
 build_open62541()
-SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
-find_library(
-  OPEN62541_SDK_LIB NAMES open62541 
-  PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/bin ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
-)
-message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
+
+# Piotr: remove this
+# SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
+# find_library(
+#   OPEN62541_SDK_LIB NAMES open62541 
+#   PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/bin ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
+# )
+#message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
   
 if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
@@ -155,7 +159,7 @@ else()
   #
   add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} ${LOGIT_OBJECTS} $<TARGET_OBJECTS:open62541-object> )
 
-  target_link_libraries( open62541-compat  ${BOOST_LIBS} ${OPEN62541_SDK_LIB})
+  target_link_libraries( open62541-compat  ${BOOST_LIBS} )
   if(WIN32)
     target_link_libraries( open62541-compat ws2_32 )
   endif()  

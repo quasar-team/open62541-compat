@@ -153,7 +153,7 @@ else()
   #
   # Set required libs, note windows build requires winsock.
   #
-  add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} ${LOGIT_OBJECTS})
+  add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} ${LOGIT_OBJECTS} $<TARGET_OBJECTS:open62541-object> )
 
   target_link_libraries( open62541-compat  ${BOOST_LIBS} ${OPEN62541_SDK_LIB})
   if(WIN32)

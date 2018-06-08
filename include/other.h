@@ -42,7 +42,7 @@
 enum OpcUa_AccessLevels
 {
   OpcUa_AccessLevels_CurrentRead = UA_ACCESSLEVELMASK_READ,
-  OpcUa_AccessLevels_CurrentReadOrWrite = UA_ACCESSLEVELMASK_WRITE
+  OpcUa_AccessLevels_CurrentReadOrWrite = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE
 };
 
 

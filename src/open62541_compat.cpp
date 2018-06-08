@@ -93,10 +93,11 @@ namespace OpcUa
         m_currentValue( initialValue, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ),
 		m_nodeId (nodeId),
 		m_typeDefinitionId( OpcUaType_Variant, 0),
-		m_valueRank(-1) // by default: scalar
+		m_valueRank(-1), // by default: scalar
+		m_accessLevel(accessLevel)
 							   
     {
-        //      std::cout << __PRETTY_FUNCTION__ <<" (nodeId="<<nodeId.toString().toUtf8()<<")" << std::endl;
+
     }
 
 
@@ -106,10 +107,14 @@ namespace OpcUa
         OpcUa_Boolean checkAccessLevel
         )
     {
-        // TODO check write mask
-        // TODO
-        m_currentValue = dataValue;
-        return OpcUa_Good;
+        if (!checkAccessLevel || (m_accessLevel & UA_ACCESSLEVELMASK_WRITE))
+        {
+            m_currentValue = dataValue;
+            return OpcUa_Good;
+        }
+        else
+            return OpcUa_BadUserAccessDenied;
+
     }
 
     UaDataValue BaseDataVariableType::value(Session* session) 

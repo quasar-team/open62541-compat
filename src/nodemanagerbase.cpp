@@ -248,6 +248,14 @@ UaStatus NodeManagerBase::addNodeAndReference(
 	    attr.displayName = *displayName.impl();
 	    attr.dataType = to->typeDefinitionId().impl();
 	    attr.valueRank = static_cast<OpcUa::BaseDataVariableType*>(to)->valueRank();
+
+        OpcUa::BaseDataVariableType *variable = dynamic_cast<OpcUa::BaseDataVariableType*>(to);
+        if (!variable)
+        {
+            throw std::logic_error("Given variable is not castable to BaseDataVariableType, sth went wrong");
+        }
+        attr.accessLevel = variable->accessLevel();
+
 	    UA_StatusCode s =
 		UA_Server_addDataSourceVariableNode(m_server,
 						    to->nodeId().impl(),

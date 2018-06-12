@@ -25,86 +25,46 @@ namespace OpcUa
 {
 
 BaseDataVariableType::BaseDataVariableType(
-     const UaNodeId&    nodeId,
-     const UaString&    name,
-     OpcUa_UInt16       browseNameNameSpaceIndex,
-     const UaVariant&   initialValue,
-     OpcUa_Byte         accessLevel,
-     NodeManagerConfig* pNodeConfig,
-     UaMutexRefCounted* pSharedMutex):
+    const UaNodeId&    nodeId,
+    const UaString&    name,
+    OpcUa_UInt16       browseNameNameSpaceIndex,
+    const UaVariant&   initialValue,
+    OpcUa_Byte         accessLevel,
+    NodeManagerConfig* pNodeConfig,
+    UaMutexRefCounted* pSharedMutex):
 
-     m_browseName( browseNameNameSpaceIndex, name),
-     m_currentValue( initialValue, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ),
-     m_nodeId (nodeId),
-     m_typeDefinitionId( OpcUaType_Variant, 0),
-     m_valueRank(-1), // by default: scalar
-     m_accessLevel(accessLevel)
+    m_browseName( browseNameNameSpaceIndex, name),
+    m_currentValue( initialValue, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ),
+    m_nodeId (nodeId),
+    m_typeDefinitionId( OpcUaType_Variant, 0),
+    m_valueRank(-1), // by default: scalar
+    m_accessLevel(accessLevel)
 
- {
+{
 
- }
-
-
- UaStatus BaseDataVariableType::setValue(
-     Session *session,
-     const UaDataValue& dataValue,
-     OpcUa_Boolean checkAccessLevel
-     )
- {
-     if (!checkAccessLevel || (m_accessLevel & UA_ACCESSLEVELMASK_WRITE))
-     {
-         m_currentValue = dataValue;
-         return OpcUa_Good;
-     }
-     else
-         return OpcUa_BadUserAccessDenied;
-
- }
-
- UaDataValue BaseDataVariableType::value(Session* session)
- {
-     return m_currentValue.clone();
- }   BaseDataVariableType::BaseDataVariableType(
-         const UaNodeId&    nodeId,
-         const UaString&    name,
-         OpcUa_UInt16       browseNameNameSpaceIndex,
-         const UaVariant&   initialValue,
-         OpcUa_Byte         accessLevel,
-         NodeManagerConfig* pNodeConfig,
-         UaMutexRefCounted* pSharedMutex):
-
-         m_browseName( browseNameNameSpaceIndex, name),
-         m_currentValue( initialValue, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ),
-         m_nodeId (nodeId),
-         m_typeDefinitionId( OpcUaType_Variant, 0),
-         m_valueRank(-1), // by default: scalar
-         m_accessLevel(accessLevel)
-
-     {
-
-     }
+}
 
 
-     UaStatus BaseDataVariableType::setValue(
-         Session *session,
-         const UaDataValue& dataValue,
-         OpcUa_Boolean checkAccessLevel
-         )
-     {
-         if (!checkAccessLevel || (m_accessLevel & UA_ACCESSLEVELMASK_WRITE))
-         {
-             m_currentValue = dataValue;
-             return OpcUa_Good;
-         }
-         else
-             return OpcUa_BadUserAccessDenied;
+UaStatus BaseDataVariableType::setValue(
+    Session *session,
+    const UaDataValue& dataValue,
+    OpcUa_Boolean checkAccessLevel
+)
+{
+    if (!checkAccessLevel || (m_accessLevel & UA_ACCESSLEVELMASK_WRITE))
+    {
+        m_currentValue = dataValue;
+        return OpcUa_Good;
+    }
+    else
+        return OpcUa_BadUserAccessDenied;
 
-     }
+}
 
-     UaDataValue BaseDataVariableType::value(Session* session)
-     {
-         return m_currentValue.clone();
-     }
+UaDataValue BaseDataVariableType::value(Session* session)
+{
+    return m_currentValue.clone();
+}
 
 }
 

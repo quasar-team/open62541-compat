@@ -2,12 +2,13 @@
  * statuscode.cpp
  *
  *  Created on: 21 Jun 2017
- *      Author: pnikiel, pmoschov
+ *      Author: pnikiel, pmoschov, bfarnham
  */
 
 #include <statuscode.h>
 #include <sstream>
 #include <string>
+#include <bitset>
 
 template<typename T>
 static std::string toHexString (const T t)
@@ -28,4 +29,9 @@ UaString UaStatus::toString() const
 
 	return buf.c_str();
 
+}
+
+bool UaStatus::isBad() const
+{
+    return std::bitset<32>(m_status).test(31); // 31 ? BAD defines start at 0x8000000 (OPC-UA specification).
 }

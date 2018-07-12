@@ -213,7 +213,8 @@ UaStatus UaSession::write(
     UA_WriteRequest_init( &writeRequest);
 
     writeRequest.nodesToWriteSize = nodesToWrite.size();
-    writeRequest.nodesToWrite = (UA_WriteValue*) UA_Array_new(nodesToWrite.size(), &UA_TYPES[UA_TYPES_WRITEVALUE]);
+    ManagedUaArray<UA_WriteValue> writeValues (nodesToWrite.size(), &UA_TYPES[UA_TYPES_WRITEVALUE]);
+    writeRequest.nodesToWrite = writeValues;
 
     for (size_t i = 0; i<nodesToWrite.size(); ++i)
     {
@@ -228,7 +229,7 @@ UaStatus UaSession::write(
 
 
     UA_WriteResponse writeResponse = UA_Client_Service_write(m_client, writeRequest);
-    UA_Array_delete(writeRequest.nodesToWrite, writeRequest.nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE]);
+    ManagedUaArray<UA_StatusCode> statusCodes( writeResponse.resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE], writeResponse.results );
 
     if (UaStatus(writeResponse.responseHeader.serviceResult).isGood())
     {
@@ -240,8 +241,6 @@ UaStatus UaSession::write(
     }
     else
         results.create(0); // assume there are no results when the service call failed
-
-    UA_Array_delete(writeResponse.results, writeResponse.resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 
     return writeResponse.responseHeader.serviceResult;
 }

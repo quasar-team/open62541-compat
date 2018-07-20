@@ -8,10 +8,10 @@
 #
 # 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
-# THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS 
-# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE 
-# GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+# THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+# GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
 # LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 # Authors:
@@ -32,14 +32,14 @@ function ( clone_open62541 )
   execute_process(COMMAND git clone -b ${OPEN62541_VERSION} https://github.com/open62541/open62541.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR} )
   SET( UA_ENABLE_AMALGAMATION ON )
   SET( UA_ENABLE_METHODCALLS ON )
-  message(STATUS "open62541 cloned")    
+  message(STATUS "open62541 cloned")
 endfunction()
 
 function ( build_open62541 )
   message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
   execute_process( COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
-  message(STATUS "executing platform specific build for open62541 library")
-  execute_process( COMMAND "${CMAKE_COMMAND}" --build . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
+  message(STATUS "executing platform specific build for open62541 library. CMAKE_BUILD_TYPE [${CMAKE_BUILD_TYPE}]")
+  execute_process( COMMAND "${CMAKE_COMMAND}" --build . --config ${CMAKE_BUILD_TYPE} WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541)
 endfunction()
 
 function ( clone_LogIt )
@@ -70,7 +70,7 @@ clone_open62541()
 build_open62541()
 SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
 find_library(
-  OPEN62541_SDK_LIB NAMES open62541 
+  OPEN62541_SDK_LIB NAMES open62541
   PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
 )
 message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
@@ -96,13 +96,13 @@ else()
   #
   if(DEFINED CMAKE_TOOLCHAIN_FILE)
     message("CMAKE_TOOLCHAIN_FILE is defined -- including [[${CMAKE_TOOLCHAIN_FILE}]]")
-    include(${CMAKE_TOOLCHAIN_FILE})    
+    include(${CMAKE_TOOLCHAIN_FILE})
   endif()
   if( NOT DEFINED BOOST_LIBS)
     message(FATAL_ERROR "Required variable BOOST_LIBS has not been defined. You must define a toolchain file describing (as a minimum) how boost headers/libs are resolved in the target build environment")
-  endif() 
-  message(STATUS "Using boost libraries: BOOST_LIBS [${BOOST_LIBS}]")  
-  
+  endif()
+  message(STATUS "Using boost libraries: BOOST_LIBS [${BOOST_LIBS}]")
+
   #
   # How does the stand-alone open62541-compat build want to use LogIt? Possible options:
   # - Source
@@ -127,7 +127,7 @@ else()
   	add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} )
     if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
       SET(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".lib") # windows looks for lib file to link to target dll: lib contains dll exports, symbols etc (see LogIt.h SHARED_LIB_EXPORT_DEFN)
-      find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )          
+      find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )
     elseif("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_STATIC")
       SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
       find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )
@@ -154,11 +154,11 @@ else()
   target_link_libraries( open62541-compat ${BOOST_LIBS} ${OPEN62541_SDK_LIB})
   if(WIN32)
     target_link_libraries( open62541-compat ws2_32 )
-  endif()  
+  endif()
 
   #
   # Build unit tests (googletest). For the moment only build unit tests in stand-alone mode
-  # until such time as the quasar framework has a comprehensive strategy for testing optional 
+  # until such time as the quasar framework has a comprehensive strategy for testing optional
   # modules.
   #
   if( NOT SKIP_TESTS )

@@ -76,7 +76,7 @@ message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
   
 if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
-  add_custom_target( quasar-uasdk DEPENDS open62541-compat )
+  add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
 else()
   # We need some C++11
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wno-literal-suffix" )

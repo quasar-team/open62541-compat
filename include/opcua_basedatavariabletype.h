@@ -27,7 +27,7 @@
 #include <uadatavalue.h>
 #include <nodemanagerbase.h>
 #include <open62541_compat.h>
-
+#include <statuscode.h>
 
 namespace OpcUa
 {
@@ -50,6 +50,7 @@ public:
             const UaDataValue& dataValue,
             OpcUa_Boolean checkAccessLevel
     );
+    virtual OpcUa_Byte accessLevel() const { return m_accessLevel; }
     virtual UaDataValue value(Session* session) ;
     virtual UaQualifiedName browseName() const { return m_browseName; }
     virtual UaNodeId typeDefinitionId() const { return m_typeDefinitionId; }
@@ -68,6 +69,7 @@ private:
     UaNodeId m_nodeId;
     UaNodeId m_typeDefinitionId;
     OpcUa_Int32 m_valueRank;
+    OpcUa_Byte m_accessLevel;
 };
 
 

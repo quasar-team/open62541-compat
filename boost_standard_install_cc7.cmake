@@ -42,5 +42,5 @@ else()
 	message(STATUS "Found system boost, version [${Boost_VERSION}], include dir [${Boost_INCLUDE_DIRS}] library dir [${Boost_LIBRARY_DIRS}], libs [${Boost_LIBRARIES}]")
 endif()	
 
-include( ${Boost_INCLUDE_DIRS} )
+include_directories( ${Boost_INCLUDE_DIRS} )
 set( BOOST_LIBS ${Boost_LIBRARIES} )

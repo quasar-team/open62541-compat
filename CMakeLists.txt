@@ -37,9 +37,9 @@ endfunction()
 
 function ( build_open62541 )
   message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
-  execute_process( COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
-  message(STATUS "executing platform specific build for open62541 library. CMAKE_BUILD_TYPE [${CMAKE_BUILD_TYPE}]")
-  execute_process( COMMAND "${CMAKE_COMMAND}" --build . --config ${CMAKE_BUILD_TYPE} WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541)
+  add_subdirectory( ${PROJECT_BINARY_DIR}/open62541
+  		    EXCLUDE_FROM_ALL  # EXCLUDE_FROM_ALL will not add install() targets from open62541 which we clearly don't want/need
+		    )
 endfunction()
 
 function ( clone_LogIt )
@@ -74,10 +74,14 @@ find_library(
   PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
 )
 message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
-
+  
 if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
+  add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
 else()
+  # We need some C++11
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wno-literal-suffix" )
+  
   #
   # Decide on open62541-compat build output (shared/static)
   #
@@ -87,7 +91,7 @@ else()
      set(OPEN62541_COMPAT_LIB_FORMAT STATIC)
   endif()
 
-  add_definitions( -std=c++0x )
+  
   include_directories( include )
   include_directories( ${PROJECT_BINARY_DIR}/open62541 )
 
@@ -168,3 +172,5 @@ else()
   endif()
 
 endif()
+
+add_dependencies( open62541-compat open62541 )

@@ -72,7 +72,7 @@ clone_open62541()
   
 if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
-  add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
+  add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-amalgamation-header open62541-object )
 else()
   # We need some C++11
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wno-literal-suffix" )
@@ -186,4 +186,4 @@ else()
 
 endif()
 
-add_dependencies( open62541-compat open62541 )
+add_dependencies( open62541-compat open62541-amalgamation-header )

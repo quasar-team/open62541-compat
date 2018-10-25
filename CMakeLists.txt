@@ -36,10 +36,20 @@ function ( clone_open62541 )
   		       GIT_REPOSITORY https://github.com/open62541/open62541.git
 		       GIT_TAG ${OPEN62541_VERSION}
 		       SOURCE_DIR ${PROJECT_BINARY_DIR}/open62541
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    UPDATE_COMMAND ""
+    PATCH_COMMAND ""
+    TEST_COMMAND ""
+    INSTALL_COMMAND ""
+    LOG_UPDATE 1              # Wrap update in script to log output
+    LOG_CONFIGURE 1           # Wrap configure in script to log output
+    LOG_BUILD 1               # Wrap build in script to log output
+    LOG_TEST 1                # Wrap test in script to log output
+    LOG_INSTALL 1 		       
   )
   SET( UA_ENABLE_AMALGAMATION ON )
   SET( UA_ENABLE_METHODCALLS ON )
-  message(STATUS "open62541 cloned")
 endfunction()
 
 function ( build_open62541 )
@@ -175,3 +185,5 @@ else()
   endif()
 
 endif()
+
+add_dependencies(open62541-compat open62541)

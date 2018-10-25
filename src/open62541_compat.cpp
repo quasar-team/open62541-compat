@@ -22,13 +22,9 @@
 #include <open62541_compat.h>
 #include <iostream>
 #include <sstream>
-#include <bitset>
 #include <open62541_compat_common.h>
 
-bool UaStatus::isBad() const
-{
-	return std::bitset<32>(m_status).test(31); // 31 ? BAD defines start at 0x8000000 (OPC-UA specification).
-}
+
 
 UaQualifiedName::UaQualifiedName(int ns, const UaString& name):
     m_unqualifiedName( name )
@@ -80,40 +76,5 @@ namespace OpcUa
 	}
 
 
-    BaseDataVariableType::BaseDataVariableType(
-        const UaNodeId&    nodeId,
-        const UaString&    name,
-        OpcUa_UInt16       browseNameNameSpaceIndex,
-        const UaVariant&   initialValue,
-        OpcUa_Byte         accessLevel,
-        NodeManagerConfig* pNodeConfig,
-        UaMutexRefCounted* pSharedMutex):
 
-        m_browseName( browseNameNameSpaceIndex, name),
-        m_currentValue( initialValue, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ),
-		m_nodeId (nodeId),
-		m_typeDefinitionId( OpcUaType_Variant, 0),
-		m_valueRank(-1) // by default: scalar
-							   
-    {
-        //      std::cout << __PRETTY_FUNCTION__ <<" (nodeId="<<nodeId.toString().toUtf8()<<")" << std::endl;
-    }
-
-
-    UaStatus BaseDataVariableType::setValue( 
-        Session *session,
-        const UaDataValue& dataValue,
-        OpcUa_Boolean checkAccessLevel
-        )
-    {
-        // TODO check write mask
-        // TODO
-        m_currentValue = dataValue;
-        return OpcUa_Good;
-    }
-
-    UaDataValue BaseDataVariableType::value(Session* session) 
-    {
-        return m_currentValue.clone();
-    }
 };

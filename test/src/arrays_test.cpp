@@ -3,6 +3,7 @@
  *
  *  Created on: reated on: Apr 11, 2018
  *      Author: Ben Farnham <ben.farnham@cern.ch>
+ *      Author: Piotr Nikiel <piotr.nikiel@cern.ch>
  *
  *  This file is part of Quasar.
  *
@@ -65,5 +66,19 @@ TEST(ArraysTest, testUaVariantsHoldingArrays)
 
 	EXPECT_EQ(1, arrayDimensions.size()) << "should be a 1D array";
 	EXPECT_EQ(100, arrayDimensions[0]) << "should be 100 elements in the 1D";
+}
+
+TEST(ArraysTest, testEmptyArraySetter)
+{
+    UaInt32Array emptyArray;
+    UaVariant testee;
+
+    testee.setInt32Array(emptyArray);
+
+    EXPECT_TRUE(testee.isArray()) << "it should be just an empty array";
+
+    UaUInt32Array dimensions;
+    testee.arrayDimensions(dimensions);
+    EXPECT_EQ(0, dimensions[0]) << "arrayDimensions should say it's an empty array";
 }
 

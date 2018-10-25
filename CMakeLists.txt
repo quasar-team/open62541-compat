@@ -21,6 +21,8 @@ project(open62541-compat CXX)
 cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0012 NEW)
 
+include (FetchContent)
+
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 option(SKIP_TESTS "do not build the tests (not advised)" OFF)
@@ -29,7 +31,14 @@ message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [
 function ( clone_open62541 )
   SET (OPEN62541_VERSION "0.2")
   message(STATUS "cloning open62541 from github. *NOTE* cloning tag [${OPEN62541_VERSION}]")
-  execute_process(COMMAND git clone -b ${OPEN62541_VERSION} https://github.com/open62541/open62541.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR} )
+  FetchContent_Declare(
+    open62541
+    GIT_REPOSITORY    https://github.com/open62541/open62541.git
+    GIT_TAG           ${OPEN62541_VERSION}
+    SOURCE_DIR	      ${PROJECT_BINARY_DIR}/open62541
+    BINARY_DIR	      ${PROJECT_BINARY_DIR}/open62541
+  )
+  FetchContent_Populate( open62541 )
   SET( UA_ENABLE_AMALGAMATION ON )
   SET( UA_ENABLE_METHODCALLS ON )
   message(STATUS "open62541 cloned")
@@ -38,6 +47,7 @@ endfunction()
 function ( build_open62541 )
   message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
   add_subdirectory( ${PROJECT_BINARY_DIR}/open62541
+                    ${PROJECT_BINARY_DIR}/open62541
   		    EXCLUDE_FROM_ALL  # EXCLUDE_FROM_ALL will not add install() targets from open62541 which we clearly don't want/need
 		    )
 endfunction()
@@ -68,15 +78,15 @@ SET( SRCS
 
 clone_open62541()
 build_open62541()
-SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
-find_library(
-  OPEN62541_SDK_LIB NAMES open62541
-  PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
-)
-message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
+# SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
+# find_library(
+#   OPEN62541_SDK_LIB NAMES open62541
+#   PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
+# )
+# message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
   
 if(NOT STANDALONE_BUILD)
-  add_library ( open62541-compat OBJECT ${SRCS} )
+  add_library ( open62541-compat OBJECT ${SRCS} $<TARGET_OBJECTS:open62541-object> )
   add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
 else()
   # We need some C++11
@@ -118,17 +128,32 @@ else()
   message(STATUS "LogIt build option LOGIT_BUILD_OPTION [${LOGIT_BUILD_OPTION}]")
 
   #
+  # Clone LogIt if needed
+  # 
+  if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
+  	clone_LogIt()
+  endif()
+  
+  #
+  # Resolve LogIt include
+  #
+  set(LOGIT_INCLUDE_DIR ${PROJECT_BINARY_DIR}/LogIt/include CACHE PATH "Path to LogIt include directory. If building with LogIt as external shared/static library this must be specified using -DLOGIT_INCLUDE_DIR=path. Path can be absolute or relative to [${PROJECT_BINARY_DIR}/]")
+  if( NOT EXISTS ${LOGIT_INCLUDE_DIR} )
+    message(FATAL_ERROR "Cannot build with LogIt. No LogIt include directory found at [${LOGIT_INCLUDE_DIR}]. If building with LogIt as external shared/static library this must be specified using -DLOGIT_INCLUDE_DIR=path. Path can be absolute or relative to [${PROJECT_BINARY_DIR}/]")
+  endif()
+  message(STATUS "Using LogIt include directory [${LOGIT_INCLUDE_DIR}]")
+  include_directories( ${LOGIT_INCLUDE_DIR} )
+
+  #
   # Resolve LogIt library
   #
   set(LOGIT_EXT_LIB_DIR "UNINIALIZED" CACHE PATH "Path to the directory containing the LogIt shared/static library binary file. Use absolute path, or relative to [${PROJECT_BINARY_DIR}/]")
   message(STATUS "Using LogIt build option [${LOGIT_BUILD_OPTION}]")
   if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
-  	clone_LogIt()
     add_subdirectory( ${PROJECT_BINARY_DIR}/LogIt )
     message(STATUS "LogIt added as compiled object code from sub-directory LogIt")
-    add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt>)
+    set( LOGIT_TARGET_OBJECTS $<TARGET_OBJECTS:LogIt> )
   else()
-  	add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} )
     if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
       SET(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".lib") # windows looks for lib file to link to target dll: lib contains dll exports, symbols etc (see LogIt.h SHARED_LIB_EXPORT_DEFN)
       find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )
@@ -142,20 +167,13 @@ else()
     message(STATUS "LogIt added as external library dependency LOGITLIB [${LOGITLIB}]")
   endif()
 
-  #
-  # Resolve LogIt include
-  #
-  set(LOGIT_INCLUDE_DIR ${PROJECT_BINARY_DIR}/LogIt/include CACHE PATH "Path to LogIt include directory. If building with LogIt as external shared/static library this must be specified using -DLOGIT_INCLUDE_DIR=path. Path can be absolute or relative to [${PROJECT_BINARY_DIR}/]")
-  if( NOT EXISTS ${LOGIT_INCLUDE_DIR} )
-    message(FATAL_ERROR "Cannot build with LogIt. No LogIt include directory found at [${LOGIT_INCLUDE_DIR}]. If building with LogIt as external shared/static library this must be specified using -DLOGIT_INCLUDE_DIR=path. Path can be absolute or relative to [${PROJECT_BINARY_DIR}/]")
-  endif()
-  message(STATUS "Using LogIt include directory [${LOGIT_INCLUDE_DIR}]")
-  include_directories( ${LOGIT_INCLUDE_DIR} )
+
+  add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:LogIt> )
 
   #
   # Set required libs, note windows build requires winsock.
   #
-  target_link_libraries( open62541-compat ${BOOST_LIBS} ${OPEN62541_SDK_LIB})
+  target_link_libraries( open62541-compat ${BOOST_LIBS}  )
   if(WIN32)
     target_link_libraries( open62541-compat ws2_32 )
   endif()
@@ -173,4 +191,4 @@ else()
 
 endif()
 
-add_dependencies( open62541-compat open62541 )
+add_dependencies( open62541-compat open62541-amalgamation-header )

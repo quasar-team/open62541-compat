@@ -30,33 +30,18 @@ message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [
 
 function ( clone_open62541 )
   SET (OPEN62541_VERSION "0.2")
-  message(STATUS "cloning open62541 from github. *NOTE* cloning tag [${OPEN62541_VERSION}]")
-  #execute_process(COMMAND git clone -b ${OPEN62541_VERSION} https://github.com/open62541/open62541.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR} )
-  ExternalProject_Add( open62541
-  		       GIT_REPOSITORY https://github.com/open62541/open62541.git
-		       GIT_TAG ${OPEN62541_VERSION}
-		       SOURCE_DIR ${PROJECT_BINARY_DIR}/open62541
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    UPDATE_COMMAND ""
-    PATCH_COMMAND ""
-    TEST_COMMAND ""
-    INSTALL_COMMAND ""
-    LOG_UPDATE 1              # Wrap update in script to log output
-    LOG_CONFIGURE 1           # Wrap configure in script to log output
-    LOG_BUILD 1               # Wrap build in script to log output
-    LOG_TEST 1                # Wrap test in script to log output
-    LOG_INSTALL 1 		       
-  )
   SET( UA_ENABLE_AMALGAMATION ON )
-  SET( UA_ENABLE_METHODCALLS ON )
-endfunction()
-
-function ( build_open62541 )
-  message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
-  execute_process( COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" . WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
-  message(STATUS "executing platform specific build for open62541 library. CMAKE_BUILD_TYPE [${CMAKE_BUILD_TYPE}]")
-  execute_process( COMMAND "${CMAKE_COMMAND}" --build . --config ${CMAKE_BUILD_TYPE} WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/open62541)
+  SET( UA_ENABLE_METHODCALLS ON )  
+  message(STATUS "We're using open62541 from github. *NOTE* tag used: [${OPEN62541_VERSION}]")
+  ExternalProject_Add(
+	open62541
+  	GIT_REPOSITORY      https://github.com/open62541/open62541.git
+	GIT_TAG             ${OPEN62541_VERSION}
+	PREFIX              ${PROJECT_BINARY_DIR}/open62541
+	BINARY_DIR	    ${PROJECT_BINARY_DIR}/open62541
+        TEST_COMMAND ""     # do not run open62541 tests	
+        INSTALL_COMMAND ""  # do not install any open62541 artifacts
+  )
 endfunction()
 
 function ( clone_LogIt )
@@ -84,17 +69,14 @@ SET( SRCS
 )
 
 clone_open62541()
-build_open62541()
-SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
-find_library(
-  OPEN62541_SDK_LIB NAMES open62541
-  PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
-)
-message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
-
+  
 if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
+  add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
 else()
+  # We need some C++11
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wno-literal-suffix" )
+  
   #
   # Decide on open62541-compat build output (shared/static)
   #
@@ -104,7 +86,7 @@ else()
      set(OPEN62541_COMPAT_LIB_FORMAT STATIC)
   endif()
 
-  add_definitions( -std=c++0x )
+  
   include_directories( include )
   include_directories( ${PROJECT_BINARY_DIR}/open62541 )
 
@@ -131,17 +113,32 @@ else()
   message(STATUS "LogIt build option LOGIT_BUILD_OPTION [${LOGIT_BUILD_OPTION}]")
 
   #
+  # Clone LogIt if necessary
+  #
+  if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
+  	clone_LogIt()
+  endif()
+  
+  #
+  # Resolve LogIt include
+  #
+  set(LOGIT_INCLUDE_DIR ${PROJECT_BINARY_DIR}/LogIt/include CACHE PATH "Path to LogIt include directory. If building with LogIt as external shared/static library this must be specified using -DLOGIT_INCLUDE_DIR=path. Path can be absolute or relative to [${PROJECT_BINARY_DIR}/]")
+  if( NOT EXISTS ${LOGIT_INCLUDE_DIR} )
+    message(FATAL_ERROR "Cannot build with LogIt. No LogIt include directory found at [${LOGIT_INCLUDE_DIR}]. If building with LogIt as external shared/static library this must be specified using -DLOGIT_INCLUDE_DIR=path. Path can be absolute or relative to [${PROJECT_BINARY_DIR}/]")
+  endif()
+  message(STATUS "Using LogIt include directory [${LOGIT_INCLUDE_DIR}]")
+  include_directories( ${LOGIT_INCLUDE_DIR} )
+
+
+  #
   # Resolve LogIt library
   #
   set(LOGIT_EXT_LIB_DIR "UNINIALIZED" CACHE PATH "Path to the directory containing the LogIt shared/static library binary file. Use absolute path, or relative to [${PROJECT_BINARY_DIR}/]")
   message(STATUS "Using LogIt build option [${LOGIT_BUILD_OPTION}]")
   if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
-  	clone_LogIt()
     add_subdirectory( ${PROJECT_BINARY_DIR}/LogIt )
     message(STATUS "LogIt added as compiled object code from sub-directory LogIt")
-    add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt>)
   else()
-  	add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} )
     if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
       SET(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".lib") # windows looks for lib file to link to target dll: lib contains dll exports, symbols etc (see LogIt.h SHARED_LIB_EXPORT_DEFN)
       find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )
@@ -155,15 +152,18 @@ else()
     message(STATUS "LogIt added as external library dependency LOGITLIB [${LOGITLIB}]")
   endif()
 
-  #
-  # Resolve LogIt include
-  #
-  set(LOGIT_INCLUDE_DIR ${PROJECT_BINARY_DIR}/LogIt/include CACHE PATH "Path to LogIt include directory. If building with LogIt as external shared/static library this must be specified using -DLOGIT_INCLUDE_DIR=path. Path can be absolute or relative to [${PROJECT_BINARY_DIR}/]")
-  if( NOT EXISTS ${LOGIT_INCLUDE_DIR} )
-    message(FATAL_ERROR "Cannot build with LogIt. No LogIt include directory found at [${LOGIT_INCLUDE_DIR}]. If building with LogIt as external shared/static library this must be specified using -DLOGIT_INCLUDE_DIR=path. Path can be absolute or relative to [${PROJECT_BINARY_DIR}/]")
+  link_directories(
+	${PROJECT_BINARY_DIR}/open62541
+	${PROJECT_BINARY_DIR}/open62541/build
+	${PROJECT_BINARY_DIR}/open62541/Release
+	${PROJECT_BINARY_DIR}/open62541/Debug )
+  set( OPEN62541_SDK_LIB -lopen62541 )
+
+  if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
+    add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt>)
+  else()
+    add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS})
   endif()
-  message(STATUS "Using LogIt include directory [${LOGIT_INCLUDE_DIR}]")
-  include_directories( ${LOGIT_INCLUDE_DIR} )
 
   #
   # Set required libs, note windows build requires winsock.
@@ -186,4 +186,4 @@ else()
 
 endif()
 
-add_dependencies(open62541-compat open62541)
+add_dependencies( open62541-compat open62541 )

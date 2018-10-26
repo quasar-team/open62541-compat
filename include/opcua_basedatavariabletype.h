@@ -27,7 +27,7 @@
 #include <uadatavalue.h>
 #include <nodemanagerbase.h>
 #include <open62541_compat.h>
-
+#include <statuscode.h>
 
 namespace OpcUa
 {

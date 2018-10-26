@@ -8,10 +8,10 @@
 #
 # 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
 #
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
-# THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS 
-# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE 
-# GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+# THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+# GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
 # LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 # Authors:
@@ -21,26 +21,34 @@ project(open62541-compat CXX)
 cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0012 NEW)
 
+include (FetchContent)
+
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 option(SKIP_TESTS "do not build the tests (not advised)" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
-SET (OPEN62541_VERSION "0.3" CACHE STRING "Which open62541 commit/tag/branch to take")
+SET (OPEN62541_VERSION "0.3-rc2" CACHE STRING "Which open62541 commit/tag/branch to take")
 option (UA_ENABLE_AMALGAMATION "Whether open62541 should amalgamate" ON )
 option (UA_ENABLE_METHODCALLS  "Whether open62541 should have methods enabled" ON )
 
 function ( clone_open62541 )
   message(STATUS "cloning open62541 from github. *NOTE* cloning tag [${OPEN62541_VERSION}]")
-  execute_process(COMMAND git clone -b ${OPEN62541_VERSION} https://github.com/open62541/open62541.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR} )
-  message(STATUS "open62541 cloned")    
+  FetchContent_Declare(
+    open62541
+    GIT_REPOSITORY    https://github.com/open62541/open62541.git
+    GIT_TAG           ${OPEN62541_VERSION}
+    SOURCE_DIR	      ${PROJECT_BINARY_DIR}/open62541
+    BINARY_DIR	      ${PROJECT_BINARY_DIR}/open62541
+  )
+  FetchContent_Populate( open62541 )
+  message(STATUS "open62541 cloned")
 endfunction()
 
 function ( build_open62541 )
   message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
   add_subdirectory( ${PROJECT_BINARY_DIR}/open62541
-  		    ${PROJECT_BINARY_DIR}/open62541
+                    ${PROJECT_BINARY_DIR}/open62541
   		    EXCLUDE_FROM_ALL  # EXCLUDE_FROM_ALL will not add install() targets from open62541 which we clearly don't want/need
-		    
 		    )
 endfunction()
 
@@ -64,23 +72,16 @@ SET( SRCS
   src/uadatavalue.cpp
   src/uadatetime.cpp
   src/uabytearray.cpp
+  src/opcua_basedatavariabletype.cpp
   src/uaclient/uasession.cpp
 )
 
 clone_open62541()
 build_open62541()
-
-# Piotr: remove this
-# SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
-# find_library(
-#   OPEN62541_SDK_LIB NAMES open62541 
-#   PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/bin ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
-# )
-#message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
   
 if(NOT STANDALONE_BUILD)
-  add_library ( open62541-compat OBJECT ${SRCS} )
-  add_custom_target( quasar-uasdk DEPENDS open62541-compat )
+  add_library ( open62541-compat OBJECT ${SRCS} $<TARGET_OBJECTS:open62541-object>  )
+  add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
 else()
   # We need some C++11
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wno-literal-suffix" )
@@ -121,29 +122,12 @@ else()
   message(STATUS "LogIt build option LOGIT_BUILD_OPTION [${LOGIT_BUILD_OPTION}]")
 
   #
-  # Resolve LogIt library
-  #
-  set(LOGIT_EXT_LIB_DIR "UNINIALIZED" CACHE PATH "Path to the directory containing the LogIt shared/static library binary file. Use absolute path, or relative to [${PROJECT_BINARY_DIR}/]")
-  message(STATUS "Using LogIt build option [${LOGIT_BUILD_OPTION}]")
+  # Clone LogIt if needed
+  # 
   if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
   	clone_LogIt()
-    add_subdirectory( ${PROJECT_BINARY_DIR}/LogIt )
-    message(STATUS "LogIt added as compiled object code from sub-directory LogIt")
-    set(LOGIT_OBJECTS $<TARGET_OBJECTS:LogIt>)
-  else()
-    if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
-      SET(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".lib") # windows looks for lib file to link to target dll: lib contains dll exports, symbols etc (see LogIt.h SHARED_LIB_EXPORT_DEFN)
-      find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )          
-    elseif("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_STATIC")
-      SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
-      find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )
-    else()
-      message(FATAL_ERROR "Invalid command given as to how to use LogIt in the open62541-compat library, see documentaton for property [LOGIT_BUILD_OPTION]")
-    endif()
-    target_link_libraries( open62541-compat ${LOGITLIB} )
-    message(STATUS "LogIt added as external library dependency LOGITLIB [${LOGITLIB}]")
   endif()
-
+  
   #
   # Resolve LogIt include
   #
@@ -155,18 +139,39 @@ else()
   include_directories( ${LOGIT_INCLUDE_DIR} )
 
   #
+  # Resolve LogIt library
+  #
+  set(LOGIT_EXT_LIB_DIR "UNINIALIZED" CACHE PATH "Path to the directory containing the LogIt shared/static library binary file. Use absolute path, or relative to [${PROJECT_BINARY_DIR}/]")
+  message(STATUS "Using LogIt build option [${LOGIT_BUILD_OPTION}]")
+  if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
+    add_subdirectory( ${PROJECT_BINARY_DIR}/LogIt )
+    message(STATUS "LogIt added as compiled object code from sub-directory LogIt")
+  else()
+    if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
+      SET(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".lib") # windows looks for lib file to link to target dll: lib contains dll exports, symbols etc (see LogIt.h SHARED_LIB_EXPORT_DEFN)
+      find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )
+    elseif("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_STATIC")
+      SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
+      find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )
+    else()
+      message(FATAL_ERROR "Invalid command given as to how to use LogIt in the open62541-compat library, see documentaton for property [LOGIT_BUILD_OPTION]")
+    endif()
+    target_link_libraries( open62541-compat ${LOGITLIB} )
+    message(STATUS "LogIt added as external library dependency LOGITLIB [${LOGITLIB}]")
+  endif()
+     
+  add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt> $<TARGET_OBJECTS:open62541-object> )
+
+  #
   # Set required libs, note windows build requires winsock.
   #
-  add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} ${LOGIT_OBJECTS} $<TARGET_OBJECTS:open62541-object> )
-
-  target_link_libraries( open62541-compat  ${BOOST_LIBS} )
   if(WIN32)
     target_link_libraries( open62541-compat ws2_32 )
-  endif()  
+  endif()
 
   #
   # Build unit tests (googletest). For the moment only build unit tests in stand-alone mode
-  # until such time as the quasar framework has a comprehensive strategy for testing optional 
+  # until such time as the quasar framework has a comprehensive strategy for testing optional
   # modules.
   #
   if( NOT SKIP_TESTS )

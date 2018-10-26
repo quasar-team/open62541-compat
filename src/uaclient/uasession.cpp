@@ -28,6 +28,7 @@
 #include <uaclient/uasession.h>
 #include <uadatavalue.h>
 #include <LogIt.h>
+#include <managed_uaarray.h>
 
 namespace UaClientSdk
 {
@@ -106,10 +107,7 @@ UaStatus UaSession::disconnect(
  * What's not implemented:
  * - diagnostic infos (TODO)
  * - taking into account serviceSettings (TODO)
- * - type of timestamps (TODO)
- * - maxAge (TODO)
  *
- * also: this code is highlt non-reentrant because of open62541- TODO: mutex it!
  */
 UaStatus UaSession::read(
             ServiceSettings &           serviceSettings,
@@ -138,7 +136,8 @@ UaStatus UaSession::read(
 
     UA_ReadRequest readRequest;
     UA_ReadRequest_init(&readRequest);
-    readRequest.nodesToRead =  (UA_ReadValueId*) UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
+    ManagedUaArray<UA_ReadValueId> readValueIds (1, &UA_TYPES[UA_TYPES_READVALUEID]);
+    readRequest.nodesToRead = readValueIds;
     readRequest.nodesToReadSize = 1;
     // The following should be safe because enum values are defined with open62541 defines
     readRequest.timestampsToReturn = (UA_TimestampsToReturn)timeStamps;
@@ -150,8 +149,7 @@ UaStatus UaSession::read(
     readRequest.nodesToRead[0].attributeId = nodesToRead[0].AttributeId;
 
     UA_ReadResponse readResponse = UA_Client_Service_read(m_client, readRequest);
-
-    UA_Array_delete(readRequest.nodesToRead, 1, &UA_TYPES[UA_TYPES_READVALUEID]);
+    ManagedUaArray<UA_DataValue> readResponseResults( readResponse.resultsSize, &UA_TYPES[UA_TYPES_DATAVALUE], readResponse.results);
 
     UaStatus serviceStatus = UaStatus(readResponse.responseHeader.serviceResult);
 
@@ -163,7 +161,6 @@ UaStatus UaSession::read(
                     << boost::lexical_cast<std::string>(readRequest.nodesToReadSize)
                     << " and returned size "
                     << boost::lexical_cast<std::string>(readResponse.resultsSize);
-            UA_ReadRequest_deleteMembers(&readRequest);
             return OpcUa_Bad;
         }
         for (size_t i=0; i<nodesToRead.size(); ++i)
@@ -193,7 +190,6 @@ UaStatus UaSession::read(
         }
     }
 
-    UA_Array_delete(readResponse.results, readResponse.resultsSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
 
     return serviceStatus;
 
@@ -217,7 +213,8 @@ UaStatus UaSession::write(
     UA_WriteRequest_init( &writeRequest);
 
     writeRequest.nodesToWriteSize = nodesToWrite.size();
-    writeRequest.nodesToWrite = (UA_WriteValue*) UA_Array_new(nodesToWrite.size(), &UA_TYPES[UA_TYPES_WRITEVALUE]);
+    ManagedUaArray<UA_WriteValue> writeValues (nodesToWrite.size(), &UA_TYPES[UA_TYPES_WRITEVALUE]);
+    writeRequest.nodesToWrite = writeValues;
 
     for (size_t i = 0; i<nodesToWrite.size(); ++i)
     {
@@ -232,7 +229,7 @@ UaStatus UaSession::write(
 
 
     UA_WriteResponse writeResponse = UA_Client_Service_write(m_client, writeRequest);
-    UA_Array_delete(writeRequest.nodesToWrite, writeRequest.nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE]);
+    ManagedUaArray<UA_StatusCode> statusCodes( writeResponse.resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE], writeResponse.results );
 
     if (UaStatus(writeResponse.responseHeader.serviceResult).isGood())
     {
@@ -244,8 +241,6 @@ UaStatus UaSession::write(
     }
     else
         results.create(0); // assume there are no results when the service call failed
-
-    UA_Array_delete(writeResponse.results, writeResponse.resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 
     return writeResponse.responseHeader.serviceResult;
 }

@@ -78,15 +78,10 @@ SET( SRCS
 
 clone_open62541()
 build_open62541()
-# SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
-# find_library(
-#   OPEN62541_SDK_LIB NAMES open62541
-#   PATHS ${PROJECT_BINARY_DIR}/open62541 ${PROJECT_BINARY_DIR}/open62541/build ${PROJECT_BINARY_DIR}/open62541/Release/ ${PROJECT_BINARY_DIR}/open62541/Debug/ NO_DEFAULT_PATH
-# )
-# message(STATUS "OPEN62541_SDK_LIB [${OPEN62541_SDK_LIB}]")
+set(OPEN62541_SDK_LIB -lopen62541)
   
 if(NOT STANDALONE_BUILD)
-  add_library ( open62541-compat OBJECT ${SRCS} $<TARGET_OBJECTS:open62541-object> )
+  add_library ( open62541-compat OBJECT ${SRCS} )
   add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
 else()
   # We need some C++11
@@ -152,7 +147,6 @@ else()
   if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
     add_subdirectory( ${PROJECT_BINARY_DIR}/LogIt )
     message(STATUS "LogIt added as compiled object code from sub-directory LogIt")
-    set( LOGIT_TARGET_OBJECTS $<TARGET_OBJECTS:LogIt> )
   else()
     if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
       SET(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".lib") # windows looks for lib file to link to target dll: lib contains dll exports, symbols etc (see LogIt.h SHARED_LIB_EXPORT_DEFN)
@@ -168,12 +162,18 @@ else()
   endif()
 
 
-  add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:LogIt> )
+  link_directories(
+     ${PROJECT_BINARY_DIR}/open62541
+     ${PROJECT_BINARY_DIR}/open62541/build
+     ${PROJECT_BINARY_DIR}/open62541/Release/
+     ${PROJECT_BINARY_DIR}/open62541/Debug/ )
+     
+  add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt> )
 
   #
   # Set required libs, note windows build requires winsock.
   #
-  target_link_libraries( open62541-compat ${BOOST_LIBS}  )
+  target_link_libraries( open62541-compat ${BOOST_LIBS} ${OPEN62541_SDK_LIB} )
   if(WIN32)
     target_link_libraries( open62541-compat ws2_32 )
   endif()
@@ -191,4 +191,4 @@ else()
 
 endif()
 
-add_dependencies( open62541-compat open62541-amalgamation-header )
+add_dependencies( open62541-compat open62541 )

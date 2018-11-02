@@ -55,9 +55,16 @@ endfunction()
 function ( fetch_LogIt )
   SET (LOGIT_VERSION "master") #change to master post-merge
   message(STATUS "fetching LogIt from github. *NOTE* fetching version [${LOGIT_VERSION}]")
-  execute_process(COMMAND git fetch -b ${LOGIT_VERSION} https://github.com/quasar-team/LogIt.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR}  )
+  FetchContent_Declare(
+    LogIt
+    GIT_REPOSITORY    https://github.com/quasar-team/LogIt.git
+    GIT_TAG           ${LOGIT_VERSION}
+    SOURCE_DIR	      ${PROJECT_BINARY_DIR}/LogIt
+    BINARY_DIR	      ${PROJECT_BINARY_DIR}/LogIt
+  )
+  FetchContent_Populate( LogIt )
   set( LOGIT_HAS_UATRACE FALSE )
-  message(STATUS "LogIt fetchd from LogIt repo")
+  message(STATUS "LogIt fetched from LogIt repo")
 endfunction()
 
 SET( SRCS

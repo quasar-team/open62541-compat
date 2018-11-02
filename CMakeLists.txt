@@ -88,7 +88,7 @@ fetch_open62541()
 build_open62541()
   
 if(NOT STANDALONE_BUILD)
-  add_library ( open62541-compat OBJECT ${SRCS} $<TARGET_OBJECTS:open62541-object>  )
+  add_library ( open62541-compat OBJECT ${SRCS} )
   add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
 else()
   # We need some C++11

@@ -18,7 +18,7 @@
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
 project(open62541-compat CXX)
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0012 NEW)
 
 include (FetchContent)
@@ -31,8 +31,8 @@ SET (OPEN62541_VERSION "0.3-rc2" CACHE STRING "Which open62541 commit/tag/branch
 option (UA_ENABLE_AMALGAMATION "Whether open62541 should amalgamate" ON )
 option (UA_ENABLE_METHODCALLS  "Whether open62541 should have methods enabled" ON )
 
-function ( clone_open62541 )
-  message(STATUS "cloning open62541 from github. *NOTE* cloning tag [${OPEN62541_VERSION}]")
+function ( fetch_open62541 )
+  message(STATUS "fetching open62541 from github. *NOTE* fetching tag [${OPEN62541_VERSION}]")
   FetchContent_Declare(
     open62541
     GIT_REPOSITORY    https://github.com/open62541/open62541.git
@@ -41,7 +41,7 @@ function ( clone_open62541 )
     BINARY_DIR	      ${PROJECT_BINARY_DIR}/open62541
   )
   FetchContent_Populate( open62541 )
-  message(STATUS "open62541 cloned")
+  message(STATUS "open62541 fetched")
 endfunction()
 
 function ( build_open62541 )
@@ -53,12 +53,19 @@ function ( build_open62541 )
   set_target_properties( open62541 PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
 endfunction()
 
-function ( clone_LogIt )
+function ( fetch_LogIt )
   SET (LOGIT_VERSION "master") #change to master post-merge
-  message(STATUS "cloning LogIt from github. *NOTE* cloning version [${LOGIT_VERSION}]")
-  execute_process(COMMAND git clone -b ${LOGIT_VERSION} https://github.com/quasar-team/LogIt.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR}  )
+  message(STATUS "fetching LogIt from github. *NOTE* fetching version [${LOGIT_VERSION}]")
+  FetchContent_Declare(
+    LogIt
+    GIT_REPOSITORY    https://github.com/quasar-team/LogIt.git
+    GIT_TAG           ${LOGIT_VERSION}
+    SOURCE_DIR	      ${PROJECT_BINARY_DIR}/LogIt
+    BINARY_DIR	      ${PROJECT_BINARY_DIR}/LogIt
+  )
+  FetchContent_Populate( LogIt )
   set( LOGIT_HAS_UATRACE FALSE )
-  message(STATUS "LogIt cloned from LogIt repo")
+  message(STATUS "LogIt fetched from LogIt repo")
 endfunction()
 
 SET( SRCS
@@ -77,7 +84,7 @@ SET( SRCS
   src/uaclient/uasession.cpp
 )
 
-clone_open62541()
+fetch_open62541()
 build_open62541()
   
 if(NOT STANDALONE_BUILD)
@@ -123,10 +130,10 @@ else()
   message(STATUS "LogIt build option LOGIT_BUILD_OPTION [${LOGIT_BUILD_OPTION}]")
 
   #
-  # Clone LogIt if needed
+  # Fetch LogIt if needed
   # 
   if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
-  	clone_LogIt()
+  	fetch_LogIt()
   endif()
   
   #

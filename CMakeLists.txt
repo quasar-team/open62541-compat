@@ -86,7 +86,8 @@ SET( SRCS
 
 fetch_open62541()
 build_open62541()
-  
+set(OPEN62541_SDK_LIB -lopen62541)
+
 if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
   add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
@@ -168,11 +169,20 @@ else()
     message(STATUS "LogIt added as external library dependency LOGITLIB [${LOGITLIB}]")
   endif()
      
-  add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt> $<TARGET_OBJECTS:open62541-object> )
+  link_directories(
+     ${PROJECT_BINARY_DIR}/open62541
+     ${PROJECT_BINARY_DIR}/open62541/build
+     ${PROJECT_BINARY_DIR}/open62541/Release/
+     ${PROJECT_BINARY_DIR}/open62541/Debug/ )
+     
+  add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt> )
 
   #
   # Set required libs, note windows build requires winsock.
   #
+
+  target_link_libraries( open62541-compat ${BOOST_LIBS} ${OPEN62541_SDK_LIB} )
+
   if(WIN32)
     target_link_libraries( open62541-compat ws2_32 )
   endif()

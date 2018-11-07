@@ -1,8 +1,12 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
+# Note this essentially is CMake3's FetchContent module
+# Distributed separately
+# Because FetchContent requires cmake 3.11 which is not yet so common
+
 #[=======================================================================[.rst:
-FetchContent
+Open62541CompatFetchContent
 ------------------
 
 .. only:: html
@@ -15,7 +19,7 @@ Overview
 This module enables populating content at configure time via any method
 supported by the :module:`ExternalProject` module.  Whereas
 :command:`ExternalProject_Add` downloads at build time, the
-``FetchContent`` module makes content available immediately, allowing the
+``Open62541CompatFetchContent`` module makes content available immediately, allowing the
 configure step to use the content in commands like :command:`add_subdirectory`,
 :command:`include` or :command:`file` operations.
 
@@ -26,15 +30,15 @@ project hierarchy.  Typical usage would look something like this:
 
 .. code-block:: cmake
 
-  FetchContent_Declare(
+  Open62541CompatFetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
     GIT_TAG        release-1.8.0
   )
 
-  FetchContent_GetProperties(googletest)
+  Open62541CompatFetchContent_GetProperties(googletest)
   if(NOT googletest_POPULATED)
-    FetchContent_Populate(googletest)
+    Open62541CompatFetchContent_Populate(googletest)
     add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
   endif()
 
@@ -49,7 +53,7 @@ the population for itself.  See the
 :ref:`Examples <fetch-content-examples>` section which demonstrates
 this scenario.
 
-The ``FetchContent`` module also supports defining and populating
+The ``Open62541CompatFetchContent`` module also supports defining and populating
 content in a single call, with no check for whether the content has been
 populated elsewhere in the project already.  This is a more low level
 operation and would not normally be the way the module is used, but it is
@@ -60,13 +64,13 @@ populate some content in CMake's script mode.
 Declaring Content Details
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. command:: FetchContent_Declare
+.. command:: Open62541CompatFetchContent_Declare
 
   .. code-block:: cmake
 
-    FetchContent_Declare(<name> <contentOptions>...)
+    Open62541CompatFetchContent_Declare(<name> <contentOptions>...)
 
-  The ``FetchContent_Declare()`` function records the options that describe
+  The ``Open62541CompatFetchContent_Declare()`` function records the options that describe
   how to populate the specified content, but if such details have already
   been recorded earlier in this project (regardless of where in the project
   hierarchy), this and all later calls for the same content ``<name>`` are
@@ -92,19 +96,19 @@ Declaring Content Details
 
   .. code-block:: cmake
 
-    FetchContent_Declare(
+    Open62541CompatFetchContent_Declare(
       googletest
       GIT_REPOSITORY https://github.com/google/googletest.git
       GIT_TAG        release-1.8.0
     )
 
-    FetchContent_Declare(
+    Open62541CompatFetchContent_Declare(
       myCompanyIcons
       URL      https://intranet.mycompany.com/assets/iconset_1.12.tar.gz
       URL_HASH 5588a7b18261c20068beabfb4f530b87
     )
 
-    FetchContent_Declare(
+    Open62541CompatFetchContent_Declare(
       myCompanyCertificates
       SVN_REPOSITORY svn+ssh://svn.mycompany.com/srv/svn/trunk/certs
       SVN_REVISION   -r12345
@@ -113,19 +117,19 @@ Declaring Content Details
 Populating The Content
 ^^^^^^^^^^^^^^^^^^^^^^
 
-.. command:: FetchContent_Populate
+.. command:: Open62541CompatFetchContent_Populate
 
   .. code-block:: cmake
 
-    FetchContent_Populate( <name> )
+    Open62541CompatFetchContent_Populate( <name> )
 
-  In most cases, the only argument given to ``FetchContent_Populate()`` is the
+  In most cases, the only argument given to ``Open62541CompatFetchContent_Populate()`` is the
   ``<name>``.  When used this way, the command assumes the content details have
-  been recorded by an earlier call to :command:`FetchContent_Declare`.  The
+  been recorded by an earlier call to :command:`Open62541CompatFetchContent_Declare`.  The
   details are stored in a global property, so they are unaffected by things
   like variable or directory scope.  Therefore, it doesn't matter where in the
   project the details were previously declared, as long as they have been
-  declared before the call to ``FetchContent_Populate()``.  Those saved details
+  declared before the call to ``Open62541CompatFetchContent_Populate()``.  Those saved details
   are then used to construct a call to :command:`ExternalProject_Add` in a
   private sub-build to perform the content population immediately.  The
   implementation of ``ExternalProject_Add()`` ensures that if the content has
@@ -134,14 +138,14 @@ Populating The Content
   involves downloading content, the cost of the download is only paid once.
 
   An internal global property records when a particular content population
-  request has been processed.  If ``FetchContent_Populate()`` is called more
+  request has been processed.  If ``Open62541CompatFetchContent_Populate()`` is called more
   than once for the same content name within a configure run, the second call
   will halt with an error.  Projects can and should check whether content
   population has already been processed with the
-  :command:`FetchContent_GetProperties` command before calling
-  ``FetchContent_Populate()``.
+  :command:`Open62541CompatFetchContent_GetProperties` command before calling
+  ``Open62541CompatFetchContent_Populate()``.
 
-  ``FetchContent_Populate()`` will set three variables in the scope of the
+  ``Open62541CompatFetchContent_Populate()`` will set three variables in the scope of the
   caller; ``<lcName>_POPULATED``, ``<lcName>_SOURCE_DIR`` and
   ``<lcName>_BINARY_DIR``, where ``<lcName>`` is the lowercased ``<name>``.
   ``<lcName>_POPULATED`` will always be set to ``True`` by the call.
@@ -153,19 +157,19 @@ Populating The Content
 
   .. code-block:: cmake
 
-    FetchContent_Populate(FooBar ...)
+    Open62541CompatFetchContent_Populate(FooBar ...)
     add_subdirectory(${foobar_SOURCE_DIR} ${foobar_BINARY_DIR})
 
   The values of the three variables can also be retrieved from anywhere in the
-  project hierarchy using the :command:`FetchContent_GetProperties` command.
+  project hierarchy using the :command:`Open62541CompatFetchContent_GetProperties` command.
 
   A number of cache variables influence the behavior of all content population
-  performed using details saved from a :command:`FetchContent_Declare` call:
+  performed using details saved from a :command:`Open62541CompatFetchContent_Declare` call:
 
   ``FETCHCONTENT_BASE_DIR``
     In most cases, the saved details do not specify any options relating to the
     directories to use for the internal sub-build, final source and build areas.
-    It is generally best to leave these decisions up to the ``FetchContent``
+    It is generally best to leave these decisions up to the ``Open62541CompatFetchContent``
     module to handle on the project's behalf.  The ``FETCHCONTENT_BASE_DIR``
     cache variable controls the point under which all content population
     directories are collected, but in most cases developers would not need to
@@ -224,7 +228,7 @@ Populating The Content
     content with updates enabled.
 
 
-  The ``FetchContent_Populate()`` command also supports a syntax allowing the
+  The ``Open62541CompatFetchContent_Populate()`` command also supports a syntax allowing the
   content details to be specified directly rather than using any saved
   details.  This is more low-level and use of this form is generally to be
   avoided in favour of using saved content details as outlined above.
@@ -234,7 +238,7 @@ Populating The Content
 
   .. code-block:: cmake
 
-    FetchContent_Populate( <name>
+    Open62541CompatFetchContent_Populate( <name>
       [QUIET]
       [SUBBUILD_DIR <subBuildDir>]
       [SOURCE_DIR <srcDir>]
@@ -246,7 +250,7 @@ Populating The Content
   provided:
 
   - All required population details are assumed to have been provided directly
-    in the call to ``FetchContent_Populate()``. Any saved details for
+    in the call to ``Open62541CompatFetchContent_Populate()``. Any saved details for
     ``<name>`` are ignored.
   - No check is made for whether content for ``<name>`` has already been
     populated.
@@ -262,9 +266,9 @@ Populating The Content
   scope and below rather than the entire project hierarchy.  No
   ``<lcName>_POPULATED`` variable is set in the caller's scope with this form.
 
-  The supported options for ``FetchContent_Populate()`` are the same as those
-  for :command:`FetchContent_Declare()`.  Those few options shown just
-  above are either specific to ``FetchContent_Populate()`` or their behavior is
+  The supported options for ``Open62541CompatFetchContent_Populate()`` are the same as those
+  for :command:`Open62541CompatFetchContent_Declare()`.  Those few options shown just
+  above are either specific to ``Open62541CompatFetchContent_Populate()`` or their behavior is
   slightly modified from how :command:`ExternalProject_Add` treats them.
 
   ``QUIET``
@@ -272,7 +276,7 @@ Populating The Content
     populating the specified content.  If the population fails, the output will
     be shown regardless of whether this option was given or not so that the
     cause of the failure can be diagnosed.  The global ``FETCHCONTENT_QUIET``
-    cache variable has no effect on ``FetchContent_Populate()`` calls where the
+    cache variable has no effect on ``Open62541CompatFetchContent_Populate()`` calls where the
     content details are provided directly.
 
   ``SUBBUILD_DIR``
@@ -285,7 +289,7 @@ Populating The Content
   ``SOURCE_DIR``, ``BINARY_DIR``
     The ``SOURCE_DIR`` and ``BINARY_DIR`` arguments are supported by
     :command:`ExternalProject_Add`, but different default values are used by
-    ``FetchContent_Populate()``.  ``SOURCE_DIR`` defaults to
+    ``Open62541CompatFetchContent_Populate()``.  ``SOURCE_DIR`` defaults to
     ``${CMAKE_CURRENT_BINARY_DIR}/<lcName>-src`` and ``BINARY_DIR`` defaults to
     ``${CMAKE_CURRENT_BINARY_DIR}/<lcName>-build``.  If a relative path is
     specified, it will be interpreted as relative to
@@ -294,14 +298,14 @@ Populating The Content
   In addition to the above explicit options, any other unrecognized options are
   passed through unmodified to :command:`ExternalProject_Add` to perform the
   download, patch and update steps.  The following options are explicitly
-  prohibited (they are disabled by the ``FetchContent_Populate()`` command):
+  prohibited (they are disabled by the ``Open62541CompatFetchContent_Populate()`` command):
 
   - ``CONFIGURE_COMMAND``
   - ``BUILD_COMMAND``
   - ``INSTALL_COMMAND``
   - ``TEST_COMMAND``
 
-  If using ``FetchContent_Populate()`` within CMake's script mode, be aware
+  If using ``Open62541CompatFetchContent_Populate()`` within CMake's script mode, be aware
   that the implementation sets up a sub-build which therefore requires a CMake
   generator and build tool to be available. If these cannot be found by
   default, then the :variable:`CMAKE_GENERATOR` and/or
@@ -312,9 +316,9 @@ Populating The Content
 Retrieve Population Properties
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. command:: FetchContent_GetProperties
+.. command:: Open62541CompatFetchContent_GetProperties
 
-  When using saved content details, a call to :command:`FetchContent_Populate`
+  When using saved content details, a call to :command:`Open62541CompatFetchContent_Populate`
   records information in global properties which can be queried at any time.
   This information includes the source and binary directories associated with
   the content and also whether or not the content population has been processed
@@ -322,7 +326,7 @@ Retrieve Population Properties
 
   .. code-block:: cmake
 
-    FetchContent_GetProperties( <name>
+    Open62541CompatFetchContent_GetProperties( <name>
       [SOURCE_DIR <srcDirVar>]
       [BINARY_DIR <binDirVar>]
       [POPULATED <doneVar>]
@@ -333,16 +337,16 @@ Retrieve Population Properties
   which is the name of the variable in which to store that property.  Most of
   the time though, only ``<name>`` is given, in which case the call will then
   set the same variables as a call to
-  :command:`FetchContent_Populate(name) <FetchContent_Populate>`.  This allows
+  :command:`Open62541CompatFetchContent_Populate(name) <Open62541CompatFetchContent_Populate>`.  This allows
   the following canonical pattern to be used, which ensures that the relevant
   variables will always be defined regardless of whether or not the population
   has been performed elsewhere in the project already:
 
   .. code-block:: cmake
 
-    FetchContent_GetProperties(foobar)
+    Open62541CompatFetchContent_GetProperties(foobar)
     if(NOT foobar_POPULATED)
-      FetchContent_Populate(foobar)
+      Open62541CompatFetchContent_Populate(foobar)
 
       # Set any custom variables, etc. here, then
       # populate the content as part of this build
@@ -370,32 +374,32 @@ might have sections like the following:
 
 .. code-block:: cmake
 
-  include(FetchContent)
-  FetchContent_Declare(
+  include(Open62541CompatFetchContent)
+  Open62541CompatFetchContent_Declare(
     projB
     GIT_REPOSITORY git@mycompany.com/git/projB.git
     GIT_TAG        4a89dc7e24ff212a7b5167bef7ab079d
   )
-  FetchContent_Declare(
+  Open62541CompatFetchContent_Declare(
     projC
     GIT_REPOSITORY git@mycompany.com/git/projC.git
     GIT_TAG        4ad4016bd1d8d5412d135cf8ceea1bb9
   )
-  FetchContent_Declare(
+  Open62541CompatFetchContent_Declare(
     projD
     GIT_REPOSITORY git@mycompany.com/git/projD.git
     GIT_TAG        origin/integrationBranch
   )
 
-  FetchContent_GetProperties(projB)
+  Open62541CompatFetchContent_GetProperties(projB)
   if(NOT projb_POPULATED)
-    FetchContent_Populate(projB)
+    Open62541CompatFetchContent_Populate(projB)
     add_subdirectory(${projb_SOURCE_DIR} ${projb_BINARY_DIR})
   endif()
 
-  FetchContent_GetProperties(projC)
+  Open62541CompatFetchContent_GetProperties(projC)
   if(NOT projc_POPULATED)
-    FetchContent_Populate(projC)
+    Open62541CompatFetchContent_Populate(projC)
     add_subdirectory(${projc_SOURCE_DIR} ${projc_BINARY_DIR})
   endif()
 
@@ -403,16 +407,16 @@ might have sections like the following:
 
 .. code-block:: cmake
 
-  include(FetchContent)
-  FetchContent_Declare(
+  include(Open62541CompatFetchContent)
+  Open62541CompatFetchContent_Declare(
     projD
     GIT_REPOSITORY git@mycompany.com/git/projD.git
     GIT_TAG        20b415f9034bbd2a2e8216e9a5c9e632
   )
 
-  FetchContent_GetProperties(projD)
+  Open62541CompatFetchContent_GetProperties(projD)
   if(NOT projd_POPULATED)
-    FetchContent_Populate(projD)
+    Open62541CompatFetchContent_Populate(projD)
     add_subdirectory(${projd_SOURCE_DIR} ${projd_BINARY_DIR})
   endif()
 
@@ -421,16 +425,16 @@ might have sections like the following:
 
 .. code-block:: cmake
 
-  include(FetchContent)
-  FetchContent_Declare(
+  include(Open62541CompatFetchContent)
+  Open62541CompatFetchContent_Declare(
     projD
     GIT_REPOSITORY git@mycompany.com/git/projD.git
     GIT_TAG        7d9a17ad2c962aa13e2fbb8043fb6b8a
   )
 
-  FetchContent_GetProperties(projD)
+  Open62541CompatFetchContent_GetProperties(projD)
   if(NOT projd_POPULATED)
-    FetchContent_Populate(projD)
+    Open62541CompatFetchContent_Populate(projD)
     add_subdirectory(${projd_SOURCE_DIR} ${projd_BINARY_DIR})
   endif()
 
@@ -444,13 +448,13 @@ A few key points should be noted in the above:
   it is up to the higher level project to ensure that the details it does
   define still make sense for the child projects.
 - While ``projA`` defined content details for ``projD``, it did not need
-  to explicitly call ``FetchContent_Populate(projD)`` itself.  Instead, it
+  to explicitly call ``Open62541CompatFetchContent_Populate(projD)`` itself.  Instead, it
   leaves that to a child project to do (in this case it will be ``projB``
   since it is added to the build ahead of ``projC``).  If ``projA`` needed to
   customize how the ``projD`` content was brought into the build as well
   (e.g. define some CMake variables before calling
   :command:`add_subdirectory` after populating), it would do the call to
-  ``FetchContent_Populate()``, etc. just as it did for the ``projB`` and
+  ``Open62541CompatFetchContent_Populate()``, etc. just as it did for the ``projB`` and
   ``projC`` content.  For higher level projects, it is usually enough to
   just define the override content details and leave the actual population
   to the child projects.  This saves repeating the same thing at each level
@@ -460,14 +464,14 @@ A few key points should be noted in the above:
   going ahead to do those populations.  This makes ``projA`` able to be more
   easily incorporated as a child of some other higher level project in the
   future if required.  Always protect a call to
-  :command:`FetchContent_Populate` with a check to
-  :command:`FetchContent_GetProperties`, even in what may be considered a top
+  :command:`Open62541CompatFetchContent_Populate` with a check to
+  :command:`Open62541CompatFetchContent_GetProperties`, even in what may be considered a top
   level project at the time.
 
 
 The following example demonstrates how one might download and unpack a
 firmware tarball using CMake's :manual:`script mode <cmake(1)>`.  The call to
-:command:`FetchContent_Populate` specifies all the content details and the
+:command:`Open62541CompatFetchContent_Populate` specifies all the content details and the
 unpacked firmware will be placed in a ``firmware`` directory below the
 current working directory.
 
@@ -476,8 +480,8 @@ current working directory.
 .. code-block:: cmake
 
   # NOTE: Intended to be run in script mode with cmake -P
-  include(FetchContent)
-  FetchContent_Populate(
+  include(Open62541CompatFetchContent)
+  Open62541CompatFetchContent_Populate(
     firmware
     URL        https://mycompany.com/assets/firmware-1.23-arm.tar.gz
     URL_HASH   MD5=68247684da89b608d466253762b0ff11
@@ -487,33 +491,33 @@ current working directory.
 #]=======================================================================]
 
 
-set(__FetchContent_privateDir "${CMAKE_CURRENT_LIST_DIR}/Open62541CompatFetchContent")
+set(__Open62541CompatFetchContent_privateDir "${CMAKE_CURRENT_LIST_DIR}/Open62541CompatFetchContent")
 
 #=======================================================================
 # Recording and retrieving content details for later population
 #=======================================================================
 
 # Internal use, projects must not call this directly. It is
-# intended for use by FetchContent_Declare() only.
+# intended for use by Open62541CompatFetchContent_Declare() only.
 #
 # Sets a content-specific global property (not meant for use
 # outside of functions defined here in this file) which can later
-# be retrieved using __FetchContent_getSavedDetails() with just the
+# be retrieved using __Open62541CompatFetchContent_getSavedDetails() with just the
 # same content name. If there is already a value stored in the
 # property, it is left unchanged and this call has no effect.
 # This allows parent projects to define the content details,
 # overriding anything a child project may try to set (properties
 # are not cached between runs, so the first thing to set it in a
 # build will be in control).
-function(__FetchContent_declareDetails contentName)
+function(__Open62541CompatFetchContent_declareDetails contentName)
 
   string(TOLOWER ${contentName} contentNameLower)
-  set(propertyName "_FetchContent_${contentNameLower}_savedDetails")
+  set(propertyName "_Open62541CompatFetchContent_${contentNameLower}_savedDetails")
   get_property(alreadyDefined GLOBAL PROPERTY ${propertyName} DEFINED)
   if(NOT alreadyDefined)
     define_property(GLOBAL PROPERTY ${propertyName}
-      BRIEF_DOCS "Internal implementation detail of FetchContent_Populate()"
-      FULL_DOCS  "Details used by FetchContent_Populate() for ${contentName}"
+      BRIEF_DOCS "Internal implementation detail of Open62541CompatFetchContent_Populate()"
+      FULL_DOCS  "Details used by Open62541CompatFetchContent_Populate() for ${contentName}"
     )
     set_property(GLOBAL PROPERTY ${propertyName} ${ARGN})
   endif()
@@ -522,14 +526,14 @@ endfunction()
 
 
 # Internal use, projects must not call this directly. It is
-# intended for use by the FetchContent_Declare() function.
+# intended for use by the Open62541CompatFetchContent_Declare() function.
 #
 # Retrieves details saved for the specified content in an
-# earlier call to __FetchContent_declareDetails().
-function(__FetchContent_getSavedDetails contentName outVar)
+# earlier call to __Open62541CompatFetchContent_declareDetails().
+function(__Open62541CompatFetchContent_getSavedDetails contentName outVar)
 
   string(TOLOWER ${contentName} contentNameLower)
-  set(propertyName "_FetchContent_${contentNameLower}_savedDetails")
+  set(propertyName "_Open62541CompatFetchContent_${contentNameLower}_savedDetails")
   get_property(alreadyDefined GLOBAL PROPERTY ${propertyName} DEFINED)
   if(NOT alreadyDefined)
     message(FATAL_ERROR "No content details recorded for ${contentName}")
@@ -542,7 +546,7 @@ endfunction()
 
 # Saves population details of the content, sets defaults for the
 # SOURCE_DIR and BUILD_DIR.
-function(FetchContent_Declare contentName)
+function(Open62541CompatFetchContent_Declare contentName)
 
   set(options "")
   set(oneValueArgs SVN_REPOSITORY)
@@ -566,7 +570,7 @@ function(FetchContent_Declare contentName)
   endif()
 
   string(TOLOWER ${contentName} contentNameLower)
-  __FetchContent_declareDetails(
+  __Open62541CompatFetchContent_declareDetails(
     ${contentNameLower}
     SOURCE_DIR "${FETCHCONTENT_BASE_DIR}/${contentNameLower}-src${srcDirSuffix}"
     BINARY_DIR "${FETCHCONTENT_BASE_DIR}/${contentNameLower}-build"
@@ -584,32 +588,32 @@ endfunction()
 #=======================================================================
 
 # Internal use, projects must not call this directly. It is
-# intended for use by the FetchContent_Populate() function to
-# record when FetchContent_Populate() is called for a particular
+# intended for use by the Open62541CompatFetchContent_Populate() function to
+# record when Open62541CompatFetchContent_Populate() is called for a particular
 # content name.
-function(__FetchContent_setPopulated contentName sourceDir binaryDir)
+function(__Open62541CompatFetchContent_setPopulated contentName sourceDir binaryDir)
 
   string(TOLOWER ${contentName} contentNameLower)
-  set(prefix "_FetchContent_${contentNameLower}")
+  set(prefix "_Open62541CompatFetchContent_${contentNameLower}")
 
   set(propertyName "${prefix}_sourceDir")
   define_property(GLOBAL PROPERTY ${propertyName}
-    BRIEF_DOCS "Internal implementation detail of FetchContent_Populate()"
-    FULL_DOCS  "Details used by FetchContent_Populate() for ${contentName}"
+    BRIEF_DOCS "Internal implementation detail of Open62541CompatFetchContent_Populate()"
+    FULL_DOCS  "Details used by Open62541CompatFetchContent_Populate() for ${contentName}"
   )
   set_property(GLOBAL PROPERTY ${propertyName} ${sourceDir})
 
   set(propertyName "${prefix}_binaryDir")
   define_property(GLOBAL PROPERTY ${propertyName}
-    BRIEF_DOCS "Internal implementation detail of FetchContent_Populate()"
-    FULL_DOCS  "Details used by FetchContent_Populate() for ${contentName}"
+    BRIEF_DOCS "Internal implementation detail of Open62541CompatFetchContent_Populate()"
+    FULL_DOCS  "Details used by Open62541CompatFetchContent_Populate() for ${contentName}"
   )
   set_property(GLOBAL PROPERTY ${propertyName} ${binaryDir})
 
   set(propertyName "${prefix}_populated")
   define_property(GLOBAL PROPERTY ${propertyName}
-    BRIEF_DOCS "Internal implementation detail of FetchContent_Populate()"
-    FULL_DOCS  "Details used by FetchContent_Populate() for ${contentName}"
+    BRIEF_DOCS "Internal implementation detail of Open62541CompatFetchContent_Populate()"
+    FULL_DOCS  "Details used by Open62541CompatFetchContent_Populate() for ${contentName}"
   )
   set_property(GLOBAL PROPERTY ${propertyName} True)
 
@@ -621,10 +625,10 @@ endfunction()
 # will be set for all retrievable properties.
 #
 # This function is intended to also be used by projects as the canonical
-# way to detect whether they should call FetchContent_Populate()
+# way to detect whether they should call Open62541CompatFetchContent_Populate()
 # and pull the populated source into the build with add_subdirectory(),
 # if they are using the populated content in that way.
-function(FetchContent_GetProperties contentName)
+function(Open62541CompatFetchContent_GetProperties contentName)
 
   string(TOLOWER ${contentName} contentNameLower)
 
@@ -643,7 +647,7 @@ function(FetchContent_GetProperties contentName)
     set(ARG_POPULATED  ${contentNameLower}_POPULATED)
   endif()
 
-  set(prefix "_FetchContent_${contentNameLower}")
+  set(prefix "_Open62541CompatFetchContent_${contentNameLower}")
 
   if(ARG_SOURCE_DIR)
     set(propertyName "${prefix}_sourceDir")
@@ -677,7 +681,7 @@ endfunction()
 # The value of contentName will always have been lowercased by the caller.
 # All other arguments are assumed to be options that are understood by
 # ExternalProject_Add(), except for QUIET and SUBBUILD_DIR.
-function(__FetchContent_directPopulate contentName)
+function(__Open62541CompatFetchContent_directPopulate contentName)
 
   set(options
       QUIET
@@ -771,7 +775,7 @@ function(__FetchContent_directPopulate contentName)
   # anything to be updated, so extra rebuilds of the project won't occur.
   # Make sure to pass through CMAKE_MAKE_PROGRAM in case the main project
   # has this set to something not findable on the PATH.
-  configure_file("${__FetchContent_privateDir}/CMakeLists.cmake.in"
+  configure_file("${__Open62541CompatFetchContent_privateDir}/CMakeLists.cmake.in"
                  "${ARG_SUBBUILD_DIR}/CMakeLists.txt")
   execute_process(
     COMMAND ${CMAKE_COMMAND} ${generatorOpts} .
@@ -807,11 +811,11 @@ option(FETCHCONTENT_QUIET                "Enables QUIET option for all content p
 set(FETCHCONTENT_BASE_DIR "${CMAKE_BINARY_DIR}/_deps" CACHE PATH "Directory under which to collect all populated content")
 
 # Populate the specified content using details stored from
-# an earlier call to FetchContent_Declare().
-function(FetchContent_Populate contentName)
+# an earlier call to Open62541CompatFetchContent_Declare().
+function(Open62541CompatFetchContent_Populate contentName)
 
   if(NOT contentName)
-    message(FATAL_ERROR "Empty contentName not allowed for FetchContent_Populate()")
+    message(FATAL_ERROR "Empty contentName not allowed for Open62541CompatFetchContent_Populate()")
   endif()
 
   string(TOLOWER ${contentName} contentNameLower)
@@ -819,7 +823,7 @@ function(FetchContent_Populate contentName)
   if(ARGN)
     # This is the direct population form with details fully specified
     # as part of the call, so we already have everything we need
-    __FetchContent_directPopulate(
+    __Open62541CompatFetchContent_directPopulate(
       ${contentNameLower}
       SUBBUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/${contentNameLower}-subbuild"
       SOURCE_DIR   "${CMAKE_CURRENT_BINARY_DIR}/${contentNameLower}-src"
@@ -840,9 +844,9 @@ function(FetchContent_Populate contentName)
   endif()
 
   # No details provided, so assume they were saved from an earlier call
-  # to FetchContent_Declare(). Do a check that we haven't already
+  # to Open62541CompatFetchContent_Declare(). Do a check that we haven't already
   # populated this content before in case the caller forgot to check.
-  FetchContent_GetProperties(${contentName})
+  Open62541CompatFetchContent_GetProperties(${contentName})
   if(${contentNameLower}_POPULATED)
     message(FATAL_ERROR "Content ${contentName} already populated in ${${contentNameLower}_SOURCE_DIR}")
   endif()
@@ -881,12 +885,12 @@ function(FetchContent_Populate contentName)
       unset(quietFlag)
     endif()
 
-    __FetchContent_getSavedDetails(${contentName} contentDetails)
+    __Open62541CompatFetchContent_getSavedDetails(${contentName} contentDetails)
     if("${contentDetails}" STREQUAL "")
       message(FATAL_ERROR "No details have been set for content: ${contentName}")
     endif()
 
-    __FetchContent_directPopulate(
+    __Open62541CompatFetchContent_directPopulate(
       ${contentNameLower}
       ${quietFlag}
       UPDATE_DISCONNECTED ${disconnectUpdates}
@@ -900,14 +904,14 @@ function(FetchContent_Populate contentName)
     )
   endif()
 
-  __FetchContent_setPopulated(
+  __Open62541CompatFetchContent_setPopulated(
     ${contentName}
     ${${contentNameLower}_SOURCE_DIR}
     ${${contentNameLower}_BINARY_DIR}
   )
 
   # Pass variables back to the caller. The variables passed back here
-  # must match what FetchContent_GetProperties() sets when it is called
+  # must match what Open62541CompatFetchContent_GetProperties() sets when it is called
   # with just the content name.
   set(${contentNameLower}_SOURCE_DIR "${${contentNameLower}_SOURCE_DIR}" PARENT_SCOPE)
   set(${contentNameLower}_BINARY_DIR "${${contentNameLower}_BINARY_DIR}" PARENT_SCOPE)

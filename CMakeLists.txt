@@ -21,7 +21,7 @@ project(open62541-compat CXX)
 cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0012 NEW)
 
-include (FetchContent)
+include (cmake/Open62541CompatFetchContent.cmake)
 
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
@@ -31,14 +31,14 @@ message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [
 function ( fetch_open62541 )
   SET (OPEN62541_VERSION "0.2")
   message(STATUS "fetching open62541 from github. *NOTE* fetching tag [${OPEN62541_VERSION}]")
-  FetchContent_Declare(
+  Open62541CompatFetchContent_Declare(
     open62541
     GIT_REPOSITORY    https://github.com/open62541/open62541.git
     GIT_TAG           ${OPEN62541_VERSION}
     SOURCE_DIR	      ${PROJECT_BINARY_DIR}/open62541
     BINARY_DIR	      ${PROJECT_BINARY_DIR}/open62541
   )
-  FetchContent_Populate( open62541 )
+  Open62541CompatFetchContent_Populate( open62541 )
   SET( UA_ENABLE_AMALGAMATION ON )
   SET( UA_ENABLE_METHODCALLS ON )
   message(STATUS "open62541 fetched")
@@ -55,14 +55,14 @@ endfunction()
 function ( fetch_LogIt )
   SET (LOGIT_VERSION "master") #change to master post-merge
   message(STATUS "fetching LogIt from github. *NOTE* fetching version [${LOGIT_VERSION}]")
-  FetchContent_Declare(
+  Open62541CompatFetchContent_Declare(
     LogIt
     GIT_REPOSITORY    https://github.com/quasar-team/LogIt.git
     GIT_TAG           ${LOGIT_VERSION}
     SOURCE_DIR	      ${PROJECT_BINARY_DIR}/LogIt
     BINARY_DIR	      ${PROJECT_BINARY_DIR}/LogIt
   )
-  FetchContent_Populate( LogIt )
+  Open62541CompatFetchContent_Populate( LogIt )
   set( LOGIT_HAS_UATRACE FALSE )
   message(STATUS "LogIt fetched from LogIt repo")
 endfunction()

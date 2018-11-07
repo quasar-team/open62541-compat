@@ -1,0 +1,23 @@
+sudo: required
+
+language: cpp
+
+services:
+ - docker
+
+before_install:
+ - docker pull bfarnham/quasar:quasar-open62541
+ 
+script:
+ - docker run  --interactive --tty bfarnham/quasar:quasar-open62541 /bin/sh -c "
+     echo '********************************************************************' ;
+     echo branch ${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH} ;
+     echo '********************************************************************' ;
+     git clone -b ${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH} https://github.com/quasar-team/open62541-compat ;
+     cp open62541-compat ;
+     mkdir build ;
+     cd build ;
+     cmake -DSTANDALONE_BUILD=ON -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install_cc7.cmake -DSKIP_TESTS=ON ../ ;
+     make ;
+     exit ;
+     "

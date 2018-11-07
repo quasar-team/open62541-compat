@@ -21,7 +21,7 @@ project(open62541-compat CXX)
 cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0012 NEW)
 
-include (FetchContent)
+include (cmake/Open62541CompatFetchContent.cmake)
 
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)

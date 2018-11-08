@@ -262,10 +262,8 @@ UaStatus UaSession::call(
     methodCallRequest.methodId = callIn.methodId.impl();
     methodCallRequest.objectId = callIn.objectId.impl();
     methodCallRequest.inputArgumentsSize = callIn.inputArguments.size();
-    methodCallRequest.inputArguments = (UA_Variant*)UA_Array_new( callIn.inputArguments.size(), &UA_TYPES[UA_TYPES_VARIANT] );
-
-    if (!methodCallRequest.inputArguments)
-        throw std::runtime_error("UA_Array_new failed to allocate an array");
+    ManagedUaArray<UA_Variant> inputArguments (callIn.inputArguments.size(), &UA_TYPES[UA_TYPES_VARIANT]);
+    methodCallRequest.inputArguments = inputArguments;
 
     bool anyArgumentFailed = false;
     for (unsigned int i=0; i<callIn.inputArguments.size(); ++i)
@@ -280,7 +278,6 @@ UaStatus UaSession::call(
     }
     if (anyArgumentFailed)
     { // free all, no point in continuing
-        UA_Array_delete(methodCallRequest.inputArguments, callIn.inputArguments.size(), &UA_TYPES[UA_TYPES_VARIANT]);
         throw std::runtime_error("Failed to copy arguments through UA_Variant_copy, potentially memory issue.");
     }
 
@@ -293,8 +290,15 @@ UaStatus UaSession::call(
     UA_CallResponse callResponse;
     UA_CallResponse_init(&callResponse);
     callResponse = UA_Client_Service_call(m_client, callRequest);
+    ManagedUaArray<UA_CallMethodResult> results (  // RAII holder for data allocated in o6, doesn't alloc anything.
+            callResponse.resultsSize,
+            &UA_TYPES[UA_TYPES_CALLMETHODRESULT],
+            callResponse.results );
 
-    UA_Array_delete(methodCallRequest.inputArguments, callIn.inputArguments.size(), &UA_TYPES[UA_TYPES_VARIANT]);
+    if (!UaStatus(callResponse.responseHeader.serviceResult).isGood())
+    {
+        return callResponse.responseHeader.serviceResult;
+    }
 
     callOut.inputArgumentDiagnosticInfos.create(0);
     callOut.inputArgumentResults.create(0);
@@ -314,8 +318,6 @@ UaStatus UaSession::call(
     callOut.callResult = callResponse.responseHeader.serviceResult;
     if (callOut.callResult.isGood())
         callOut.callResult = callResponse.results[0].statusCode; // cast individual error as per OPCUA-1198
-
-    UA_Array_delete( callResponse.results, callResponse.resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT] );
 
     return callOut.callResult;
 

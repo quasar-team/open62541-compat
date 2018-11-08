@@ -312,6 +312,8 @@ UaStatus UaSession::call(
     }
 
     callOut.callResult = callResponse.responseHeader.serviceResult;
+    if (callOut.callResult.isGood())
+        callOut.callResult = callResponse.results[0].statusCode; // cast individual error as per OPCUA-1198
 
     UA_Array_delete( callResponse.results, callResponse.resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT] );
 

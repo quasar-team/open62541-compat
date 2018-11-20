@@ -52,7 +52,7 @@ public:
     unsigned int identifierNumeric() const { return m_impl.identifier.numeric; }
     IdentifierType identifierType() const;
     UaString toString() const;
-    UaString toFullString() const { return toString(); } // TODO?
+    UaString toFullString() const;
     //! Return Implementation specific data. Note: the data pointed to in the pointers hidden in the structure are valid as long as this object is alive and shall be regarded const.
     UA_NodeId impl() const { return m_impl; }
     const UA_NodeId* pimpl() const { return &m_impl; }

@@ -444,6 +444,11 @@ UaStatus UaVariant::toByte(OpcUa_Byte& out) const
 	return toSimpleType( &UA_TYPES[UA_TYPES_BYTE], &out );
 }
 
+UaStatus UaVariant::toSByte(OpcUa_SByte& out) const
+{
+    return toSimpleType( &UA_TYPES[UA_TYPES_SBYTE], &out );
+}
+
 UaStatus UaVariant::toFloat( OpcUa_Float& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_FLOAT], &out );
@@ -718,3 +723,5 @@ OpcUa_Boolean UaVariant::isArray ()   const
 {
     return !this->isScalarValue();
 }
+
+

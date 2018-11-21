@@ -55,9 +55,23 @@
 
 typedef OpcUa_UInt32 OpcUa_StatusCode;
 
+struct statusCodeDescription {
+        		OpcUa_StatusCode statusCode;
+        		std::string description;
+        	};
+
+struct findStatusCode : std::unary_function<statusCodeDescription, bool> {
+	OpcUa_StatusCode code;
+	findStatusCode(OpcUa_StatusCode statusCode):code(statusCode) { }
+    bool operator()(statusCodeDescription const& m) const {
+        return m.statusCode == code;
+    }
+};
+
 class UaStatus
 {
 public:
+
     UaStatus (OpcUa_StatusCode s): m_status(s) {} // from status code
     UaStatus(): m_status(OpcUa_Bad) {} // by default, initialize to Bad
 
@@ -66,12 +80,16 @@ public:
     bool isGood() const { return m_status == UA_STATUSCODE_GOOD; }
     bool isNotGood() const { return !isGood(); }
     bool isBad() const;
+    bool isUncertain() const;
     UaString toString() const;
 
     OpcUa_StatusCode statusCode() const { return m_status; }
     operator UA_StatusCode() const { return (UA_StatusCode)m_status; }
+
 private:
     OpcUa_StatusCode m_status;
+    std::string statusCodeName() const;
+
 };
 
 #endif //__STATUSCODE_H__

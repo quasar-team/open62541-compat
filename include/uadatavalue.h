@@ -37,6 +37,8 @@ class UaDataValue
     const UA_DataValue* impl() const { return m_impl; }
     UaVariant* value() const{ return new UaVariant(m_impl->value); }
 
+    OpcUa_StatusCode statusCode() const { return m_impl->status; }
+
     UaDataValue clone(); // can't be const because of synchronization
 
   private:

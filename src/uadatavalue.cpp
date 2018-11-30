@@ -21,11 +21,16 @@ m_lock()
     m_impl = UA_DataValue_new ();
     if (!m_impl)
         throw std::runtime_error( "UA_DataValue_new returned 0" );
-    // LOG(Log::INF) << "allocated new UA_DataValue @ " <<  m_impl;
 
     // TODO: duplicate the variant
     UA_Variant_copy( variant.impl(), &m_impl->value );
     LOG(Log::TRC) << "After UA_Variant_copy: src="<<variant.impl()<<" src.data="<<variant.impl()->data<<" dst="<<&m_impl->value<<" dst.data="<<m_impl->value.data;
+
+    m_impl->status = statusCode;
+    m_impl->hasStatus = 1;
+
+    // TODO: serverTime passing not implemented,
+    // TODO: sourceTime passing not implemented
 
     m_impl->hasValue = 1;
 

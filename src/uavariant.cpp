@@ -206,6 +206,17 @@ void UaVariant::setBool( OpcUa_Boolean value )
     reuseOrRealloc( &UA_TYPES[UA_TYPES_BOOLEAN], &value );
 }
 
+void UaVariant::setByte(OpcUa_Byte value)
+{
+    reuseOrRealloc( &UA_TYPES[UA_TYPES_BYTE], &value );
+}
+
+void UaVariant::setSByte(OpcUa_SByte value)
+{
+    reuseOrRealloc( &UA_TYPES[UA_TYPES_SBYTE], &value );
+}
+
+
 void UaVariant::setInt16( OpcUa_Int16 value )
 {
     reuseOrRealloc( &UA_TYPES[UA_TYPES_INT16], &value );
@@ -442,6 +453,11 @@ UaStatus UaVariant::toUInt64( OpcUa_UInt64& out ) const
 UaStatus UaVariant::toByte(OpcUa_Byte& out) const
 {
 	return toSimpleType( &UA_TYPES[UA_TYPES_BYTE], &out );
+}
+
+UaStatus UaVariant::toSByte(OpcUa_SByte& out) const
+{
+    return toSimpleType( &UA_TYPES[UA_TYPES_SBYTE], &out );
 }
 
 UaStatus UaVariant::toFloat( OpcUa_Float& out ) const
@@ -718,3 +734,4 @@ OpcUa_Boolean UaVariant::isArray ()   const
 {
     return !this->isScalarValue();
 }
+

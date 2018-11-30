@@ -82,15 +82,25 @@ UaString UaNodeId::toString() const
 {
     if (identifierType() == IdentifierType::OpcUa_IdentifierType_String)
     {
-        std::string s = "(ns="+boost::lexical_cast<std::string>(namespaceIndex())+","+UaString(identifierString()).toUtf8()+")";
-        return UaString(s.c_str());
+        return identifierString();
     }
     else if (identifierType() == IdentifierType::OpcUa_IdentifierType_Numeric)
     {
         std::string s = "(ns="+boost::lexical_cast<std::string>(namespaceIndex())+","+boost::lexical_cast<std::string>(identifierNumeric())+")";
         return UaString(s.c_str());
     }
-    return "non-string-id";
+    return "identifier-type-unsupported";
+}
+
+UaString UaNodeId::toFullString() const
+{
+    if (identifierType() == IdentifierType::OpcUa_IdentifierType_String)
+    {
+        std::string s = "(ns="+boost::lexical_cast<std::string>(namespaceIndex())+","+UaString(identifierString()).toUtf8()+")";
+        return UaString(s.c_str());
+    }
+    else
+        return toString();
 }
 
 void UaNodeId::copyTo( UaNodeId* other) const

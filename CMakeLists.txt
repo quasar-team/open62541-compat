@@ -27,9 +27,11 @@ option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 option(SKIP_TESTS "do not build the tests (not advised)" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
+SET (OPEN62541_VERSION "0.3-rc2" CACHE STRING "Which open62541 commit/tag/branch to take")
+option (UA_ENABLE_AMALGAMATION "Whether open62541 should amalgamate" ON )
+option (UA_ENABLE_METHODCALLS  "Whether open62541 should have methods enabled" ON )
 
 function ( fetch_open62541 )
-  SET (OPEN62541_VERSION "0.2")
   message(STATUS "fetching open62541 from github. *NOTE* fetching tag [${OPEN62541_VERSION}]")
   Open62541CompatFetchContent_Declare(
     open62541
@@ -40,8 +42,6 @@ function ( fetch_open62541 )
     BINARY_DIR	      ${PROJECT_BINARY_DIR}/open62541
   )
   Open62541CompatFetchContent_Populate( open62541 )
-  SET( UA_ENABLE_AMALGAMATION ON )
-  SET( UA_ENABLE_METHODCALLS ON )
   message(STATUS "open62541 fetched")
 endfunction()
 
@@ -51,6 +51,7 @@ function ( build_open62541 )
                     ${PROJECT_BINARY_DIR}/open62541
   		    EXCLUDE_FROM_ALL  # EXCLUDE_FROM_ALL will not add install() targets from open62541 which we clearly don't want/need
 		    )
+  set_target_properties( open62541 PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
 endfunction()
 
 function ( fetch_LogIt )
@@ -87,7 +88,7 @@ SET( SRCS
 fetch_open62541()
 build_open62541()
 set(OPEN62541_SDK_LIB -lopen62541)
-  
+
 if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
   add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
@@ -168,8 +169,7 @@ else()
     target_link_libraries( open62541-compat ${LOGITLIB} )
     message(STATUS "LogIt added as external library dependency LOGITLIB [${LOGITLIB}]")
   endif()
-
-
+     
   link_directories(
      ${PROJECT_BINARY_DIR}/open62541
      ${PROJECT_BINARY_DIR}/open62541/build
@@ -181,7 +181,9 @@ else()
   #
   # Set required libs, note windows build requires winsock.
   #
+
   target_link_libraries( open62541-compat ${BOOST_LIBS} ${OPEN62541_SDK_LIB} )
+
   if(WIN32)
     target_link_libraries( open62541-compat ws2_32 )
   endif()

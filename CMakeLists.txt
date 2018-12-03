@@ -35,6 +35,7 @@ function ( fetch_open62541 )
     open62541
     GIT_REPOSITORY    https://github.com/open62541/open62541.git
     GIT_TAG           ${OPEN62541_VERSION}
+    GIT_SHALLOW       "1"
     SOURCE_DIR	      ${PROJECT_BINARY_DIR}/open62541
     BINARY_DIR	      ${PROJECT_BINARY_DIR}/open62541
   )

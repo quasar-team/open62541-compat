@@ -252,7 +252,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
                               /*out new node id*/ &out
                           );
 
-        LOG(Log::INF) << "obtained output: ns=" << out.namespaceIndex << "," << UaString(&out.identifier.string).toUtf8();
+        LOG(Log::TRC) << "obtained output: ns=" << out.namespaceIndex << "," << UaString(&out.identifier.string).toUtf8();
         if (UA_STATUSCODE_GOOD == s)
         {
             m_listNodes.push_back( to );
@@ -328,10 +328,10 @@ UaStatus NodeManagerBase::addNodeAndReference(
         MethodHandleUaNode *handle = new MethodHandleUaNode;
         handle->setUaNodes( static_cast<UaObject*>(parent), static_cast<UaMethod*>(to) );
 
-        LOG(Log::INF) << "parent node: " << parent->nodeId().toFullString().toUtf8();
+        LOG(Log::TRC) << "parent node: " << parent->nodeId().toFullString().toUtf8();
 
         const std::list<UaNode::ReferencedTarget>* referenced =  to->referencedTargets();
-        LOG(Log::INF) << "Referenced nodes: " << referenced->size();
+        LOG(Log::TRC) << "Referenced nodes: " << referenced->size();
 
         UA_Argument *inArgs = 0;
         int inArgsSize = 0;
@@ -351,7 +351,6 @@ UaStatus NodeManagerBase::addNodeAndReference(
                     for (unsigned int i=0; i < property->numArguments(); ++i )
                     {
                         inArgs[i] = property->implArgument(i);
-                        //LOG(Log::INF) << "Configured: " << inArgs[i].name.data;
                     }
                 }
                 else

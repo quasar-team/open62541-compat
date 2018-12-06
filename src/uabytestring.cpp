@@ -5,6 +5,8 @@
  *      Author: pnikiel
  */
 
+#include <limits>
+
 #include <uabytestring.h>
 
 #include <open62541_compat_common.h>
@@ -66,4 +68,12 @@ void UaByteString::setByteString (const int len, OpcUa_Byte *data)
 	}
 	m_impl->length = len;
 
+}
+
+OpcUa_Int32 UaByteString::length() const
+{
+    if (m_impl->length > std::numeric_limits<OpcUa_Int32>::max() )
+        throw std::runtime_error("UaByteString::length() open62541 size too big for UASDK API");
+    else
+        return m_impl->length;
 }

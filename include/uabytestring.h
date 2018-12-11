@@ -26,7 +26,7 @@ public:
 
 	~UaByteString ();
 
-	OpcUa_Int32 length() const { return m_impl->length; }
+	OpcUa_Int32 length() const;
 	const OpcUa_Byte* data() const { return m_impl->data; }
 
 	void setByteString (const int len, OpcUa_Byte *Data);

@@ -93,6 +93,11 @@ if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
   add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
 else()
+  # need -fPIC for building .so
+  if (STANDALONE_BUILD_SHARED)
+     add_definitions(-fPIC)
+  endif (STANDALONE_BUILD_SHARED)
+
   # We need some C++11
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wno-literal-suffix" )
   

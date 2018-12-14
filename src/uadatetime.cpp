@@ -40,12 +40,12 @@ UaDateTime UaDateTime::now()
 
 void UaDateTime::addSecs(int secs)
 {
-        m_dateTime += (secs * UA_SEC_TO_DATETIME);
+        m_dateTime += (secs * UA_DATETIME_SEC);
 }
 
 void UaDateTime::addMilliSecs(int msecs)
 {
-        m_dateTime += (msecs * UA_MSEC_TO_DATETIME);
+        m_dateTime += (msecs * UA_DATETIME_MSEC);
 }
 
 /**
@@ -82,7 +82,7 @@ UaDateTime UaDateTime::fromString(const UaString& dateTimeString)
                         throw std::runtime_error(err.str());
                 }
 
-                const UA_DateTime open62541DateTime = UA_DATETIME_UNIX_EPOCH + ((dateTime - unixEpoch).total_seconds() * UA_SEC_TO_DATETIME);
+                const UA_DateTime open62541DateTime = UA_DATETIME_UNIX_EPOCH + ((dateTime - unixEpoch).total_seconds() * UA_DATETIME_SEC);
                 return UaDateTime(open62541DateTime);
         }
         catch(const std::runtime_error& e)

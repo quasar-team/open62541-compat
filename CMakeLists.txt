@@ -90,8 +90,9 @@ fetch_open62541()
 build_open62541()
 set(OPEN62541_SDK_LIB -lopen62541)
 
+add_definitions(-DNOMINMAX)  # doesn't include windows' min() and max() which break std c++ code. Should be neutral to non-windows code.
+
 if(NOT STANDALONE_BUILD)
-  add_definitions(-DNOMINMAX)  # doesn't include windows' min() and max() which break std c++ code
   add_library ( open62541-compat OBJECT ${SRCS} )
   add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
 else()

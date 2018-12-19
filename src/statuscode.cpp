@@ -12,6 +12,9 @@
 #include <algorithm>
 #include <vector>
 
+
+#include <iostream>
+
 template<typename T>
 static std::string toHexString (const T t)
 {
@@ -23,49 +26,37 @@ static std::string toHexString (const T t)
 /*
  * Stores the description of status codes that do not exist in open62541 and are used by quasar.
  */
-std::vector<statusCodeDescription> statusCodeDescriptions {
+std::vector<StatusCodeDescription> UaStatus::statusCodeDescriptions {
     	    	{OpcUa_Bad, "GenericBad"},
-    	    	{OpcUa_Uncertain, "GenericUncertain"}
+				{OpcUa_Uncertain, "GenericUncertain"}
     	    };
 
 UaString UaStatus::toString() const
 {
-	std::string buf(statusCodeName());
 
-	if (buf=="Unknown StatusCode" && isBad())
+	std::string statusCodeDescription = UA_StatusCode_name(m_status);
+
+	if ( statusCodeDescription == "Unknown StatusCode" )
 	{
-		buf.clear();
-		buf.append("GenericBad StatusCode family");
-	}
-	else if (buf=="Unknown StatusCode" && isUncertain())
-	{
-		buf.clear();
-		buf.append("GenericUncertain StatusCode family");
-	}
+	  std::vector<StatusCodeDescription>::iterator it = std::find_if(statusCodeDescriptions.begin(), statusCodeDescriptions.end(), FindStatusCode( m_status ));
 
-	buf.append(" (0x"+toHexString(m_status)+")");
-
-	return buf.c_str();
-}
-
-std::string UaStatus::statusCodeName() const
-{
-
-	std::vector<statusCodeDescription>::iterator it;
-	std::string statusCodeDesctription = UA_StatusCode_name(m_status);
-
-	if ( statusCodeDesctription == "Unknown StatusCode" )
-	{
-		it = std::find_if(
-				statusCodeDescriptions.begin(),
-				statusCodeDescriptions.end(),
-				findStatusCode( m_status ));
+	  if ( it != statusCodeDescriptions.end())
+		  statusCodeDescription = it->description;
+	  else if ( isBad() )
+	  {
+		  statusCodeDescription.clear();
+		  statusCodeDescription.append("GenericBad StatusCode family");
+	  }
+	  else if ( isUncertain() )
+	  {
+		  statusCodeDescription.clear();
+	          statusCodeDescription.append("GenericUncertain StatusCode family");
+	  }
 	}
 
-	if ( (it - statusCodeDescriptions.begin()) < statusCodeDescriptions.size() )
-		return statusCodeDescriptions[it - statusCodeDescriptions.begin()].description;
+	statusCodeDescription.append(" (0x"+toHexString(m_status)+")");
 
-	return statusCodeDesctription;
+	return statusCodeDescription.c_str();
 }
 
 bool UaStatus::isBad() const

@@ -126,3 +126,8 @@ void UaString::detach(UaString* out)
 {
     *out = *this;
 }
+
+bool UaString::operator==(const UaString& other)
+{
+    return UA_String_equal(this->m_impl, other.m_impl);
+}

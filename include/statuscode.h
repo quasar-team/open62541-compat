@@ -58,16 +58,8 @@ typedef OpcUa_UInt32 OpcUa_StatusCode;
 
 struct StatusCodeDescription {
         		OpcUa_StatusCode statusCode;
-        		std::string description;
+        		const std::string description;
         	};
-
-struct FindStatusCode : std::unary_function<StatusCodeDescription, bool> {
-	OpcUa_StatusCode code;
-	FindStatusCode(OpcUa_StatusCode statusCode):code(statusCode) { }
-    bool operator()(StatusCodeDescription const& m) const {
-        return m.statusCode == code;
-    }
-};
 
 class UaStatus
 {
@@ -86,7 +78,7 @@ public:
 
     OpcUa_StatusCode statusCode() const { return m_status; }
     operator UA_StatusCode() const { return (UA_StatusCode)m_status; }
-    static std::vector<StatusCodeDescription> statusCodeDescriptions;
+    static std::vector<StatusCodeDescription> s_statusCodeDescriptions;
 
 private:
     OpcUa_StatusCode m_status;

@@ -26,7 +26,7 @@ static std::string toHexString (const T t)
 /*
  * Stores the description of status codes that do not exist in open62541 and are used by quasar.
  */
-std::vector<StatusCodeDescription> UaStatus::statusCodeDescriptions {
+std::vector<StatusCodeDescription> UaStatus::s_statusCodeDescriptions {
     	    	{OpcUa_Bad, "GenericBad"},
 				{OpcUa_Uncertain, "GenericUncertain"}
     	    };
@@ -38,21 +38,22 @@ UaString UaStatus::toString() const
 
 	if ( statusCodeDescription == "Unknown StatusCode" )
 	{
-	  std::vector<StatusCodeDescription>::iterator it = std::find_if(statusCodeDescriptions.begin(), statusCodeDescriptions.end(), FindStatusCode( m_status ));
+	  auto localStatus = m_status;
+	  std::vector<StatusCodeDescription>::iterator it = std::find_if(s_statusCodeDescriptions.begin(), s_statusCodeDescriptions.end(), [localStatus](StatusCodeDescription &d){return d.statusCode==localStatus;});
 
-	  if ( it != statusCodeDescriptions.end())
+	  if ( it != s_statusCodeDescriptions.end())
 		  statusCodeDescription = it->description;
 	  else if ( isBad() )
 	  {
-		  statusCodeDescription.clear();
-		  statusCodeDescription.append("GenericBad StatusCode family");
+		  statusCodeDescription="GenericBad StatusCode family";
 	  }
 	  else if ( isUncertain() )
 	  {
-		  statusCodeDescription.clear();
-	          statusCodeDescription.append("GenericUncertain StatusCode family");
+	          statusCodeDescription="GenericUncertain StatusCode family";
 	  }
-	}
+	  else
+	          statusCodeDescription="StatusCode was impossible to parse";
+     	}
 
 	statusCodeDescription.append(" (0x"+toHexString(m_status)+")");
 

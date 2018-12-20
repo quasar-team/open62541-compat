@@ -26,6 +26,7 @@
 #include <open62541.h>
 #include <uastring.h>
 #include <opcua_platformdefs.h>
+#include <vector>
 
 #define OpcUa_Good UA_STATUSCODE_GOOD
 #define OpcUa_Bad  0x80000000
@@ -55,9 +56,15 @@
 
 typedef OpcUa_UInt32 OpcUa_StatusCode;
 
+struct StatusCodeDescription {
+        		OpcUa_StatusCode statusCode;
+        		const std::string description;
+        	};
+
 class UaStatus
 {
 public:
+
     UaStatus (OpcUa_StatusCode s): m_status(s) {} // from status code
     UaStatus(): m_status(OpcUa_Bad) {} // by default, initialize to Bad
 
@@ -66,12 +73,16 @@ public:
     bool isGood() const { return m_status == UA_STATUSCODE_GOOD; }
     bool isNotGood() const { return !isGood(); }
     bool isBad() const;
+    bool isUncertain() const;
     UaString toString() const;
 
     OpcUa_StatusCode statusCode() const { return m_status; }
     operator UA_StatusCode() const { return (UA_StatusCode)m_status; }
+    static std::vector<StatusCodeDescription> s_statusCodeDescriptions;
+
 private:
     OpcUa_StatusCode m_status;
+
 };
 
 #endif //__STATUSCODE_H__

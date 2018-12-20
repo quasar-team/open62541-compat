@@ -38,8 +38,7 @@ UaString UaStatus::toString() const
 
 	if ( statusCodeDescription == "Unknown StatusCode" )
 	{
-	  auto localStatus = m_status;
-	  std::vector<StatusCodeDescription>::iterator it = std::find_if(s_statusCodeDescriptions.begin(), s_statusCodeDescriptions.end(), [localStatus](StatusCodeDescription &d){return d.statusCode==localStatus;});
+	  std::vector<StatusCodeDescription>::iterator it = std::find_if(s_statusCodeDescriptions.begin(), s_statusCodeDescriptions.end(), [this](StatusCodeDescription &d){return d.statusCode==m_status;});
 
 	  if ( it != s_statusCodeDescriptions.end())
 		  statusCodeDescription = it->description;

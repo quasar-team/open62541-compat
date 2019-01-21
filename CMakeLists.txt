@@ -101,6 +101,7 @@ else()
   #
   if (STANDALONE_BUILD_SHARED)
   	 set(OPEN62541_COMPAT_LIB_FORMAT SHARED)
+	 add_definitions(-fPIC) 
   else()
      set(OPEN62541_COMPAT_LIB_FORMAT STATIC)
   endif()

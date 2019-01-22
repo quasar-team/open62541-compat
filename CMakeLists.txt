@@ -30,12 +30,18 @@ message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [
 SET (OPEN62541_VERSION "0.3-rc2" CACHE STRING "Which open62541 commit/tag/branch to take")
 option (UA_ENABLE_AMALGAMATION "Whether open62541 should amalgamate" ON )
 option (UA_ENABLE_METHODCALLS  "Whether open62541 should have methods enabled" ON )
+SET(OPEN62541_GIT_REPO "https://github.com/open62541/open62541.git")
+
+if(DEFINED ENV{OPEN62541_GIT_REPO})
+  message(WARNING "Taking open62541 from user defined repo: $ENV{OPEN62541_GIT_REPO}")
+  SET(OPEN62541_GIT_REPO $ENV{OPEN62541_GIT_REPO})
+endif()
 
 function ( fetch_open62541 )
   message(STATUS "fetching open62541 from github. *NOTE* fetching tag [${OPEN62541_VERSION}]")
   Open62541CompatFetchContent_Declare(
     open62541
-    GIT_REPOSITORY    https://github.com/open62541/open62541.git
+    GIT_REPOSITORY    ${OPEN62541_GIT_REPO}
     GIT_TAG           ${OPEN62541_VERSION}
     GIT_SHALLOW       "1"
     SOURCE_DIR	      ${PROJECT_BINARY_DIR}/open62541

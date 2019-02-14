@@ -149,6 +149,7 @@ class UaVariant
 
   void arrayDimensions( UaUInt32Array &arrayDimensions ) const;
   OpcUa_Boolean isArray  () const;
+  OpcUa_Boolean isEmpty () const;
 
  private:
   static UA_Variant* createAndCheckOpen62541Variant();

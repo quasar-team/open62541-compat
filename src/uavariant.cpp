@@ -735,3 +735,7 @@ OpcUa_Boolean UaVariant::isArray ()   const
     return !this->isScalarValue();
 }
 
+OpcUa_Boolean UaVariant::isEmpty () const
+{
+    return UA_Variant_isEmpty(m_impl);
+}

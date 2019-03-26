@@ -56,11 +56,11 @@ public:
     virtual UaNodeId typeDefinitionId() const { return m_typeDefinitionId; }
     virtual void setDataType( const UaNodeId& typeref ) { m_typeDefinitionId = typeref; }
     virtual void setValueRank (OpcUa_Int32 valueRank) { m_valueRank = valueRank; }
-    virtual void setArrayDimensions( const UaUInt32Array &arrayDimensions ) {} // TODO not implemented
+    virtual void setArrayDimensions( const UaUInt32Array &arrayDimensions ) {m_arrayDimensions = arrayDimensions;}
     virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Variable; }
     virtual UaNodeId nodeId() const { return m_nodeId; }
     virtual OpcUa_Int32 valueRank() const { return m_valueRank; }
-
+    virtual void arrayDimensions(UaUInt32Array &    arrayDimensions )   const { arrayDimensions = m_arrayDimensions;}
     const UA_DataValue* valueImpl() const { return m_currentValue.impl(); }
 
 private:
@@ -70,6 +70,7 @@ private:
     UaNodeId m_typeDefinitionId;
     OpcUa_Int32 m_valueRank;
     OpcUa_Byte m_accessLevel;
+    UaUInt32Array m_arrayDimensions;
 };
 
 

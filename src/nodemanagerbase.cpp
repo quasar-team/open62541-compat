@@ -299,7 +299,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
             attr.arrayDimensions = &arrayDimensions[0];
         else
             attr.arrayDimensions = nullptr;
-
+        variable->value(/*session*/nullptr).value()->copyTo(&attr.value);
         UA_StatusCode s =
             UA_Server_addDataSourceVariableNode(m_server,
                                                 to->nodeId().impl(),

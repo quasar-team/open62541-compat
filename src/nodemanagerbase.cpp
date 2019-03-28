@@ -409,7 +409,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
     case OpcUa_NodeClass_Object:
         return addObjectNodeAndReference (parent, to, refType);
     case OpcUa_NodeClass_Variable:
-        return addObjectNodeAndReference(parent, to, refType);
+        return addVariableNodeAndReference(parent, to, refType);
     case OpcUa_NodeClass_Method:
         return addMethodNodeAndReference(parent, to, refType);
     default:

@@ -19,8 +19,6 @@
  *  along with Quasar.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
-
 #ifndef __NODEMANAGERBASE_H__
 #define __NODEMANAGERBASE_H__
 
@@ -28,59 +26,67 @@
 #include <uanode.h>
 #include <other.h>
 
-
-
-
-
 class NodeManagerConfig
 {
-
 };
-
 
 class NodeManagerBase: public NodeManagerConfig
 {
 public:
-	NodeManagerBase( const char* uri, bool sth, int hashtablesize );
-	virtual ~NodeManagerBase();
-	UaNode* getNode( const UaNodeId& nodeId ) const;
+    NodeManagerBase( const char* uri, bool sth, int hashtablesize );
+    virtual ~NodeManagerBase();
+    UaNode* getNode( const UaNodeId& nodeId ) const;
 
-	OpcUa_UInt16 getNameSpaceIndex 	() 	const { return 2; }
+    OpcUa_UInt16 getNameSpaceIndex 	() 	const { return 2; }
 
-	UaStatus addNodeAndReference( 
-			const UaNodeId& from,
-			UaNode* to,
-			const UaNodeId& refType);
-	UaStatus addNodeAndReference(
-			UaNode* from,
-			UaNode* to,
-			const UaNodeId& refType); // { return addNodeAndReference( from->nodeId(), to, refType ); }
+    UaStatus addNodeAndReference(
+        const UaNodeId& from,
+        UaNode* to,
+        const UaNodeId& refType);
+    UaStatus addNodeAndReference(
+        UaNode* from,
+        UaNode* to,
+        const UaNodeId& refType); // { return addNodeAndReference( from->nodeId(), to, refType ); }
 
-	void linkServer( UA_Server* server );
+    void linkServer( UA_Server* server );
 
 
 private:
-	UA_Server* m_server;
-	std::list<UaNode*> m_listNodes;
-	std::string m_nameSpaceUri;
+    UA_Server* m_server;
+    std::list<UaNode*> m_listNodes;
+    std::string m_nameSpaceUri;
 
-		class ServerRootNode: public UaNode
-		{
-		public:
-			ServerRootNode() {}
-			virtual UaQualifiedName browseName() const { return UaQualifiedName(0, "."); }
-			virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEOBJECTTYPE,0); }
-			virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass::OpcUa_NodeClass_Object; }
-			virtual UaNodeId nodeId() const { return UaNodeId(OpcUaId_ObjectsFolder, 0); }
-		private:
-			ServerRootNode( const ServerRootNode& other );
-			void operator=( const ServerRootNode& other );
+    UaStatus addObjectNodeAndReference(
+        UaNode* parent,
+        UaNode* to,
+        const UaNodeId& refType);
 
-		};
-		ServerRootNode m_serverRootNode;
+    UaStatus addVariableNodeAndReference(
+        UaNode* parent,
+        UaNode* to,
+        const UaNodeId& refType);
+    UaStatus addMethodNodeAndReference(
+        UaNode* parent,
+        UaNode* to,
+        const UaNodeId& refType);
+
+    class ServerRootNode: public UaNode
+    {
+    public:
+        ServerRootNode() {}
+        virtual UaQualifiedName browseName() const { return UaQualifiedName(0, "."); }
+        virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEOBJECTTYPE,0); }
+        virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass::OpcUa_NodeClass_Object; }
+        virtual UaNodeId nodeId() const {return UaNodeId(OpcUaId_ObjectsFolder, 0); }
+    private:
+        ServerRootNode( const ServerRootNode& other );
+        void operator=( const ServerRootNode& other );
+
+    };
+    ServerRootNode m_serverRootNode;
 
 
-	};
+};
 
 
 

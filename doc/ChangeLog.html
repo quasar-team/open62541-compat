@@ -5,7 +5,7 @@
     <title>open62541-compat ChangeLog</title>
   </head>
   <body>
-    <table cellspacing="2" cellpadding="2" width="100%" border="1">
+    <table border="1" cellspacing="2" cellpadding="2" width="100%">
       <tbody>
         <tr>
           <td valign="top"><b>Version</b><b><br>
@@ -14,6 +14,30 @@
           </td>
           <td valign="top"><b>Notes</b><b><br>
             </b></td>
+        </tr>
+        <tr>
+          <td valign="top">1.1.2<br>
+          </td>
+          <td valign="top">
+            <h2>Task</h2>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-1334">OPCUA-1334</a>]
+                - Implement UaVariant::isEmpty</li>
+            </ul>
+            <h2>Improvement</h2>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-1377">OPCUA-1377</a>]
+                - Implement BaseDataVariableType::arrayDimensions() and
+                related things</li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-1378">OPCUA-1378</a>]
+                - Refactor NodeManagerBase::addNodeAndReference</li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-1382">OPCUA-1382</a>]
+                - Pass Value for node creation (NodeManager API ...)</li>
+            </ul>
+          </td>
+          <td valign="top">Fixes compatibility for quasar 1.3.2+<br>
+            because CalculatedVariables require UaVariant::isEmpty<br>
+          </td>
         </tr>
         <tr>
           <td valign="top">1.1.1<br>

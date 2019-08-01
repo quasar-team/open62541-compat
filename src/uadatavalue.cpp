@@ -29,8 +29,13 @@ m_lock()
     m_impl->status = statusCode;
     m_impl->hasStatus = 1;
 
-    // TODO: serverTime passing not implemented,
-    // TODO: sourceTime passing not implemented
+    m_impl->serverTimestamp = static_cast<UA_DateTime>(serverTime);
+    m_impl->hasServerTimestamp = UA_TRUE;
+    m_impl->hasServerPicoseconds = UA_FALSE;
+
+    m_impl->sourceTimestamp = static_cast<UA_DateTime>(sourceTime);
+    m_impl->hasSourceTimestamp = UA_TRUE;
+    m_impl->hasSourcePicoseconds = UA_FALSE;
 
     m_impl->hasValue = 1;
 

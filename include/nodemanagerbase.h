@@ -33,7 +33,10 @@ class NodeManagerConfig
 class NodeManagerBase: public NodeManagerConfig
 {
 public:
-    NodeManagerBase( const char* uri, bool sth, int hashtablesize );
+    NodeManagerBase(
+            const char* sNamespaceUri,
+            bool        firesEvents = OpcUa_False,
+            OpcUa_Int32 nHashTableSize = 9973 );
     virtual ~NodeManagerBase();
     UaNode* getNode( const UaNodeId& nodeId ) const;
 

@@ -57,10 +57,7 @@ UaNode* NodeManagerBase::getNode( const UaNodeId& nodeId ) const
             m_listNodes.begin(),
             m_listNodes.end(),
             [nodeId](UaNode* node){return node->nodeId() == nodeId;});
-    if (iterator != m_listNodes.end())
-        return *iterator;
-    else
-        return nullptr;
+    return (iterator != m_listNodes.end()) ? *iterator : nullptr;
 }
 
 static UA_StatusCode unifiedRead(
@@ -159,7 +156,7 @@ UA_StatusCode unifiedCall(
     UA_Variant *output
 )
 {
-    LOG(Log::TRC) << "called! handle=" << methodContext << " size=" << inputSize;
+    LOG(Log::TRC) << "Method called! handle=" << methodContext << " input arguments size=" << inputSize;
     MethodHandleUaNode *handle = static_cast<MethodHandleUaNode*> (methodContext);
     OpcUa::BaseObjectType *receiver = static_cast<OpcUa::BaseObjectType*> ( handle->pUaObject() );
 

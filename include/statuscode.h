@@ -53,6 +53,7 @@
 #define OpcUa_BadIndexRangeInvalid UA_STATUSCODE_BADINDEXRANGEINVALID
 #define OpcUa_BadIndexRangeNoData UA_STATUSCODE_BADINDEXRANGENODATA
 #define OpcUa_BadArgumentsMissing UA_STATUSCODE_BADARGUMENTSMISSING
+#define OpcUa_BadConnectionClosed UA_STATUSCODE_BADCONNECTIONCLOSED
 
 typedef OpcUa_UInt32 OpcUa_StatusCode;
 

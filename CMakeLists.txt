@@ -18,7 +18,7 @@
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
 project(open62541-compat CXX)
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 2.8)
 cmake_policy(SET CMP0012 NEW)
 
 include (cmake/Open62541CompatFetchContent.cmake)

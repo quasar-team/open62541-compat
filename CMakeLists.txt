@@ -17,11 +17,12 @@
 # Authors:
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
-project(open62541-compat CXX)
+project(open62541-compat LANGUAGES C CXX)
 cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0012 NEW)
 
-include (cmake/Open62541CompatFetchContent.cmake)
+option(USE_BUNDLED_OPEN62541 "Use a version of open62541 that we bundle as a single-file distribution" OFF)
+message("open62541-compat: Using bundled open62541: ${USE_BUNDLED_OPEN62541}")
 
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
@@ -31,28 +32,33 @@ SET (OPEN62541_VERSION "v0.3.0" CACHE STRING "Which open62541 commit/tag/branch 
 option (UA_ENABLE_AMALGAMATION "Whether open62541 should amalgamate" ON )
 option (UA_ENABLE_METHODCALLS  "Whether open62541 should have methods enabled" ON )
 
-function ( fetch_open62541 )
-  message(STATUS "fetching open62541 from github. *NOTE* fetching tag [${OPEN62541_VERSION}]")
-  Open62541CompatFetchContent_Declare(
-    open62541
-    GIT_REPOSITORY    https://github.com/open62541/open62541.git
-    GIT_TAG           ${OPEN62541_VERSION}
-    GIT_SHALLOW       "1"
-    SOURCE_DIR	      ${PROJECT_BINARY_DIR}/open62541
-    BINARY_DIR	      ${PROJECT_BINARY_DIR}/open62541
-  )
-  Open62541CompatFetchContent_Populate( open62541 )
-  message(STATUS "open62541 fetched")
-endfunction()
+include (cmake/Open62541CompatFetchContent.cmake)
 
-function ( build_open62541 )
-  message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
-  add_subdirectory( ${PROJECT_BINARY_DIR}/open62541
-                    ${PROJECT_BINARY_DIR}/open62541
-  		    EXCLUDE_FROM_ALL  # EXCLUDE_FROM_ALL will not add install() targets from open62541 which we clearly don't want/need
-		    )
-  set_target_properties( open62541 PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
-endfunction()
+if(NOT ${USE_BUNDLED_OPEN62541})
+        function ( fetch_open62541 )
+          message(STATUS "fetching open62541 from github. *NOTE* fetching tag [${OPEN62541_VERSION}]")
+          Open62541CompatFetchContent_Declare(
+            open62541
+            GIT_REPOSITORY    https://github.com/open62541/open62541.git
+            GIT_TAG           ${OPEN62541_VERSION}
+            GIT_SHALLOW       "1"
+            SOURCE_DIR	      ${PROJECT_BINARY_DIR}/open62541
+            BINARY_DIR	      ${PROJECT_BINARY_DIR}/open62541
+          )
+          Open62541CompatFetchContent_Populate( open62541 )
+          message(STATUS "open62541 fetched")
+        endfunction()
+        
+        function ( build_open62541 )
+          message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
+          add_subdirectory( ${PROJECT_BINARY_DIR}/open62541
+                            ${PROJECT_BINARY_DIR}/open62541
+          		    EXCLUDE_FROM_ALL  # EXCLUDE_FROM_ALL will not add install() targets from open62541 which we clearly don't want/need
+        		    )
+          set_target_properties( open62541 PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
+        endfunction()
+
+endif(NOT ${USE_BUNDLED_OPEN62541})
 
 function ( fetch_LogIt )
   SET (LOGIT_VERSION "v0.1.1") #change to master post-merge
@@ -87,9 +93,17 @@ SET( SRCS
   src/uaclient/uasession.cpp
 )
 
-fetch_open62541()
-build_open62541()
-set(OPEN62541_SDK_LIB -lopen62541)
+if(${USE_BUNDLED_OPEN62541})
+	include_directories(extern/open62541)
+	list(APPEND SRCS extern/open62541/open62541.c)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+endif(${USE_BUNDLED_OPEN62541})
+
+if(NOT ${USE_BUNDLED_OPEN62541})
+        fetch_open62541()
+        build_open62541()
+        set(OPEN62541_SDK_LIB -lopen62541)
+endif(NOT ${USE_BUNDLED_OPEN62541})
 
 add_definitions(-DNOMINMAX)  # doesn't include windows' min() and max() which break std c++ code. Should be neutral to non-windows code.
 
@@ -207,4 +221,5 @@ else()
 
 endif()
 
-add_dependencies( open62541-compat open62541 )
+# Piotr: fix it !
+# add_dependencies( open62541-compat open62541 )

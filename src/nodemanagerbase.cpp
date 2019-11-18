@@ -19,53 +19,46 @@
  *  along with Quasar.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
+#include <stdexcept>
 
 #include <nodemanagerbase.h>
-#include <boost/foreach.hpp>
-#include <iostream>
 #include <opcua_basedatavariabletype.h>
-#include <stdexcept>
 #include <uadatavariablecache.h>
 
 static UaLocalizedText emptyDescription( "en_US", "" );
 
-NodeManagerBase::NodeManagerBase( const char* uri, bool sth, int hashtablesize ):
-    m_server(0),
-    m_nameSpaceUri(uri)
+NodeManagerBase::NodeManagerBase(
+        const char* sNamespaceUri,
+        bool        firesEvents,
+        OpcUa_Int32 nHashTableSize):
+    m_server(nullptr),
+    m_nameSpaceUri(sNamespaceUri)
 {
 
 }
 
 NodeManagerBase::~NodeManagerBase()
 {
-
-
-    std::cout << __FUNCTION__ << std::endl;
-    std::cout << "m_listNodes.size=" << m_listNodes.size() << std::endl;
     while (!m_listNodes.empty())
     {
         auto node = m_listNodes.back();
         m_listNodes.pop_back();
-
         delete node;
     }
-
 }
 
 UaNode* NodeManagerBase::getNode( const UaNodeId& nodeId ) const
 {
-    //TODO: the code belove is probably shitty - shall be decided one and forever whether getNode shall be const or not ...
     if (nodeId == m_serverRootNode.nodeId())
         return (UaNode*)(&m_serverRootNode);
 
-    BOOST_FOREACH (UaNode* node,  m_listNodes)
-    {
-        if (node->nodeId() == nodeId)
-            return node;
-    }
-    return 0; // not found
+    auto iterator = std::find_if(
+            m_listNodes.begin(),
+            m_listNodes.end(),
+            [nodeId](UaNode* node){return node->nodeId() == nodeId;});
+    return (iterator != m_listNodes.end()) ? *iterator : nullptr;
 }
-
 
 static UA_StatusCode unifiedRead(
     UA_Server *server,
@@ -86,11 +79,6 @@ static UA_StatusCode unifiedRead(
     UaDataValue aCopy( variable->value(0) ); // internally cloned so we can do anything with this object
     UA_DataValue_copy( aCopy.impl(), dataValue );
 
-    // Piotr: I think that this version of open6 is leaking, try to use this code and you will see:
-    // dataValue->hasValue = true;
-    // double v = rand();
-    // UA_Variant_setScalarCopy(&dataValue->value, &v, &UA_TYPES[UA_TYPES_DOUBLE]);
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -103,7 +91,6 @@ static UA_StatusCode unifiedWrite(
     const UA_NumericRange *range,
     const UA_DataValue *dataValue
 )
-//void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range)
 {
     if ( !dataValue )
     {
@@ -168,15 +155,8 @@ UA_StatusCode unifiedCall(
     size_t outputSize,
     UA_Variant *output
 )
-
-// void *methodHandle,
-// const UA_NodeId objectId,
-// size_t inputSize,
-// const UA_Variant *input,
-// size_t outputSize,
-// UA_Variant *output)
 {
-    LOG(Log::TRC) << "called! handle=" << methodContext << " size=" << inputSize;
+    LOG(Log::TRC) << "Method called! handle=" << methodContext << " input arguments size=" << inputSize;
     MethodHandleUaNode *handle = static_cast<MethodHandleUaNode*> (methodContext);
     OpcUa::BaseObjectType *receiver = static_cast<OpcUa::BaseObjectType*> ( handle->pUaObject() );
 
@@ -203,14 +183,11 @@ UA_StatusCode unifiedCall(
     if (status.isNotGood())
         return status; // beginning failed ...
 
-
-
     for (size_t i=0; i<outputSize; ++i)
     {
         const UA_Variant* from = synchronousCallback.outputs()[i].impl();
         UA_Variant_copy(from, output+i);
     }
-
 
     return synchronousCallback.getStatusCode();
 }

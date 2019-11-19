@@ -68,6 +68,7 @@ UaStatus UaSession::connect(
     if (!m_client)
         throw alloc_error();
     UA_ClientConfig* clientConfig = UA_Client_getConfig(m_client);
+    UA_ClientConfig_setDefault(clientConfig);
     clientConfig->timeout = connectInfo.internalServiceCallTimeout;
     // TODO @Piotr note that many possibly important settings are not carried
     // from UA-SDK API to open6! At the moment, only timeout is.

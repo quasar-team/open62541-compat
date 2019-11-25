@@ -73,6 +73,7 @@ UaStatus UaSession::connect(
     if(! status.isGood())
     {
         UA_Client_delete(m_client);
+        m_client = nullptr;
         LOG(Log::ERR) << "in UaSession::connect() " << status.toString().toUtf8();
         return status;
     }

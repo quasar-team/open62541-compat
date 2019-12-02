@@ -24,6 +24,7 @@
 
 #include <memory> // for unique_ptr
 #include <thread>
+#include <functional> // for std::function
 
 #include <nodemanagerbase.h>
 

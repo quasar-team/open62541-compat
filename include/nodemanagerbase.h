@@ -53,6 +53,8 @@ public:
 
     void linkServer( UA_Server* server );
 
+    virtual UaStatus afterStartUp();
+
 
 private:
     UA_Server* m_server;

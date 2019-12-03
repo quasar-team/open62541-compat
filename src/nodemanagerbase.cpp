@@ -414,3 +414,8 @@ void NodeManagerBase::linkServer( UA_Server* server )
     if (nsIndex != 2)
         throw std::logic_error("UA_Server_addNamespace: namespace added to nsindex different than 2. ");
 }
+
+UaStatus NodeManagerBase::afterStartUp()
+{
+    return OpcUa_Good;
+}

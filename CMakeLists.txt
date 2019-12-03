@@ -83,6 +83,7 @@ SET( SRCS
   src/uadatetime.cpp
   src/uabytearray.cpp
   src/opcua_basedatavariabletype.cpp
+  src/uaserver.cpp
   src/uaclient/uasession.cpp
 )
 

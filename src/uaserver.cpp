@@ -37,7 +37,6 @@
 UaServer::UaServer() :
 m_server(nullptr),
 m_nodeManager(nullptr),
-m_server_config(nullptr, &UA_ServerConfig_delete),
 m_runningFlag(nullptr)
 {
 
@@ -52,12 +51,11 @@ void UaServer::start()
 {
     if (!m_runningFlag)
         throw std::logic_error ("Establish the 'running flag' first");
-    if (!m_server_config)
-        throw std::logic_error ("Server must be provisioned with the configuration, call setServerConfig first");
-    m_server = UA_Server_new(m_server_config.get());
+    m_server = UA_Server_new();
     if (!m_server)
         throw std::runtime_error("UA_Server_new failed");
-
+    UA_ServerConfig* config = UA_Server_getConfig(m_server);
+    UA_ServerConfig_setMinimal(config, 4841, nullptr);
     m_nodeManager->linkServer(m_server);
     m_nodeManager->afterStartUp();
 
@@ -104,7 +102,7 @@ void UaServer::setServerConfig(
         const UaString& applicationPath)
 {
     LOG(Log::INF) << "Note: with open62541 backend, there isn't (yet) XML configuration loading. Assuming hardcoded server settings (endpoint's port, etc.)";
-    m_server_config.reset( UA_ServerConfig_new_minimal(4841, /*certificate*/ nullptr) );
+    //! With open62541 1.0, it is the UA_Server that holds the config.
 }
 
 void UaServer::stop ()

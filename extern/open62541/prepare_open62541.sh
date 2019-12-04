@@ -33,7 +33,7 @@ read -n 1 -p "Would you like to commit the freshly amalgamated open62541? type y
 if [ $answer == "y" ]; then
   git add open62541/include/open62541.h
   git add open62541/src/open62541.c
-  git commit --author=open62541@open62541.org -m "Amalgamated open62541 v $TAG by prepare_open62541.sh"
+  git commit --author="open62541 <open62541@open62541.org>" -m "Amalgamated open62541 v $TAG by prepare_open62541.sh"
 fi
 
 # clean-up

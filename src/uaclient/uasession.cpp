@@ -64,11 +64,15 @@ UaStatus UaSession::connect(
         LOG(Log::ERR) << "Connection already exists, can't call connect()";
         return OpcUa_Bad;  // Already connected!
     }
-    UA_ClientConfig clientConfig = UA_ClientConfig_default;
-    clientConfig.timeout = connectInfo.internalServiceCallTimeout;
-    m_client = UA_Client_new(clientConfig);
+    m_client = UA_Client_new();
     if (!m_client)
         throw alloc_error();
+    UA_ClientConfig* clientConfig = UA_Client_getConfig(m_client);
+    UA_ClientConfig_setDefault(clientConfig);
+    clientConfig->timeout = connectInfo.internalServiceCallTimeout;
+    // TODO @Piotr note that many possibly important settings are not carried
+    // from UA-SDK API to open6! At the moment, only timeout is.
+
     UaStatus status = UA_Client_connect(m_client, endpoint.toUtf8().c_str());
     if(! status.isGood())
     {

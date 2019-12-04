@@ -22,3 +22,4 @@ test/open62541-compat-Test
 .cproject
 .project
 .settings/
+build

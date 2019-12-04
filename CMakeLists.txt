@@ -17,42 +17,48 @@
 # Authors:
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
-project(open62541-compat CXX)
+project(open62541-compat LANGUAGES C CXX)
 cmake_minimum_required(VERSION 3.0)
 cmake_policy(SET CMP0012 NEW)
 
 include (cmake/Open62541CompatFetchContent.cmake)
+option(PULL_OPEN62541 "Pull open62541 from their github instead of using the bundled one (not recommended!)" OFF)
 
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 option(SKIP_TESTS "do not build the tests (not advised)" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
+# "OPEN62541_VERSION" will be used only if you use PULL_OPEN62541
 SET (OPEN62541_VERSION "v0.3.0" CACHE STRING "Which open62541 commit/tag/branch to take")
 option (UA_ENABLE_AMALGAMATION "Whether open62541 should amalgamate" ON )
 option (UA_ENABLE_METHODCALLS  "Whether open62541 should have methods enabled" ON )
 
-function ( fetch_open62541 )
-  message(STATUS "fetching open62541 from github. *NOTE* fetching tag [${OPEN62541_VERSION}]")
-  Open62541CompatFetchContent_Declare(
-    open62541
-    GIT_REPOSITORY    https://github.com/open62541/open62541.git
-    GIT_TAG           ${OPEN62541_VERSION}
-    GIT_SHALLOW       "1"
-    SOURCE_DIR	      ${PROJECT_BINARY_DIR}/open62541
-    BINARY_DIR	      ${PROJECT_BINARY_DIR}/open62541
-  )
-  Open62541CompatFetchContent_Populate( open62541 )
-  message(STATUS "open62541 fetched")
-endfunction()
 
-function ( build_open62541 )
-  message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
-  add_subdirectory( ${PROJECT_BINARY_DIR}/open62541
-                    ${PROJECT_BINARY_DIR}/open62541
-  		    EXCLUDE_FROM_ALL  # EXCLUDE_FROM_ALL will not add install() targets from open62541 which we clearly don't want/need
-		    )
-  set_target_properties( open62541 PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
-endfunction()
+if(${PULL_OPEN62541})
+        function ( fetch_open62541 )
+          message(STATUS "fetching open62541 from github. *NOTE* fetching tag [${OPEN62541_VERSION}]")
+          Open62541CompatFetchContent_Declare(
+            open62541
+            GIT_REPOSITORY    https://github.com/open62541/open62541.git
+            GIT_TAG           ${OPEN62541_VERSION}
+            GIT_SHALLOW       "1"
+            SOURCE_DIR	      ${PROJECT_BINARY_DIR}/open62541
+            BINARY_DIR	      ${PROJECT_BINARY_DIR}/open62541
+          )
+          Open62541CompatFetchContent_Populate( open62541 )
+          message(STATUS "open62541 fetched")
+        endfunction()
+
+        function ( build_open62541 )
+          message(STATUS "generating platform specific build for open62541 library for [${CMAKE_GENERATOR}]")
+          add_subdirectory( ${PROJECT_BINARY_DIR}/open62541
+                            ${PROJECT_BINARY_DIR}/open62541
+          		    EXCLUDE_FROM_ALL  # EXCLUDE_FROM_ALL will not add install() targets from open62541 which we clearly don't want/need
+        		    )
+          set_target_properties( open62541 PROPERTIES ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/open62541 )
+        endfunction()
+
+endif(${PULL_OPEN62541})
 
 function ( fetch_LogIt )
   SET (LOGIT_VERSION "v0.1.1") #change to master post-merge
@@ -66,7 +72,6 @@ function ( fetch_LogIt )
     BINARY_DIR	      ${PROJECT_BINARY_DIR}/LogIt
   )
   Open62541CompatFetchContent_Populate( LogIt )
-  set( LOGIT_HAS_UATRACE FALSE )
   message(STATUS "LogIt fetched from LogIt repo")
 endfunction()
 
@@ -87,9 +92,17 @@ SET( SRCS
   src/uaclient/uasession.cpp
 )
 
-fetch_open62541()
-build_open62541()
-set(OPEN62541_SDK_LIB -lopen62541)
+if(NOT ${PULL_OPEN62541})  # this is the default behaviour.
+	include_directories(extern/open62541/include)
+	list(APPEND SRCS extern/open62541/src/open62541.c)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+endif(NOT ${PULL_OPEN62541})
+
+if(${PULL_OPEN62541})  # this is not default
+        fetch_open62541()
+        build_open62541()
+        set(OPEN62541_SDK_LIB -lopen62541)
+endif(${PULL_OPEN62541})
 
 add_definitions(-DNOMINMAX)  # doesn't include windows' min() and max() which break std c++ code. Should be neutral to non-windows code.
 
@@ -100,18 +113,18 @@ else()
 
   # We need some C++11
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wno-literal-suffix" )
-  
+
   #
   # Decide on open62541-compat build output (shared/static)
   #
   if (STANDALONE_BUILD_SHARED)
   	 set(OPEN62541_COMPAT_LIB_FORMAT SHARED)
-         add_definitions(-fPIC)	 
+         add_definitions(-fPIC)
   else()
      set(OPEN62541_COMPAT_LIB_FORMAT STATIC)
   endif()
 
-  
+
   include_directories( include )
   include_directories( ${PROJECT_BINARY_DIR}/open62541 )
 
@@ -120,13 +133,13 @@ else()
   #
   if(DEFINED OPEN62541-COMPAT_BUILD_CONFIG_FILE)
     message("OPEN62541-COMPAT_BUILD_CONFIG_FILE is defined -- including [[${OPEN62541-COMPAT_BUILD_CONFIG_FILE}]]")
-    include(${OPEN62541-COMPAT_BUILD_CONFIG_FILE})    
+    include(${OPEN62541-COMPAT_BUILD_CONFIG_FILE})
   endif()
   if( NOT DEFINED BOOST_LIBS)
     message(FATAL_ERROR "Required variable BOOST_LIBS has not been defined. You must define a toolchain file describing (as a minimum) how boost headers/libs are resolved in the target build environment")
-  endif() 
-  message(STATUS "Using boost libraries: BOOST_LIBS [${BOOST_LIBS}]")  
-  
+  endif()
+  message(STATUS "Using boost libraries: BOOST_LIBS [${BOOST_LIBS}]")
+
   #
   # How does the stand-alone open62541-compat build want to use LogIt? Possible options:
   # - Source
@@ -139,11 +152,11 @@ else()
 
   #
   # Fetch LogIt if needed
-  # 
+  #
   if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
   	fetch_LogIt()
   endif()
-  
+
   #
   # Resolve LogIt include
   #
@@ -175,13 +188,13 @@ else()
     target_link_libraries( open62541-compat ${LOGITLIB} )
     message(STATUS "LogIt added as external library dependency LOGITLIB [${LOGITLIB}]")
   endif()
-     
+
   link_directories(
      ${PROJECT_BINARY_DIR}/open62541
      ${PROJECT_BINARY_DIR}/open62541/build
      ${PROJECT_BINARY_DIR}/open62541/Release/
      ${PROJECT_BINARY_DIR}/open62541/Debug/ )
-     
+
   add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt> )
 
   #
@@ -207,4 +220,6 @@ else()
 
 endif()
 
-add_dependencies( open62541-compat open62541 )
+if(${PULL_OPEN62541})  # this is not default
+  add_dependencies( open62541-compat open62541 )
+endif(${PULL_OPEN62541})

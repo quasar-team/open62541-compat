@@ -39,7 +39,7 @@ install:
   - ps : Write-Output "Installed nuget packages to ${env:WINDOWS_DEPENDENCIES_DIR}"
 
 build_script:
-  - ps : mdkir ..\open62541-compat-debug-build ; cd ..\open62541-compat-debug-build
+  - ps : mkdir ..\open62541-compat-debug-build ; cd ..\open62541-compat-debug-build
   - ps : cmake ..\open62541-compat\ -G "Visual Studio 15 2017 Win64" -DSTANDALONE_BUILD=ON -DOPEN62541-COMPAT_BUILD_CONFIG_FILE="boost_appveyor_ci.cmake" -DCMAKE_BUILD_TYPE=Debug
   - ps : cmake --build $(pwd) --config Debug
 

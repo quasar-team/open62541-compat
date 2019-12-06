@@ -1,0 +1,46 @@
+# version format
+version: 1.0.{build}
+image: Visual Studio 2017
+clone_folder: C:\workspace\OPC-UA\quasar\
+build:
+  verbosity: normal
+notifications:
+- provider: Email
+  to:
+  - quasar-developers@cern.ch
+  subject: open62541 windows build status changed
+  on_build_success: false
+  on_build_failure: false
+  on_build_status_changed: true
+
+
+environment:
+  WINDOWS_DEPENDENCIES_DIR: C:\workspace\OPC-UA\quasar-windows-dependencies
+  BOOST_PATH_HEADERS: $(WINDOWS_DEPENDENCIES_DIR)\boost\lib\native\include
+  BOOST_PATH_LIBS: $(WINDOWS_DEPENDENCIES_DIR)
+  #
+  # Set environment variables in powershell using command
+  #   [System.Environment]::SetEnvironmentVariable("VAR", "C:/target/path", "Machine")')
+  #
+
+install:
+  # delete and recreate clean directory for windows dependencies.
+  - ps : |
+         Write-Output "Cleaning and recreating windows dependencies dir: ${env:WINDOWS_DEPENDENCIES_DIR}"
+         if(Test-Path "${env:WINDOWS_DEPENDENCIES_DIR}")
+         {
+           Remove-Item "${env:WINDOWS_DEPENDENCIES_DIR}" -Force -Recurse;
+         }
+         New-Item -ItemType Directory -Force -Path "${env:WINDOWS_DEPENDENCIES_DIR}"
+  
+  # nuget: package manager for installing libs
+  - ps : Write-Output "Installing nuget packages to ${env:WINDOWS_DEPENDENCIES_DIR}"
+  - ps : nuget install boost-vc141 -Version 1.67.0 -NonInteractive -ExcludeVersion -OutputDirectory "${env:WINDOWS_DEPENDENCIES_DIR}"
+  - ps : Write-Output "Installed nuget packages to ${env:WINDOWS_DEPENDENCIES_DIR}"
+
+build_script:
+  - ps : cmake ..\open62541-compat\ -G "Visual Studio 15 2017 Win64" -DSTANDALONE_BUILD=ON -DOPEN62541-COMPAT_BUILD_CONFIG_FILE="boost_appveyor_ci.cmake" -DCMAKE_BUILD_TYPE=Debug
+  - ps : cmake --build $(pwd) --config Debug
+
+test_script:
+   - ps : .\test\Debug\open62541-compat-Test.exe

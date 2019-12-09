@@ -44,7 +44,7 @@ build_script:
 
 test_script:
   - ps : pwd
-  - ps : .\test\Debug\open62541-compat-Test.exe
+  - ps : .\test\Release\open62541-compat-Test.exe
 
 # uncomment to block VM deletion for investigating broken builds.
 on_finish:

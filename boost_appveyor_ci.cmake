@@ -26,23 +26,22 @@ message(STATUS "starting the quest for boost, relevant environment variables: BO
 # headers path
 if(DEFINED ENV{BOOST_PATH_HEADERS})
 	SET( BOOST_PATH_HEADERS $ENV{BOOST_PATH_HEADERS} )
-	message(STATUS "using BOOST_PATH_HEADERS from environment BOOST_PATH_HEADERS [$BOOST_PATH_HEADERS]")
+	message(STATUS "using BOOST_PATH_HEADERS from environment BOOST_PATH_HEADERS [${BOOST_PATH_HEADERS}]")
 else()
 	if( DEFINED ENV{BOOST_HOME} )
 		SET( BOOST_PATH_HEADERS $ENV{BOOST_HOME}/include )
-		message(STATUS "using BOOST_PATH_HEADERS from environment BOOST_HOME [$BOOST_HOME] -> BOOST_PATH_HEADERS [$BOOST_PATH_HEADERS]")
+		message(STATUS "using BOOST_PATH_HEADERS from environment BOOST_HOME [$BOOST_HOME] -> BOOST_PATH_HEADERS [${BOOST_PATH_HEADERS}]")
 	endif()
 endif()
-include_directories( $BOOST_PATH_HEADERS )
 
 # libs path
 if(DEFINED ENV{BOOST_PATH_LIBS})
 	SET( BOOST_PATH_LIBS $ENV{BOOST_PATH_LIBS} )
-	message(STATUS "using BOOST_PATH_LIBS from environment BOOST_PATH_LIBS [$BOOST_PATH_LIBS]")
+	message(STATUS "using BOOST_PATH_LIBS from environment BOOST_PATH_LIBS [${BOOST_PATH_LIBS}]")
 else()
 	if( DEFINED ENV{BOOST_HOME} )
 		SET( BOOST_PATH_LIBS $ENV{BOOST_HOME}/lib )
-		message(STATUS "using BOOST_PATH_LIBS from environment BOOST_HOME [$BOOST_HOME] -> BOOST_PATH_LIBS [$BOOST_PATH_LIBS]")
+		message(STATUS "using BOOST_PATH_LIBS from environment BOOST_HOME [${BOOST_HOME}] -> BOOST_PATH_LIBS [${BOOST_PATH_LIBS}]")
 	endif()
 endif()
 
@@ -52,6 +51,7 @@ if( NOT BOOST_PATH_HEADERS OR NOT BOOST_PATH_LIBS )
 endif()
 
 message(STATUS "BOOST - include [${BOOST_PATH_HEADERS}] libs [${BOOST_PATH_LIBS}]")
+include_directories( ${BOOST_PATH_HEADERS} )
 
 if(NOT TARGET libboostprogramoptions)
 	add_library(libboostprogramoptions STATIC IMPORTED)

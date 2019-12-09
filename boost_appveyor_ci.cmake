@@ -33,6 +33,7 @@ else()
 		message(STATUS "using BOOST_PATH_HEADERS from environment BOOST_HOME [$BOOST_HOME] -> BOOST_PATH_HEADERS [$BOOST_PATH_HEADERS]")
 	endif()
 endif()
+include_directories( $BOOST_PATH_HEADERS )
 
 # libs path
 if(DEFINED ENV{BOOST_PATH_LIBS})

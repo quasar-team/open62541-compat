@@ -39,8 +39,8 @@ install:
 
 build_script:
   - ps : mkdir ..\open62541-compat-debug-build ; cd ..\open62541-compat-debug-build
-  - cmd : cmake ..\open62541-compat\ -G "Visual Studio 15 2017 Win64"  -DCMAKE_BUILD_TYPE=Debug -DSTANDALONE_BUILD=ON -DOPEN62541-COMPAT_BUILD_CONFIG_FILE="boost_appveyor_ci.cmake"
-  - cmd : cmake --build %cd% --config Debug
+  - cmd : cmake ..\open62541-compat\ -G "Visual Studio 15 2017 Win64"  -DCMAKE_BUILD_TYPE=Release -DSTANDALONE_BUILD=ON -DOPEN62541-COMPAT_BUILD_CONFIG_FILE="boost_appveyor_ci.cmake"
+  - cmd : cmake --build %cd% --config Release
 
 test_script:
   - ps : pwd

@@ -43,10 +43,9 @@ build_script:
   - cmd : cmake --build %cd% --config Release
 
 test_script:
-  - ps : pwd
   - ps : .\test\Release\open62541-compat-Test.exe
 
 # uncomment to block VM deletion for investigating broken builds.
-on_finish:
-  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
+#on_finish:
+#  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
     

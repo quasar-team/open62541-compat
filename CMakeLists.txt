@@ -111,8 +111,11 @@ if(NOT STANDALONE_BUILD)
   add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
 else()
 
-  # We need some C++11
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wno-literal-suffix" )
+  # We need some C++11 (via cmake platform agnostic flag)
+  set(CMAKE_CXX_STANDARD 11)
+  if( NOT WIN32 )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix" ) # gcc specific flags
+  endif()
 
   #
   # Decide on open62541-compat build output (shared/static)
@@ -173,7 +176,7 @@ else()
   set(LOGIT_EXT_LIB_DIR "UNINIALIZED" CACHE PATH "Path to the directory containing the LogIt shared/static library binary file. Use absolute path, or relative to [${PROJECT_BINARY_DIR}/]")
   message(STATUS "Using LogIt build option [${LOGIT_BUILD_OPTION}]")
   if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
-    add_subdirectory( ${PROJECT_BINARY_DIR}/LogIt )
+    add_subdirectory( ${PROJECT_BINARY_DIR}/LogIt ${PROJECT_BINARY_DIR}/LogIt )
     message(STATUS "LogIt added as compiled object code from sub-directory LogIt")
   else()
     if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")

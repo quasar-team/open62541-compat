@@ -22,7 +22,6 @@
 #ifndef OPEN62541_COMPAT_INCLUDE_UASERVER_H_
 #define OPEN62541_COMPAT_INCLUDE_UASERVER_H_
 
-#include <memory> // for unique_ptr
 #include <thread>
 #include <functional> // for std::function
 
@@ -54,7 +53,6 @@ public:
 private:
     UA_Server *m_server;
     NodeManagerBase* m_nodeManager;
-    std::unique_ptr<UA_ServerConfig, std::function<void(UA_ServerConfig*)> > m_server_config;
     std::thread m_open62541_server_thread;
 
     volatile OpcUa_Boolean* m_runningFlag;

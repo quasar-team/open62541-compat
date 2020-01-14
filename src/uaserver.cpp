@@ -54,8 +54,15 @@ void UaServer::start()
     m_server = UA_Server_new();
     if (!m_server)
         throw std::runtime_error("UA_Server_new failed");
+    
+    // working with open6 server config, see open62541.h:25878 for structure
+    // specifically the endpoints (line 16065) are just a string with no extra port spec
+    // we use the minimal config and just the port is set, security "none" defaults.
+    // Just need to extract the port number from the .ua sdk ServerConfig.xml file and set it here
     UA_ServerConfig* config = UA_Server_getConfig(m_server);
     UA_ServerConfig_setMinimal(config, 4841, nullptr);
+    LOG(Log::INF) << "open6 OPCUA server endpoint hardcoded port to 4841";
+    
     m_nodeManager->linkServer(m_server);
     m_nodeManager->afterStartUp();
 

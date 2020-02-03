@@ -60,21 +60,6 @@ if(${PULL_OPEN62541})
 
 endif(${PULL_OPEN62541})
 
-function ( fetch_LogIt )
-  SET (LOGIT_VERSION "v0.1.1") #change to master post-merge
-  message(STATUS "fetching LogIt from github. *NOTE* fetching version [${LOGIT_VERSION}]")
-  Open62541CompatFetchContent_Declare(
-    LogIt
-    GIT_REPOSITORY    https://github.com/quasar-team/LogIt.git
-    GIT_TAG           ${LOGIT_VERSION}
-    GIT_SHALLOW       "1"
-    SOURCE_DIR	      ${PROJECT_BINARY_DIR}/LogIt
-    BINARY_DIR	      ${PROJECT_BINARY_DIR}/LogIt
-  )
-  Open62541CompatFetchContent_Populate( LogIt )
-  message(STATUS "LogIt fetched from LogIt repo")
-endfunction()
-
 SET( SRCS
   src/nodemanagerbase.cpp
   src/open62541_compat.cpp
@@ -142,6 +127,8 @@ else()
     message(FATAL_ERROR "Required variable BOOST_LIBS has not been defined. You must define a toolchain file describing (as a minimum) how boost headers/libs are resolved in the target build environment")
   endif()
   message(STATUS "Using boost libraries: BOOST_LIBS [${BOOST_LIBS}]")
+
+  include (LogIt.cmake)
 
   #
   # How does the stand-alone open62541-compat build want to use LogIt? Possible options:

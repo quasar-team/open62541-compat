@@ -132,6 +132,7 @@ else()
   include (LogIt.cmake)
 
   process_LogIt()
+  message(STATUS "After process_LogIt, LOGIT_TARGET_OBJECTS=${LOGIT_TARGET_OBJECTS}")
 
   link_directories(
      ${PROJECT_BINARY_DIR}/open62541

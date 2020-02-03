@@ -18,8 +18,9 @@
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
 project(open62541-compat LANGUAGES C CXX)
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.3)
 cmake_policy(SET CMP0012 NEW)
+cmake_policy(SET CMP0057 NEW) # enables IN_LIST operator
 
 include (cmake/Open62541CompatFetchContent.cmake)
 option(PULL_OPEN62541 "Pull open62541 from their github instead of using the bundled one (not recommended!)" OFF)
@@ -132,41 +133,19 @@ else()
 
   process_LogIt()
 
-  #
-  # Resolve LogIt library
-  #
-  set(LOGIT_EXT_LIB_DIR "UNINIALIZED" CACHE PATH "Path to the directory containing the LogIt shared/static library binary file. Use absolute path, or relative to [${PROJECT_BINARY_DIR}/]")
-  message(STATUS "Using LogIt build option [${LOGIT_BUILD_OPTION}]")
-  if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_INT_SRC")
-    add_subdirectory( ${PROJECT_BINARY_DIR}/LogIt ${PROJECT_BINARY_DIR}/LogIt )
-    message(STATUS "LogIt added as compiled object code from sub-directory LogIt")
-  else()
-    if("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_SHARED")
-      SET(CMAKE_FIND_LIBRARY_SUFFIXES ".so" ".lib") # windows looks for lib file to link to target dll: lib contains dll exports, symbols etc (see LogIt.h SHARED_LIB_EXPORT_DEFN)
-      find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )
-    elseif("${LOGIT_BUILD_OPTION}" STREQUAL "LOGIT_AS_EXT_STATIC")
-      SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib")
-      find_library( LOGITLIB NAMES LogIt PATHS ${LOGIT_EXT_LIB_DIR} NO_DEFAULT_PATH )
-    else()
-      message(FATAL_ERROR "Invalid command given as to how to use LogIt in the open62541-compat library, see documentaton for property [LOGIT_BUILD_OPTION]")
-    endif()
-    target_link_libraries( open62541-compat ${LOGITLIB} )
-    message(STATUS "LogIt added as external library dependency LOGITLIB [${LOGITLIB}]")
-  endif()
-
   link_directories(
      ${PROJECT_BINARY_DIR}/open62541
      ${PROJECT_BINARY_DIR}/open62541/build
      ${PROJECT_BINARY_DIR}/open62541/Release/
      ${PROJECT_BINARY_DIR}/open62541/Debug/ )
 
-  add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} $<TARGET_OBJECTS:LogIt> )
+  add_library( open62541-compat ${OPEN62541_COMPAT_LIB_FORMAT} ${SRCS} ${LOGIT_TARGET_OBJECTS} )
 
   #
   # Set required libs, note windows build requires winsock.
   #
 
-  target_link_libraries( open62541-compat ${BOOST_LIBS} ${OPEN62541_SDK_LIB} )
+  target_link_libraries( open62541-compat ${LOGITLIB} ${BOOST_LIBS} ${OPEN62541_SDK_LIB} )
 
   if(WIN32)
     target_link_libraries( open62541-compat ws2_32 )

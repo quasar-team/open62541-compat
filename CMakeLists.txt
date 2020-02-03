@@ -145,7 +145,7 @@ else()
   # Set required libs, note windows build requires winsock.
   #
 
-  target_link_libraries( open62541-compat ${LOGITLIB} ${BOOST_LIBS} ${OPEN62541_SDK_LIB} )
+  target_link_libraries( open62541-compat ${BOOST_LIBS} ${OPEN62541_SDK_LIB} ${LOGITLIB})
 
   if(WIN32)
     target_link_libraries( open62541-compat ws2_32 )

@@ -19,7 +19,7 @@ clone_googletest("master")
 set( BUILD_GTEST ON CACHE BOOL "We do want to build gtest")
 set( BUILD_GMOCK OFF CACHE BOOL "we do not want to build gmock")
 set( gtest_force_shared_crt ON CACHE BOOL "use shared CRT" FORCE)
-add_subdirectory( ${PROJECT_BINARY_DIR}/googletest ${PROJECT_BINARY_DIR}/googletest )
+add_subdirectory( ${PROJECT_BINARY_DIR}/googletest ${PROJECT_BINARY_DIR}/googletest EXCLUDE_FROM_ALL)
 
 add_executable( open62541-compat-Test ${OPEN62541_COMPAT_MODULE_TEST_SRCS} )
 

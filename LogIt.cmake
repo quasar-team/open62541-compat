@@ -48,7 +48,7 @@ function ( process_LogIt )
   set(LOGIT_BUILD_OPTIONS_SUPPORTED "LOGIT_AS_INT_SRC" "LOGIT_AS_EXT_SHARED" "LOGIT_AS_EXT_STATIC")
   
   if (NOT "${LOGIT_BUILD_OPTION}" IN_LIST LOGIT_BUILD_OPTIONS_SUPPORTED)
-    message(FATAL_ERROR "Given LOGIT_BUILD_OPTION is not supported. It must be one of: ${LOGIT_BUILD_OPTIONS_SUPPORTED}")
+    message(FATAL_ERROR "Given LOGIT_BUILD_OPTION [${LOGIT_BUILD_OPTION}] is not supported. It must be one of: ${LOGIT_BUILD_OPTIONS_SUPPORTED}")
   endif()
   
   

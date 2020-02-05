@@ -168,3 +168,6 @@ endif()
 if(${PULL_OPEN62541})  # this is not default
   add_dependencies( open62541-compat open62541 )
 endif(${PULL_OPEN62541})
+
+install(TARGETS open62541-compat DESTINATION lib)
+install(DIRECTORY include/ DESTINATION include)

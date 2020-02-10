@@ -78,7 +78,7 @@ SET( SRCS
   src/uaclient/uasession.cpp
 )
 
-if(NOT ${PULL_OPEN62541})  # this is the default behaviour.
+if(NOT ${PULL_OPEN62541})  # this is the default behaviour
 	include_directories(extern/open62541/include)
 	list(APPEND SRCS extern/open62541/src/open62541.c)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -DUA_ARCHITECTURE_POSIX -Werror -Wall -Wextra -Wpedantic -Wno-static-in-inline -Wno-overlength-strings -Wno-unused-parameter -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls -Wformat -Wformat-security -Wformat-nonliteral -Wuninitialized -Winit-self -Wcast-qual -Wstrict-overflow -Wnested-externs -Wmultichar -Wundef -Wc++-compat -fno-strict-aliasing -fexceptions -fstack-protector-strong  -Wno-unused-function -Wshadow -Wconversion -fvisibility=hidden")
@@ -171,3 +171,6 @@ endif(${PULL_OPEN62541})
 
 install(TARGETS open62541-compat DESTINATION lib)
 install(DIRECTORY include/ DESTINATION include)
+if(NOT ${PULL_OPEN62541})  # this is the default behaviour
+  install(FILES extern/open62541/include/open62541.h DESTINATION include)
+endif (NOT ${PULL_OPEN62541})  # this is the default behaviour

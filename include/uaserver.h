@@ -58,6 +58,8 @@ private:
     volatile OpcUa_Boolean* m_runningFlag;
 
     void runThread();
+
+    unsigned int m_endpointPortNumber;
 };
 
 #endif /* OPEN62541_COMPAT_INCLUDE_UASERVER_H_ */

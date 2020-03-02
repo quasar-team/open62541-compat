@@ -47,6 +47,13 @@ UaServer::~UaServer()
     // TODO: what if still running?
 }
 
+static void
+newAsyncOperation (UA_Server *server)
+{
+    LOG(Log::WRN) << "New async operation was scheduled!!!!";
+}
+
+
 void UaServer::start()
 {
     if (!m_runningFlag)
@@ -56,6 +63,7 @@ void UaServer::start()
         throw std::runtime_error("UA_Server_new failed");
     UA_ServerConfig* config = UA_Server_getConfig(m_server);
     UA_ServerConfig_setMinimal(config, 4841, nullptr);
+    config->asyncOperationNotifyCallback = newAsyncOperation;
     m_nodeManager->linkServer(m_server);
     m_nodeManager->afterStartUp();
 

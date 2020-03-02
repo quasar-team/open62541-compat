@@ -141,7 +141,7 @@ void UaServer::setServerConfig(
      if (!matched)
          throw std::runtime_error("Can't parse UaEndpoint/Url, note it should look like 'opc.tcp://[NodeName]:4841' perhaps with different port number, yours is '"+endpointUrl+"'");
      unsigned int endpointUrlPort = boost::lexical_cast<unsigned int>(matchResults["port"]);
-     LOG(Log::INF) << "From your ServerConfig.xml loaded endpoint port number: " << endpointUrlPort;
+     LOG(Log::INF) << "From your [" << configurationFile.toUtf8() << "] loaded endpoint port number: " << endpointUrlPort;
      m_endpointPortNumber = endpointUrlPort;
 #endif
 }

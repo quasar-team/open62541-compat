@@ -28,6 +28,12 @@
 
 #include <LogIt.h>
 
+#ifdef HAS_SERVERCONFIG_LOADER
+#include <ServerConfig.hxx>
+#include <boost/regex.hpp>
+#include <boost/lexical_cast.hpp>
+#endif // HAS_SERVERCONFIG_LOADER
+
 #define OPEN62541_COMPAT_LOG_AND_THROW(EXCEPTION_TYPE, MSG) \
     { \
     LOG(Log::ERR) << MSG; \
@@ -37,7 +43,8 @@
 UaServer::UaServer() :
 m_server(nullptr),
 m_nodeManager(nullptr),
-m_runningFlag(nullptr)
+m_runningFlag(nullptr),
+m_endpointPortNumber(4841)
 {
 
 }
@@ -55,7 +62,7 @@ void UaServer::start()
     if (!m_server)
         throw std::runtime_error("UA_Server_new failed");
     UA_ServerConfig* config = UA_Server_getConfig(m_server);
-    UA_ServerConfig_setMinimal(config, 4841, nullptr);
+    UA_ServerConfig_setMinimal(config, m_endpointPortNumber, nullptr);
     m_nodeManager->linkServer(m_server);
     m_nodeManager->afterStartUp();
 
@@ -101,8 +108,42 @@ void UaServer::setServerConfig(
         const UaString& configurationFile,
         const UaString& applicationPath)
 {
-    LOG(Log::INF) << "Note: with open62541 backend, there isn't (yet) XML configuration loading. Assuming hardcoded server settings (endpoint's port, etc.)";
+#ifndef HAS_SERVERCONFIG_LOADER
+    LOG(Log::INF) << "Note: you built open62541-compat without configuration loading (option SERVERCONFIG_LOADER). So loading of ServerConfig.xml is not supported. Assuming hardcoded server settings (endpoint's port, etc.)";
     //! With open62541 1.0, it is the UA_Server that holds the config.
+#else // HAS_SERVERCONFIG_LOADER is defined, means the user wants the option
+    std::unique_ptr< ::ServerConfig::OpcServerConfig > serverConfig;
+     try
+     {
+         serverConfig = ServerConfig::OpcServerConfig_ (configurationFile.toUtf8());
+     }
+     catch (xsd::cxx::tree::parsing<char> &exception)
+     {
+         LOG(Log::ERR) << "ServerConfig loader: failed when trying to open the file, with general error message: " << exception.what();
+         for( const xsd::cxx::tree::error<char> &error : exception.diagnostics() )
+         {
+             LOG(Log::ERR) << "ServerConfig: Problem at " << error.id() << ":" << error.line() << ": " << error.message();
+         }
+         throw std::runtime_error("ServerConfig: failed to load ServerConfig. The exact problem description should have been logged.");
+
+     }
+     // minimum one endpoint is guaranteed by the XSD, but in case user declared more, refuse to continue
+     // TODO: implement multiple endpoints
+     const ServerConfig::UaServerConfig& uaServerConfig = serverConfig->UaServerConfig();
+     if (uaServerConfig.UaEndpoint().size() > 1)
+     {
+         throw std::runtime_error("No support for multiple UaEndpoints yet, simplify your ServerConfig.xml");
+     }
+     boost::regex endpointUrlRegex("^opc\\.tcp:\\/\\/\\[NodeName\\]:(?<port>\\d+)$");
+     boost::smatch matchResults;
+     std::string endpointUrl (uaServerConfig.UaEndpoint()[0].Url() );
+     bool matched = boost::regex_match( endpointUrl, matchResults, endpointUrlRegex );
+     if (!matched)
+         throw std::runtime_error("Can't parse UaEndpoint/Url, note it should look like 'opc.tcp://[NodeName]:4841' perhaps with different port number, yours is '"+endpointUrl+"'");
+     unsigned int endpointUrlPort = boost::lexical_cast<unsigned int>(matchResults["port"]);
+     LOG(Log::INF) << "From your [" << configurationFile.toUtf8() << "] loaded endpoint port number: " << endpointUrlPort;
+     m_endpointPortNumber = endpointUrlPort;
+#endif
 }
 
 void UaServer::stop ()

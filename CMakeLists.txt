@@ -33,7 +33,7 @@ message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [
 SET (OPEN62541_VERSION "v1.0" CACHE STRING "Which open62541 commit/tag/branch to take")
 option (UA_ENABLE_AMALGAMATION "Whether open62541 should amalgamate" ON )
 option (UA_ENABLE_METHODCALLS  "Whether open62541 should have methods enabled" ON )
-
+option (SERVERCONFIG_LOADER    "Whether we should support ServerConfig.xml loading, resembling UA-SDK" OFF )
 
 if(${PULL_OPEN62541})
         function ( fetch_open62541 )
@@ -91,6 +91,18 @@ if(${PULL_OPEN62541})  # this is not default
 endif(${PULL_OPEN62541})
 
 add_definitions(-DNOMINMAX)  # doesn't include windows' min() and max() which break std c++ code. Should be neutral to non-windows code.
+
+if(SERVERCONFIG_LOADER)
+	add_custom_command(
+        OUTPUT ${PROJECT_BINARY_DIR}/ServerConfig.cxx ${PROJECT_BINARY_DIR}/ServerConfig.hxx
+        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+        COMMAND xsdcxx cxx-tree --namespace-map http://cern.ch/quasar/ServerConfig=ServerConfig --output-dir ${PROJECT_BINARY_DIR} --std c++11 ${PROJECT_SOURCE_DIR}/xsd/ServerConfig.xsd
+        DEPENDS xsd/ServerConfig.xsd
+    )
+    include_directories( ${PROJECT_BINARY_DIR} )
+    set(SRCS ${SRCS} ${PROJECT_BINARY_DIR}/ServerConfig.cxx)
+    add_definitions(-DHAS_SERVERCONFIG_LOADER)
+endif(SERVERCONFIG_LOADER)
 
 if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )

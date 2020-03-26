@@ -23,6 +23,7 @@ public:
 
 	UaByteString( const int len, OpcUa_Byte* data);
 	UaByteString( const UaByteString& other);
+	UaByteString( const UA_ByteString& other);
 
 	~UaByteString ();
 
@@ -31,9 +32,12 @@ public:
 
 	void setByteString (const int len, OpcUa_Byte *Data);
 
+	void copyTo(UaByteString* other) const;
+
 	UA_ByteString* impl() const { return m_impl; }
 private:
 
+	void release();
 	UA_ByteString * m_impl;
 
 };

@@ -142,6 +142,8 @@ class UaVariant
   OpcUa_StatusCode toFloatArray( UaFloatArray& out ) const;
   OpcUa_StatusCode toDoubleArray( UaDoubleArray& out ) const;
   OpcUa_StatusCode toStringArray( UaStringArray& out) const;
+  OpcUa_StatusCode toByteStringArray( UaByteStringArray& out) const;
+  OpcUa_StatusCode toVariantArray( UaVariantArray& out) const;
 
   // copy-To has a signature with UaVariant however it should be the stack type. This is best effort compat we can get at the moment. (pnikiel)
   UaStatus copyTo ( UaVariant* to ) const { *to = UaVariant( *m_impl ); return OpcUa_Good; }

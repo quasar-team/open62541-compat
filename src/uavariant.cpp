@@ -716,6 +716,11 @@ OpcUa_StatusCode UaVariant::toStringArray( UaStringArray& out) const
     return this->toArray<UA_String, UaStringArray>( &UA_TYPES[UA_TYPES_STRING], out );
 }
 
+OpcUa_StatusCode UaVariant::toByteStringArray( UaByteStringArray& out) const
+{
+    return this->toArray<UA_ByteString, UaByteStringArray>( &UA_TYPES[UA_TYPES_BYTESTRING], out );
+}
+
 UaStatus UaVariant::copyTo ( UA_Variant* to) const
 {
     return UA_Variant_copy(m_impl, to);

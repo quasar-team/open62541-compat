@@ -415,6 +415,23 @@ void UaVariant::setStringArray(
 
 }
 
+void UaVariant::setByteStringArray(
+        UaByteStringArray& input,
+        OpcUa_Boolean      bDetach)
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (m_impl->data != 0)
+        UA_Variant_deleteMembers( m_impl );
+    UA_ByteString* array = static_cast<UA_ByteString*> (UA_Array_new(input.size(), &UA_TYPES[UA_TYPES_BYTESTRING])) ;
+    for (unsigned int i=0; i<input.size(); ++i)
+    {
+        UaStatus status = UA_ByteString_copy( input[i].impl(), &array[i] );
+        if (!status.isGood())
+            throw std::runtime_error("UA_String_copy:"+status.toString().toUtf8());
+    }
+    UA_Variant_setArray( m_impl, array, input.size(), &UA_TYPES[UA_TYPES_BYTESTRING]);
+}
+
 UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_BOOLEAN], &out );

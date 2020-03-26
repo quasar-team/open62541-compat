@@ -106,6 +106,8 @@ class UaVariant
   void setFloatArray( UaFloatArray& val, OpcUa_Boolean bDetach = OpcUa_False);
   void setDoubleArray( UaDoubleArray& val, OpcUa_Boolean bDetach = OpcUa_False );
   void setStringArray( UaStringArray& val, OpcUa_Boolean bDetach = OpcUa_False );
+  void setByteStringArray( UaByteStringArray& val, OpcUa_Boolean bDetach = OpcUa_False );
+  void setVariantArray( UaVariantArray& val, OpcUa_Boolean bDetach = OpcUa_False );
 
   void clear () {}; // TODO:
   

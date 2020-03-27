@@ -394,25 +394,32 @@ void UaVariant::setDoubleArray(
     if (bDetach) throw std::runtime_error("value detachment not yet implemented");
     set1DArray( &UA_TYPES[UA_TYPES_DOUBLE], input );
 }
-//
+
+template<typename StackType, typename ArrayType>
+void UaVariant::set1DArrayComplexTypes(
+        const UA_DataType* dataType,
+        const ArrayType& input,
+        UA_StatusCode(*copyFunction)(const StackType* from, StackType* to))
+{
+    if (m_impl->data != 0)
+        UA_Variant_deleteMembers( m_impl );
+    StackType* array = static_cast<StackType*> (UA_Array_new(input.size(), dataType)) ;
+    for (unsigned int i=0; i<input.size(); ++i)
+    {
+        UaStatus status = copyFunction( input[i].impl(), &array[i] );
+        if (!status.isGood())
+            throw std::runtime_error("copy function failed: "+status.toString().toUtf8());
+    }
+    UA_Variant_setArray( m_impl, array, input.size(), dataType);
+}
+
 void UaVariant::setStringArray(
         UaStringArray &    input,
         OpcUa_Boolean      bDetach
     )
 {
     if (bDetach) throw std::runtime_error("value detachment not yet implemented");
-    if (m_impl->data != 0)
-        UA_Variant_deleteMembers( m_impl );
-    /* Hate void* but hey, it seems open62541 way. */
-    UA_String* array = static_cast<UA_String*> (UA_Array_new(input.size(), &UA_TYPES[UA_TYPES_STRING])) ;
-    for (unsigned int i=0; i<input.size(); ++i)
-    {
-        UaStatus status = UA_String_copy( input[i].impl(), &array[i] );
-        if (!status.isGood())
-            throw std::runtime_error("UA_String_copy:"+status.toString().toUtf8());
-    }
-    UA_Variant_setArray( m_impl, array, input.size(), &UA_TYPES[UA_TYPES_STRING]);
-
+    this->set1DArrayComplexTypes(&UA_TYPES[UA_TYPES_STRING], input, &UA_String_copy);
 }
 
 void UaVariant::setByteStringArray(
@@ -420,16 +427,15 @@ void UaVariant::setByteStringArray(
         OpcUa_Boolean      bDetach)
 {
     if (bDetach) throw std::runtime_error("value detachment not yet implemented");
-    if (m_impl->data != 0)
-        UA_Variant_deleteMembers( m_impl );
-    UA_ByteString* array = static_cast<UA_ByteString*> (UA_Array_new(input.size(), &UA_TYPES[UA_TYPES_BYTESTRING])) ;
-    for (unsigned int i=0; i<input.size(); ++i)
-    {
-        UaStatus status = UA_ByteString_copy( input[i].impl(), &array[i] );
-        if (!status.isGood())
-            throw std::runtime_error("UA_String_copy:"+status.toString().toUtf8());
-    }
-    UA_Variant_setArray( m_impl, array, input.size(), &UA_TYPES[UA_TYPES_BYTESTRING]);
+    this->set1DArrayComplexTypes(&UA_TYPES[UA_TYPES_BYTESTRING], input, &UA_ByteString_copy);
+}
+
+void UaVariant::setVariantArray(
+        UaVariantArray& input,
+        OpcUa_Boolean bDetach)
+{
+    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    this->set1DArrayComplexTypes(&UA_TYPES[UA_TYPES_VARIANT], input, &UA_Variant_copy);
 }
 
 UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
@@ -719,6 +725,11 @@ OpcUa_StatusCode UaVariant::toStringArray( UaStringArray& out) const
 OpcUa_StatusCode UaVariant::toByteStringArray( UaByteStringArray& out) const
 {
     return this->toArray<UA_ByteString, UaByteStringArray>( &UA_TYPES[UA_TYPES_BYTESTRING], out );
+}
+
+OpcUa_StatusCode UaVariant::toVariantArray( UaVariantArray& out) const
+{
+    return this->toArray<UA_Variant, UaVariantArray>( &UA_TYPES[UA_TYPES_VARIANT], out );
 }
 
 UaStatus UaVariant::copyTo ( UA_Variant* to) const

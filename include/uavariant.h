@@ -166,6 +166,12 @@ class UaVariant
   template<typename ArrayType>
   void set1DArray( const UA_DataType* dataType, const ArrayType& input );
 
+  template<typename StackType, typename ArrayType>
+  void set1DArrayComplexTypes(
+          const UA_DataType* dataType,
+          const ArrayType& input,
+          UA_StatusCode(*copyFunction)(const StackType* from, StackType* to));
+
   //! Will convert stored value to a simple type, if possible
   template<typename T>
     UaStatus toSimpleType( const UA_DataType* targetDataType, T* out ) const;

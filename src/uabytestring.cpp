@@ -20,26 +20,30 @@ UaByteString::UaByteString ()
 	UA_ByteString_init(m_impl);
 }
 
-UaByteString::UaByteString( const int length, OpcUa_Byte* data)
+UaByteString::UaByteString( const UA_ByteString& other):
+        UaByteString()
 {
-	m_impl = UA_ByteString_new();
-	if (!m_impl)
-		throw alloc_error();
-	UA_ByteString_init(m_impl);
+    UaStatus status = UA_ByteString_copy(&other, m_impl);
+    if (!status.isGood())
+        throw std::runtime_error("UA_ByteString_copy failed: " + status.toString().toUtf8());
+}
 
+UaByteString::UaByteString( const int length, const OpcUa_Byte* data):
+        UaByteString()
+{
 	try
 	{
 		setByteString( length, data );
 	}
 	catch ( alloc_error &e)
 	{
-		UA_ByteString_delete(m_impl);
-		throw e;
+	    release();
+		throw;
 	}
-
 }
 
-UaByteString::UaByteString( const UaByteString& other )
+UaByteString::UaByteString( const UaByteString& other ):
+        UaByteString()
 {
     other.copyTo(this);
 }
@@ -49,10 +53,17 @@ UaByteString::~UaByteString ()
 	release();
 	if (m_impl)
 		UA_ByteString_delete( m_impl );
-	m_impl = 0;
+	m_impl = nullptr;
 }
 
-void UaByteString::setByteString (const int len, OpcUa_Byte *data)
+UaByteString& UaByteString::operator= (const UaByteString& other)
+{
+    release();
+    other.copyTo(this);
+    return *this;
+}
+
+void UaByteString::setByteString (const int len, const OpcUa_Byte *data)
 {
 	release();
 	if (len>0)

@@ -21,16 +21,19 @@ public:
 	// a byte-string of length 0
 	UaByteString ();
 
-	UaByteString( const int len, OpcUa_Byte* data);
+	UaByteString( const int len, const OpcUa_Byte* data);
 	UaByteString( const UaByteString& other);
 	UaByteString( const UA_ByteString& other);
 
 	~UaByteString ();
 
+	UaByteString& operator= (const UaByteString& other);
+	bool operator== (const UaByteString& other) const;
+
 	OpcUa_Int32 length() const;
 	const OpcUa_Byte* data() const { return m_impl->data; }
 
-	void setByteString (const int len, OpcUa_Byte *Data);
+	void setByteString (const int len, const OpcUa_Byte *Data);
 
 	void copyTo(UaByteString* other) const;
 

@@ -76,9 +76,26 @@
                             <xs:simpleType>
                                 <xs:restriction base="xs:string">
                                     <xs:enumeration
-                                        value="http://opcfoundation.org/UA/SecurityPolicy#None"></xs:enumeration>
+                                        value="http://opcfoundation.org/UA/SecurityPolicy#None">
+                                    </xs:enumeration>
                                     <xs:enumeration
-                                        value="http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15"></xs:enumeration>
+                                        value="http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15">
+                                    </xs:enumeration>
+                                    <xs:enumeration
+                                        value="http://opcfoundation.org/UA/SecurityPolicy#Basic256">
+                                    </xs:enumeration>
+                                    <xs:enumeration
+                                        value="http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256">
+                                    </xs:enumeration>
+                                    <xs:enumeration
+                                        value="http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep">
+                                    </xs:enumeration>
+                                    <xs:enumeration
+                                        value="http://opcfoundation.org/UA/SecurityPolicy#PubSub_Aes128_CTR">
+                                    </xs:enumeration>
+                                    <xs:enumeration
+                                        value="http://opcfoundation.org/UA/SecurityPolicy#PubSub_Aes256_CTR">
+                                    </xs:enumeration>
                                 </xs:restriction>
                             </xs:simpleType>
                         </xs:element>

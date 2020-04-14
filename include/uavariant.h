@@ -106,6 +106,8 @@ class UaVariant
   void setFloatArray( UaFloatArray& val, OpcUa_Boolean bDetach = OpcUa_False);
   void setDoubleArray( UaDoubleArray& val, OpcUa_Boolean bDetach = OpcUa_False );
   void setStringArray( UaStringArray& val, OpcUa_Boolean bDetach = OpcUa_False );
+  void setByteStringArray( UaByteStringArray& val, OpcUa_Boolean bDetach = OpcUa_False );
+  void setVariantArray( UaVariantArray& val, OpcUa_Boolean bDetach = OpcUa_False );
 
   void clear () {}; // TODO:
   
@@ -140,6 +142,8 @@ class UaVariant
   OpcUa_StatusCode toFloatArray( UaFloatArray& out ) const;
   OpcUa_StatusCode toDoubleArray( UaDoubleArray& out ) const;
   OpcUa_StatusCode toStringArray( UaStringArray& out) const;
+  OpcUa_StatusCode toByteStringArray( UaByteStringArray& out) const;
+  OpcUa_StatusCode toVariantArray( UaVariantArray& out) const;
 
   // copy-To has a signature with UaVariant however it should be the stack type. This is best effort compat we can get at the moment. (pnikiel)
   UaStatus copyTo ( UaVariant* to ) const { *to = UaVariant( *m_impl ); return OpcUa_Good; }
@@ -161,6 +165,12 @@ class UaVariant
 
   template<typename ArrayType>
   void set1DArray( const UA_DataType* dataType, const ArrayType& input );
+
+  template<typename StackType, typename ArrayType>
+  void set1DArrayComplexTypes(
+          const UA_DataType* dataType,
+          const ArrayType& input,
+          UA_StatusCode(*copyFunction)(const StackType* from, StackType* to));
 
   //! Will convert stored value to a simple type, if possible
   template<typename T>

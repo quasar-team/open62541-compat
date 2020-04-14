@@ -57,6 +57,8 @@ typedef UaCompatArray<OpcUa_UInt64>  UaUInt64Array;
 typedef UaCompatArray<OpcUa_Float>   UaFloatArray;
 typedef UaCompatArray<OpcUa_Double>  UaDoubleArray;
 typedef UaCompatArray<UaString>      UaStringArray;
+typedef UaCompatArray<UaByteString>  UaByteStringArray;
+typedef UaCompatArray<UaVariant>     UaVariantArray;
 
 class UaByteArray: public UaCompatArray<OpcUa_Byte>
 /* UaByteArray has bit more on top of a regular array ... */

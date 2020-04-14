@@ -18,6 +18,89 @@
             </b></td>
         </tr>
         <tr>
+          <td valign="top">1.2.2<br>
+            <font size="-2">(14-Apr-2020)</font><br>
+          </td>
+          <td valign="top">
+            <meta http-equiv="content-type" content="text/html;
+              charset=UTF-8">
+            <h2 style="margin: 30px 0px 0px; padding: 0px; color:
+              rgb(23, 43, 77); font-weight: 500; text-transform: none;
+              font-size: 20px; line-height: 1.5; letter-spacing:
+              -0.008em; font-family: -apple-system, BlinkMacSystemFont,
+              &quot;Segoe UI&quot;, Roboto, Oxygen, Ubuntu, &quot;Fira
+              Sans&quot;, &quot;Droid Sans&quot;, &quot;Helvetica
+              Neue&quot;, sans-serif; font-style: normal;
+              font-variant-ligatures: normal; font-variant-caps: normal;
+              orphans: 2; text-align: start; text-indent: 0px;
+              white-space: normal; widows: 2; word-spacing: 0px;
+              -webkit-text-stroke-width: 0px; background-color: rgb(255,
+              255, 255); text-decoration-style: initial;
+              text-decoration-color: initial;">Task</h2>
+            <ul style="margin: 10px 0px 0px; color: rgb(23, 43, 77);
+              font-family: -apple-system, BlinkMacSystemFont,
+              &quot;Segoe UI&quot;, Roboto, Oxygen, Ubuntu, &quot;Fira
+              Sans&quot;, &quot;Droid Sans&quot;, &quot;Helvetica
+              Neue&quot;, sans-serif; font-size: 14px; font-style:
+              normal; font-variant-ligatures: normal; font-variant-caps:
+              normal; font-weight: 400; letter-spacing: normal; orphans:
+              2; text-align: start; text-indent: 0px; text-transform:
+              none; white-space: normal; widows: 2; word-spacing: 0px;
+              -webkit-text-stroke-width: 0px; background-color: rgb(255,
+              255, 255); text-decoration-style: initial;
+              text-decoration-color: initial;">
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-1214"
+                  style="color: rgb(0, 82, 204); text-decoration: none;">OPCUA-1214</a>]
+                - Minimalistic (i.e. cheap) ServerConfig.xml loader for
+                open62541</li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-1795"
+                  style="color: rgb(0, 82, 204); text-decoration: none;">OPCUA-1795</a>]
+                - open62541-compat: add UaVariant converters for arrays
+                of Variants and ByteStrings</li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-1796"
+                  style="color: rgb(0, 82, 204); text-decoration: none;">OPCUA-1796</a>]
+                - open62541-compat: in Travis CI, run tests.</li>
+            </ul>
+            <h2 style="margin: 30px 0px 0px; padding: 0px; color:
+              rgb(23, 43, 77); font-weight: 500; text-transform: none;
+              font-size: 20px; line-height: 1.5; letter-spacing:
+              -0.008em; font-family: -apple-system, BlinkMacSystemFont,
+              &quot;Segoe UI&quot;, Roboto, Oxygen, Ubuntu, &quot;Fira
+              Sans&quot;, &quot;Droid Sans&quot;, &quot;Helvetica
+              Neue&quot;, sans-serif; font-style: normal;
+              font-variant-ligatures: normal; font-variant-caps: normal;
+              orphans: 2; text-align: start; text-indent: 0px;
+              white-space: normal; widows: 2; word-spacing: 0px;
+              -webkit-text-stroke-width: 0px; background-color: rgb(255,
+              255, 255); text-decoration-style: initial;
+              text-decoration-color: initial;">Improvement</h2>
+            <ul style="margin: 10px 0px 0px; color: rgb(23, 43, 77);
+              font-family: -apple-system, BlinkMacSystemFont,
+              &quot;Segoe UI&quot;, Roboto, Oxygen, Ubuntu, &quot;Fira
+              Sans&quot;, &quot;Droid Sans&quot;, &quot;Helvetica
+              Neue&quot;, sans-serif; font-size: 14px; font-style:
+              normal; font-variant-ligatures: normal; font-variant-caps:
+              normal; font-weight: 400; letter-spacing: normal; orphans:
+              2; text-align: start; text-indent: 0px; text-transform:
+              none; white-space: normal; widows: 2; word-spacing: 0px;
+              -webkit-text-stroke-width: 0px; background-color: rgb(255,
+              255, 255); text-decoration-style: initial;
+              text-decoration-color: initial;">
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-1740"
+                  style="color: rgb(0, 82, 204); text-decoration: none;">OPCUA-1740</a>]
+                - Some improvements to ServerConfig.xsd loader</li>
+            </ul>
+          </td>
+          <td valign="top">1.0 (bundled)</td>
+          <td valign="top">There is a new CMake variable:
+            SERVERCONFIG_LOADER which defaults to OFF.<br>
+            When ON, open62541-compat will built with ServerConfig.xml
+            loader which at the moment<br>
+            permits to change endpoint TCP/IP port in the runtime (via
+            the ServerConfig.xml)<br>
+          </td>
+        </tr>
+        <tr>
           <td valign="top">1.2.1<br>
           </td>
           <td valign="top">
@@ -65,6 +148,7 @@
             can be deployed independently from quasar, that is e.g. via
             "make install". The profit of it is <a
               href="https://its.cern.ch/jira/browse/OPCUA-1632">explained
+
               here</a>.<br>
           </td>
         </tr>

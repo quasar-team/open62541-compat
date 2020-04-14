@@ -17,7 +17,7 @@ script:
      cd open62541-compat ;
      mkdir build ;
      cd build ;
-     cmake -DSTANDALONE_BUILD=ON -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install_cc7.cmake -DSKIP_TESTS=ON ../ ;
+     cmake -DSTANDALONE_BUILD=ON -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install_cc7.cmake ../ ;
      make ;
-     exit ;
+     ./test/open62541-compat-Test ;
      "

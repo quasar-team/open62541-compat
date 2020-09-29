@@ -64,5 +64,6 @@ private:
  
 };
 
+typedef UaNode UaReferenceLists;
 
 #endif // __UANODE_H__

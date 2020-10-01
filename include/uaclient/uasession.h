@@ -71,6 +71,16 @@ struct CallOut
 
 };
 
+struct BrowseContext
+{
+   /* TODO */
+};
+
+struct UaReferenceDescriptions
+{
+  /* TODO */
+};
+
 namespace UaClient
 {
 
@@ -122,6 +132,14 @@ public:
             ServiceSettings &       serviceSettings,
             OpcUa_Boolean           deleteSubscriptions
         );
+
+
+    UaStatus browse(
+            ServiceSettings&         serviceSettings,
+            const UaNodeId&          nodeToBrowse,
+            const BrowseContext&     browseContext,
+            UaByteString&            continuationPoint,
+            UaReferenceDescriptions& referenceDescriptions);
 
 
 private:

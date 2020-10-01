@@ -328,5 +328,40 @@ UaStatus UaSession::call(
 
 }
 
+UaStatus UaSession::browse(
+        ServiceSettings&         serviceSettings,
+        const UaNodeId&          nodeToBrowse,
+        const BrowseContext&     browseContext,
+        UaByteString&            continuationPoint,
+        UaReferenceDescriptions& referenceDescriptions)
+{
+    UA_BrowseDescription browseDescription;
+    UA_BrowseDescription_init (&browseDescription);
+    nodeToBrowse.copyTo(&browseDescription.nodeId);
+    browseDescription.browseDirection = UA_BROWSEDIRECTION_FORWARD; // Piotr: unsure here if we should have both?
+    //TODO: certainly we're missing a few fields, at least.
+
+    UA_BrowseRequest browseRequest;
+    UA_BrowseRequest_init(&browseRequest);
+
+    browseRequest.nodesToBrowseSize = 1;
+    browseRequest.nodesToBrowse = &browseDescription;
+
+    UA_BrowseResponse browseResponse;
+    UA_BrowseResponse_init(&browseResponse);
+
+    browseResponse = UA_Client_Service_browse(m_client, browseRequest);
+
+    if (!UaStatus(browseResponse.responseHeader.serviceResult).isGood())
+    {
+        return browseResponse.responseHeader.serviceResult;
+    }
+
+    LOG(Log::INF) << "After browse (was OK): resultsSize= " << browseResponse.resultsSize;
+
+    return browseResponse.responseHeader.serviceResult;
+
+}
+
 
 }

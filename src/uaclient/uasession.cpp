@@ -357,7 +357,21 @@ UaStatus UaSession::browse(
         return browseResponse.responseHeader.serviceResult;
     }
 
+    for (int i=0; i < browseResponse.resultsSize; i++)
+    {
+      UA_BrowseResult& br = browseResponse.results[i];
+      LOG(Log::DBG) << "Browse result " << i << ", references size: " << br.referencesSize;
+      for (int j=0; j < br.referencesSize; j++)
+      {
+        UA_ReferenceDescription& rd = br.references[j];
+        LOG(Log::DBG) << "... ref #" << j << ": typeId=" << UaNodeId(rd.referenceTypeId).toString().toUtf8();
+      }
+
+    }
+
     LOG(Log::INF) << "After browse (was OK): resultsSize= " << browseResponse.resultsSize;
+
+
 
     return browseResponse.responseHeader.serviceResult;
 

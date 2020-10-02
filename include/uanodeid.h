@@ -44,8 +44,9 @@ public:
     UaNodeId ( const UaString& stringAddress, int ns);
     UaNodeId ( int numericAddress, int ns);
     UaNodeId ( const UaNodeId& other);
+    UaNodeId ( const UA_NodeId& other);
     ~UaNodeId ();
-    
+
     const UaNodeId& operator=(const UaNodeId & other);
     unsigned int namespaceIndex() const { return m_impl.namespaceIndex; }
     UaString identifierString() const;

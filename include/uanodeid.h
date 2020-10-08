@@ -29,20 +29,25 @@
 //TODO: switch for amalgamation
 #include <open62541.h>
 
-//FIXME: should base on open62541 constants
 enum IdentifierType
 {
-    OpcUa_IdentifierType_Numeric,
-    OpcUa_IdentifierType_String
+    OpcUa_IdentifierType_Numeric = UA_NodeIdType::UA_NODEIDTYPE_NUMERIC,
+    OpcUa_IdentifierType_String = UA_NodeIdType::UA_NODEIDTYPE_STRING
 };
 
 
 class UaNodeId
 {
 public:
+	//! Create the default - ns=0, numeric=0 - as per UA-SDK.
+	UaNodeId ();
+
     //! Create string address
     UaNodeId ( const UaString& stringAddress, int ns);
+
+    //! Create numeric address
     UaNodeId ( int numericAddress, int ns);
+
     UaNodeId ( const UaNodeId& other);
     UaNodeId ( const UA_NodeId& other);
     ~UaNodeId ();

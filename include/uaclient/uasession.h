@@ -76,10 +76,6 @@ struct BrowseContext
    /* TODO */
 };
 
-struct UaReferenceDescriptions
-{
-  /* TODO */
-};
 
 namespace UaClient
 {

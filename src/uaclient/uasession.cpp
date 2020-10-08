@@ -343,7 +343,7 @@ UaStatus UaSession::browse(
     browseRequest.nodesToBrowseSize = 1;
     browseRequest.nodesToBrowse = UA_BrowseDescription_new();
     nodeToBrowse.copyTo(&browseRequest.nodesToBrowse[0].nodeId);
-    browseRequest.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_BOTH; // forward and reverse references included.
+    browseRequest.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_FORWARD; // TODO!! Important!! This setting should come from BrowseContext! It might be an oversimplificatrion.
     browseRequest.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL;
 
     UA_BrowseResponse browseResponse;

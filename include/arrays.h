@@ -36,5 +36,6 @@ typedef UaCompatArray<UaStatus> UaStatusCodes;
 typedef UaCompatArray<WriteValue> UaWriteValues;
 typedef UaCompatArray<OpcUa_StatusCode> UaStatusCodeArray;
 typedef UaCompatArray<UaVariant> UaVariantArray;
+typedef UaCompatArray<ReferenceDescription> UaReferenceDescriptions;
 
 #endif /* OPEN62541_COMPAT_INCLUDE_ARRAYS_H_ */

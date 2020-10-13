@@ -13,6 +13,11 @@
 #include <open62541_compat_common.h>
 #include <boost/lexical_cast.hpp>
 
+UaNodeId::UaNodeId ():
+	UaNodeId (0, 0) // similarly to UA-SDK
+{
+}
+
 UaNodeId::UaNodeId ( const UaString& stringAddress, int ns)
 {
     // TODO: not implemented yet in open62541
@@ -37,7 +42,13 @@ UaNodeId::UaNodeId ( const UaNodeId & other)
     UA_StatusCode status = UA_NodeId_copy( other.pimpl(), &this->m_impl );
     if (status != UA_STATUSCODE_GOOD)
         throw alloc_error();
+}
 
+/* open62541 data format -> UA-SDK data format conversion */
+UaNodeId::UaNodeId ( const UA_NodeId& other)
+{
+	UA_NodeId_init( &m_impl );
+	UA_NodeId_copy( &other, &m_impl );
 }
 
 const UaNodeId& UaNodeId::operator=(const UaNodeId & other)

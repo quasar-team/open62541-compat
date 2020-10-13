@@ -40,6 +40,11 @@ public:
         m_data.resize(n, T());
     }
 
+    void clear()
+    {
+    	m_data.clear();
+    }
+
     T& operator[](std::size_t i) { return m_data.at(i); }
     const T& operator[](std::size_t i) const { return m_data.at(i); }
 

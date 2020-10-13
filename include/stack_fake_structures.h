@@ -25,6 +25,7 @@
 #include <opcua_attributes.h>
 #include <uanodeid.h>
 #include <uadatavalue.h>
+#include <uaexpandednodeid.h>
 
 
 struct ReadValueId
@@ -49,6 +50,14 @@ struct WriteValue
     UaNodeId      NodeId;
     Attributes    AttributeId;
     DataValue     Value;
+};
+
+struct ReferenceDescription
+{
+	UaNodeId         ReferenceTypeId;
+	OpcUa_Boolean    IsForward;
+	UaExpandedNodeId NodeId;
+	UaString         BrowseName; // TODO: should be rather QualifiedName type, but keeping UaString for simplicity ...
 };
 
 #endif /* OPEN62541_COMPAT_INCLUDE_UACLIENT_STACK_FAKE_STRUCTURES_H_ */

@@ -335,17 +335,16 @@ UaStatus UaSession::browse(
         UaByteString&            continuationPoint,
         UaReferenceDescriptions& referenceDescriptions)
 {
-    UA_BrowseDescription browseDescription;
-    UA_BrowseDescription_init (&browseDescription);
-    nodeToBrowse.copyTo(&browseDescription.nodeId);
-    browseDescription.browseDirection = UA_BROWSEDIRECTION_FORWARD; // Piotr: unsure here if we should have both?
-    //TODO: certainly we're missing a few fields, at least.
+	referenceDescriptions.clear();
 
     UA_BrowseRequest browseRequest;
     UA_BrowseRequest_init(&browseRequest);
 
     browseRequest.nodesToBrowseSize = 1;
-    browseRequest.nodesToBrowse = &browseDescription;
+    browseRequest.nodesToBrowse = UA_BrowseDescription_new();
+    nodeToBrowse.copyTo(&browseRequest.nodesToBrowse[0].nodeId);
+    browseRequest.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_FORWARD; // TODO!! Important!! This setting should come from BrowseContext! It might be an oversimplificatrion.
+    browseRequest.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL;
 
     UA_BrowseResponse browseResponse;
     UA_BrowseResponse_init(&browseResponse);
@@ -353,30 +352,50 @@ UaStatus UaSession::browse(
     browseResponse = UA_Client_Service_browse(m_client, browseRequest);
     UaStatus serviceResult (browseResponse.responseHeader.serviceResult);
 
-    if (!serviceResult.isGood())
+    UaStatus finalStatusCode = serviceResult; // might change into more specific one when parsing results
+
+    if (UaStatus(browseResponse.responseHeader.serviceResult).isGood())
     {
-    	LOG(Log::ERR) << "Error: the open62541 browse call on node " << nodeToBrowse.toString().toUtf8() << " returned bad status: " << serviceResult.toString().toUtf8();
-        return serviceResult;
+    	LOG(Log::INF) << "After browse (was OK): resultsSize= " << browseResponse.resultsSize;
+    	if (browseResponse.resultsSize == 1) // we asked to browse one node, so should get one result.
+    	{
+    		UA_BrowseResult& br = browseResponse.results[0];
+    		LOG(Log::DBG) << "Browse result 0, references size: " << br.referencesSize;
+    		referenceDescriptions.create(br.referencesSize);
+    		for (int j=0; j < br.referencesSize; j++)
+    		{
+    			UA_ReferenceDescription& rd = br.references[j];
+    			LOG(Log::DBG) << "... ref #" << j << ": " <<
+    					"isForward=" << rd.isForward << ", " <<
+						"refTypeId=" << UaNodeId(rd.referenceTypeId).toString().toUtf8() << ", " <<
+						"browseName=" << UaString(rd.browseName.name).toUtf8();
+    			// populate the UA-SDK counter-part now
+    			referenceDescriptions[j].IsForward = rd.isForward;
+    			referenceDescriptions[j].ReferenceTypeId = rd.referenceTypeId;
+    			referenceDescriptions[j].NodeId = UaExpandedNodeId(
+    					rd.nodeId.nodeId,
+						rd.nodeId.namespaceUri,
+						rd.nodeId.serverIndex);
+    			referenceDescriptions[j].BrowseName = rd.browseName.name;
+    		}
+    	}
+    	else
+    	{
+    		LOG(Log::ERR) << "Unexpected result size: " << browseResponse.resultsSize << ", expected was 1";
+    		finalStatusCode = UA_STATUSCODE_BADUNKNOWNRESPONSE;
+    	}
+
+    }
+    else
+    {
+    	LOG(Log::ERR) << "Error: the open62541 browse call on node " << nodeToBrowse.toString().toUtf8() <<
+    			" returned bad status: " << serviceResult.toString().toUtf8();
     }
 
-    for (int i=0; i < browseResponse.resultsSize; i++)
-    {
-      UA_BrowseResult& br = browseResponse.results[i];
-      LOG(Log::DBG) << "Browse result " << i << ", references size: " << br.referencesSize;
-      for (int j=0; j < br.referencesSize; j++)
-      {
-        UA_ReferenceDescription& rd = br.references[j];
-        LOG(Log::DBG) << "... ref #" << j << ": typeId=" << UaNodeId(rd.referenceTypeId).toString().toUtf8();
-      }
+    UA_BrowseRequest_clear(&browseRequest);
+    UA_BrowseResponse_clear(&browseResponse);
 
-    }
-
-    LOG(Log::INF) << "After browse (was OK): resultsSize= " << browseResponse.resultsSize;
-
-
-
-    return browseResponse.responseHeader.serviceResult;
-
+    return finalStatusCode;
 }
 
 

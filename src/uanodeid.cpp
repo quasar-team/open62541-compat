@@ -13,6 +13,11 @@
 #include <open62541_compat_common.h>
 #include <boost/lexical_cast.hpp>
 
+UaNodeId::UaNodeId ():
+	UaNodeId (0, 0) // similarly to UA-SDK
+{
+}
+
 UaNodeId::UaNodeId ( const UaString& stringAddress, int ns)
 {
     // TODO: not implemented yet in open62541

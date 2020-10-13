@@ -351,10 +351,12 @@ UaStatus UaSession::browse(
     UA_BrowseResponse_init(&browseResponse);
 
     browseResponse = UA_Client_Service_browse(m_client, browseRequest);
+    UaStatus serviceResult (browseResponse.responseHeader.serviceResult);
 
-    if (!UaStatus(browseResponse.responseHeader.serviceResult).isGood())
+    if (!serviceResult.isGood())
     {
-        return browseResponse.responseHeader.serviceResult;
+    	LOG(Log::ERR) << "Error: the open62541 browse call on node " << nodeToBrowse.toString().toUtf8() << " returned bad status: " << serviceResult.toString().toUtf8();
+        return serviceResult;
     }
 
     for (int i=0; i < browseResponse.resultsSize; i++)

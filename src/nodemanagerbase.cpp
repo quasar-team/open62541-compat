@@ -321,8 +321,8 @@ UaStatus NodeManagerBase::addPropertyNodeAndReference(
     attr.arrayDimensionsSize = 0;
     attr.displayName = *displayName.impl();
     attr.valueRank = -1; // scalar
-    //UaVariant v (111);
-    //v.copyTo(&attr.value);
+    to->value(nullptr).value()->copyTo(&attr.value);
+
 
     LOG(Log::INF) << "to=" << to->nodeId().toFullString().toUtf8() << " reftype=" << refType.toFullString().toUtf8();
 	UaStatus s =

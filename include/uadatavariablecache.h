@@ -62,6 +62,24 @@ private:
 
 };
 
+class UaPropertyCache: public UaNode
+{
+public:
+	UaPropertyCache (
+			const UaString  &name,
+			const UaNodeId  &nodeId,
+			const UaVariant &defaultValue,
+			OpcUa_Byte      accessLevel,
+			const UaString& defaultLocaleId);
 
+	virtual UaNodeId nodeId() const { return m_nodeId; }
+	virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE,0); }
+	virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Variable; }
+	virtual UaQualifiedName browseName() const { return m_browseName; }
+
+private:
+	const UaNodeId        m_nodeId;
+	const UaQualifiedName m_browseName;
+};
 
 #endif /* OPEN62541_COMPAT_INCLUDE_UADATAVARIABLECACHE_H_ */

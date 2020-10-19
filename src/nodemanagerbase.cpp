@@ -238,19 +238,12 @@ UaStatus NodeManagerBase::addObjectNodeAndReference(
 
 }
 
-UaStatus NodeManagerBase::addVariableNodeAndReference(
-    UaNode* parent,
-    UaNode* to,
-    const UaNodeId& refType)
+UaStatus NodeManagerBase::addDataVariableNodeAndReference(
+        UaNode* parent,
+		OpcUa::BaseDataVariableType* variable,
+        const UaNodeId& refType)
 {
-    UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
-    if (refType == OpcUaId_HasProperty)
-    {
-        // We don't add Properties to the Address Space when open62541-compat is in use
-        // open62541 does it differently: when you add a method, then you specify the properties
-        parent->addReferencedTarget(to, refType);
-        return OpcUa_Good;
-    }
+	UaLocalizedText displayName( "en_US", variable->browseName().unqualifiedName().toUtf8().c_str());
     UA_DataSource dateDataSource
     {
         unifiedRead,
@@ -260,12 +253,7 @@ UaStatus NodeManagerBase::addVariableNodeAndReference(
     UA_VariableAttributes_init(&attr);
     attr.description = *emptyDescription.impl();
     attr.displayName = *displayName.impl();
-    attr.dataType = to->typeDefinitionId().impl();
-    OpcUa::BaseDataVariableType *variable = dynamic_cast<OpcUa::BaseDataVariableType*>(to);
-    if (!variable)
-    {
-        throw std::logic_error("Given variable is not castable to BaseDataVariableType, sth went wrong");
-    }
+    attr.dataType = variable->typeDefinitionId().impl();
     attr.valueRank = variable->valueRank();
     attr.accessLevel = variable->accessLevel();
     UaUInt32Array arrayDimensions;
@@ -278,22 +266,79 @@ UaStatus NodeManagerBase::addVariableNodeAndReference(
     variable->value(/*session*/nullptr).value()->copyTo(&attr.value);
     UA_StatusCode s =
         UA_Server_addDataSourceVariableNode(m_server,
-                                            to->nodeId().impl(),
+                                            variable->nodeId().impl(),
                                             parent->nodeId().impl(),
                                             refType.impl(),
-                                            to->browseName().impl(),
+                                            variable->browseName().impl(),
                                             UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE ,0).impl() ,
                                             attr,
                                             dateDataSource,
-                                            static_cast<void*>(to),  // this is our nodeContext - we'll use it to map to the variable
+                                            static_cast<void*>(variable),  // this is our nodeContext - we'll use it to map to the variable
                                             nullptr
                                            );
     if (UA_STATUSCODE_GOOD == s)
     {
-        m_listNodes.push_back( to );
-        parent->addReferencedTarget( to, refType );
+        m_listNodes.push_back( variable );
+        parent->addReferencedTarget( variable, refType );
     }
     return s;
+}
+
+UaStatus NodeManagerBase::addVariableNodeAndReference(
+    UaNode* parent,
+    UaNode* to,
+    const UaNodeId& refType)
+{
+    if (dynamic_cast<UaPropertyMethodArgument*>(to))
+    {
+        // We don't add UaPropertyMethodArguments to the Address Space when open62541-compat is in use
+        // because in the open62541 such properties are directly coupled to (and created by!) methods they belong to.
+        parent->addReferencedTarget(to, refType);
+        return OpcUa_Good;
+    }
+    else if (auto* cast = dynamic_cast<UaPropertyCache*>(to))
+    {
+    	return addPropertyNodeAndReference(parent, cast, refType);
+    }
+    else if (auto* cast = dynamic_cast<OpcUa::BaseDataVariableType*>(to))
+    {
+    	return addDataVariableNodeAndReference(parent, cast, refType);
+    }
+    else
+    	throw std::logic_error("Can't add this variable: do not know what to do! Added variable address is " + to->nodeId().toString().toUtf8());
+}
+
+UaStatus NodeManagerBase::addPropertyNodeAndReference(
+    UaNode* parent,
+	UaPropertyCache* to,
+    const UaNodeId& refType)
+{
+	UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
+    UA_VariableAttributes attr;
+    UA_VariableAttributes_init(&attr);
+    attr.accessLevel = OpcUa_AccessLevels_CurrentRead;
+    attr.dataType = to->typeDefinitionId().impl();
+    attr.arrayDimensionsSize = 0;
+    attr.displayName = *displayName.impl();
+    attr.valueRank = -1; // scalar
+    //UaVariant v (111);
+    //v.copyTo(&attr.value);
+
+    LOG(Log::INF) << "to=" << to->nodeId().toFullString().toUtf8() << " reftype=" << refType.toFullString().toUtf8();
+	UaStatus s =
+			UA_Server_addVariableNode(
+					m_server,
+					to->nodeId().impl(),
+					parent->nodeId().impl(),
+					refType.impl(),
+					to->browseName().impl(),
+					to->typeDefinitionId().impl(),
+					attr,
+					/* nodeContext */ nullptr,
+					/* outNewNodeId */ nullptr);
+	if (!s.isGood())
+		throw std::runtime_error("failed to add property");
+	return s;
 }
 
 UaStatus NodeManagerBase::addMethodNodeAndReference(

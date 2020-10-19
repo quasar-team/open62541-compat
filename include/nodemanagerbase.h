@@ -26,6 +26,14 @@
 #include <uanode.h>
 #include <other.h>
 
+// forward-decls
+namespace OpcUa
+{
+class BaseDataVariableType;
+}
+
+class UaPropertyCache;
+
 class NodeManagerConfig
 {
 };
@@ -69,6 +77,14 @@ private:
     UaStatus addVariableNodeAndReference(
         UaNode* parent,
         UaNode* to,
+        const UaNodeId& refType);
+    UaStatus addDataVariableNodeAndReference(
+            UaNode* parent,
+			OpcUa::BaseDataVariableType* to,
+            const UaNodeId& refType);
+    UaStatus addPropertyNodeAndReference(
+        UaNode* parent,
+		UaPropertyCache* to,
         const UaNodeId& refType);
     UaStatus addMethodNodeAndReference(
         UaNode* parent,

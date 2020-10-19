@@ -65,5 +65,6 @@ UaPropertyCache::UaPropertyCache (
 		OpcUa_Byte      accessLevel,
 		const UaString& defaultLocaleId) :
 				m_nodeId(nodeId),
-				m_browseName(0, name)
+				m_browseName(0, name),
+				m_value(defaultValue)
 {}

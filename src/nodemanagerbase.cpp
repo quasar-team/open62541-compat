@@ -314,15 +314,9 @@ UaStatus NodeManagerBase::addPropertyNodeAndReference(
     const UaNodeId& refType)
 {
 	UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
-    UA_VariableAttributes attr;
-    UA_VariableAttributes_init(&attr);
-    attr.accessLevel = OpcUa_AccessLevels_CurrentRead;
-    attr.dataType = to->typeDefinitionId().impl();
-    attr.arrayDimensionsSize = 0;
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.displayName = *displayName.impl();
-    attr.valueRank = -1; // scalar
     to->value(nullptr).value()->copyTo(&attr.value);
-
 
     LOG(Log::INF) << "to=" << to->nodeId().toFullString().toUtf8() << " reftype=" << refType.toFullString().toUtf8();
 	UaStatus s =
@@ -332,7 +326,7 @@ UaStatus NodeManagerBase::addPropertyNodeAndReference(
 					parent->nodeId().impl(),
 					refType.impl(),
 					to->browseName().impl(),
-					to->typeDefinitionId().impl(),
+					UaNodeId(UA_NS0ID_PROPERTYTYPE, 0).impl(),
 					attr,
 					/* nodeContext */ nullptr,
 					/* outNewNodeId */ nullptr);

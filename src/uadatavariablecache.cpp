@@ -57,3 +57,14 @@ const UA_Argument& UaPropertyMethodArgument::implArgument (unsigned int index) c
 		throw std::runtime_error("wrong arg");
 	return *m_impl[index];
 }
+
+UaPropertyCache::UaPropertyCache (
+		const UaString  &name,
+		const UaNodeId  &nodeId,
+		const UaVariant &defaultValue,
+		OpcUa_Byte      accessLevel,
+		const UaString& defaultLocaleId) :
+				m_nodeId(nodeId),
+				m_browseName(0, name),
+				m_value(defaultValue)
+{}

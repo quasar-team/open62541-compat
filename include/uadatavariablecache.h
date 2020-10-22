@@ -12,7 +12,9 @@
 #include <statuscode.h>
 #include <uabasenodes.h>
 #include <simple_arrays.h>
-
+#include <uavariant.h>
+#include <uadatavalue.h>
+#include <session.h>
 
 class UaPropertyMethodArgument: public UaNode
 {
@@ -62,6 +64,26 @@ private:
 
 };
 
+class UaPropertyCache: public UaNode
+{
+public:
+	UaPropertyCache (
+			const UaString  &name,
+			const UaNodeId  &nodeId,
+			const UaVariant &defaultValue,
+			OpcUa_Byte      accessLevel,
+			const UaString& defaultLocaleId);
 
+	virtual UaNodeId nodeId() const { return m_nodeId; }
+	virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_PROPERTYTYPE,0); }
+	virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Variable; }
+	virtual UaQualifiedName browseName() const { return m_browseName; }
+	virtual UaDataValue value(Session* session) { return UaDataValue(m_value, OpcUa_Good, UaDateTime::now(), UaDateTime::now()); }
+
+private:
+	const UaNodeId        m_nodeId;
+	const UaQualifiedName m_browseName;
+	const UaVariant       m_value;
+};
 
 #endif /* OPEN62541_COMPAT_INCLUDE_UADATAVARIABLECACHE_H_ */

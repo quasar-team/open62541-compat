@@ -28,9 +28,9 @@
 
 enum OpcUa_NodeClass
 {
-    OpcUa_NodeClass_Object,
-    OpcUa_NodeClass_Variable,
-	OpcUa_NodeClass_Method
+    OpcUa_NodeClass_Object = UA_NodeClass::UA_NODECLASS_OBJECT,
+    OpcUa_NodeClass_Variable = UA_NodeClass::UA_NODECLASS_VARIABLE,
+	OpcUa_NodeClass_Method = UA_NodeClass::UA_NODECLASS_METHOD
 };
 
 

@@ -58,6 +58,9 @@ struct ReferenceDescription
 	OpcUa_Boolean    IsForward;
 	UaExpandedNodeId NodeId;
 	UaString         BrowseName; // TODO: should be rather QualifiedName type, but keeping UaString for simplicity ...
+	UaLocalizedText  DisplayName;
+	OpcUa_NodeClass  NodeClass;
+	UaExpandedNodeId TypeDefinition;
 };
 
 #endif /* OPEN62541_COMPAT_INCLUDE_UACLIENT_STACK_FAKE_STRUCTURES_H_ */

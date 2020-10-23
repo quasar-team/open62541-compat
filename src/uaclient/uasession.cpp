@@ -377,6 +377,12 @@ UaStatus UaSession::browse(
 						rd.nodeId.namespaceUri,
 						rd.nodeId.serverIndex);
     			referenceDescriptions[j].BrowseName = rd.browseName.name;
+    			referenceDescriptions[j].DisplayName = rd.displayName;
+    			referenceDescriptions[j].NodeClass = rd.nodeClass;
+    			referenceDescriptions[j].TypeDefinition = UaExpandedNodeId(
+    					rd.typeDefinition.nodeId,
+						rd.typeDefinition.namespaceUri,
+						rd.typeDefinition.serverIndex);
     		}
     	}
     	else

@@ -78,3 +78,15 @@ namespace OpcUa
 
 
 };
+
+OpcUa_NodeClass safeConvertNodeClassToSdk (UA_NodeClass nc)
+{
+	switch (nc)
+	{
+	case UA_NodeClass::UA_NODECLASS_METHOD: return OpcUa_NodeClass::OpcUa_NodeClass_Method;
+	case UA_NodeClass::UA_NODECLASS_OBJECT: return OpcUa_NodeClass::OpcUa_NodeClass_Object;
+	case UA_NodeClass::UA_NODECLASS_VARIABLE: return OpcUa_NodeClass::OpcUa_NodeClass_Variable;
+	default:
+		throw std::runtime_error("This node class is not implemented: " + std::to_string(nc) + ", improve me!");
+	}
+}

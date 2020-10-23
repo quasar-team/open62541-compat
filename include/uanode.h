@@ -23,15 +23,10 @@
 #define __UANODE_H__
 
 #include <uanodeid.h>
+#include <opcua_types.h>
+
 #include <other.h>
 #include <list>
-
-enum OpcUa_NodeClass
-{
-    OpcUa_NodeClass_Object = UA_NodeClass::UA_NODECLASS_OBJECT,
-    OpcUa_NodeClass_Variable = UA_NodeClass::UA_NODECLASS_VARIABLE,
-	OpcUa_NodeClass_Method = UA_NodeClass::UA_NODECLASS_METHOD
-};
 
 
 

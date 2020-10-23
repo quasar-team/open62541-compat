@@ -23,6 +23,7 @@
 #define OPEN62541_COMPAT_INCLUDE_UACLIENT_STACK_FAKE_STRUCTURES_H_
 
 #include <opcua_attributes.h>
+#include <opcua_types.h>
 #include <uanodeid.h>
 #include <uadatavalue.h>
 #include <uaexpandednodeid.h>
@@ -58,7 +59,6 @@ struct ReferenceDescription
 	OpcUa_Boolean    IsForward;
 	UaExpandedNodeId NodeId;
 	UaString         BrowseName; // TODO: should be rather QualifiedName type, but keeping UaString for simplicity ...
-	UaLocalizedText  DisplayName;
 	OpcUa_NodeClass  NodeClass;
 	UaExpandedNodeId TypeDefinition;
 };

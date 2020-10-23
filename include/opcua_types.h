@@ -29,4 +29,14 @@ enum OpcUa_TimestampsToReturn
     OpcUa_TimestampsToReturn_Both = UA_TIMESTAMPSTORETURN_BOTH
 };
 
+
+enum OpcUa_NodeClass
+{
+    OpcUa_NodeClass_Object = UA_NodeClass::UA_NODECLASS_OBJECT,
+    OpcUa_NodeClass_Variable = UA_NodeClass::UA_NODECLASS_VARIABLE,
+	OpcUa_NodeClass_Method = UA_NodeClass::UA_NODECLASS_METHOD
+};
+
+OpcUa_NodeClass safeConvertNodeClassToSdk (UA_NodeClass nc);
+
 #endif /* OPEN62541_COMPAT_INCLUDE_OPCUA_TYPES_H_ */

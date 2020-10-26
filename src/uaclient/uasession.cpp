@@ -377,6 +377,11 @@ UaStatus UaSession::browse(
 						rd.nodeId.namespaceUri,
 						rd.nodeId.serverIndex);
     			referenceDescriptions[j].BrowseName = rd.browseName.name;
+    			referenceDescriptions[j].NodeClass = safeConvertNodeClassToSdk(rd.nodeClass);
+    			referenceDescriptions[j].TypeDefinition = UaExpandedNodeId(
+    					rd.typeDefinition.nodeId,
+						rd.typeDefinition.namespaceUri,
+						rd.typeDefinition.serverIndex);
     		}
     	}
     	else

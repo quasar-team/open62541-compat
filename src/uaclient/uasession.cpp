@@ -70,9 +70,14 @@ UaStatus UaSession::connect(
     UA_ClientConfig* clientConfig = UA_Client_getConfig(m_client);
     UA_ClientConfig_setDefault(clientConfig);
     clientConfig->timeout = connectInfo.internalServiceCallTimeout;
+    clientConfig->secureChannelLifeTime = connectInfo.nSecureChannelLifetime;
+    clientConfig->requestedSessionTimeout = connectInfo.nSessionTimeout;
     // TODO @Piotr note that many possibly important settings are not carried
     // from UA-SDK API to open6! At the moment, only timeout is.
-
+    LOG(Log::DBG) << "Will connect to OPC-UA endpoint [" << endpoint.toUtf8().c_str() << "], " <<
+    		"serviceCallTimeout=[" << clientConfig->timeout << "] ms, " <<
+			"requestedSessionTimeout=[" << clientConfig->requestedSessionTimeout << "] ms, " <<
+			"secureChannelLifeTime=[" << clientConfig->secureChannelLifeTime << "] ms";
     UaStatus status = UA_Client_connect(m_client, endpoint.toUtf8().c_str());
     if(! status.isGood())
     {
@@ -81,6 +86,7 @@ UaStatus UaSession::connect(
         LOG(Log::ERR) << "in UaSession::connect() " << status.toString().toUtf8();
         return status;
     }
+
     return OpcUa_Good;
 }
 

@@ -41,15 +41,20 @@ struct SessionSecurityInfo
 
 struct SessionConnectInfo
 {
-    UaString    sApplicationName;
-    UaString    sApplicationUri;
-    UaString    sProductUri;
-    OpcUa_UInt32  internalServiceCallTimeout;
+    UaString     sApplicationName;
+    UaString     sApplicationUri;
+    UaString     sProductUri;
+    OpcUa_UInt32 internalServiceCallTimeout;
+    OpcUa_UInt32 nSecureChannelLifetime;
+    OpcUa_Double nSessionTimeout;
+
     SessionConnectInfo() :
         sApplicationName("OPC-UA client"),
         sApplicationUri("OPC-UA client"),
         sProductUri("OPC-UA client"),
-        internalServiceCallTimeout(5000)
+        internalServiceCallTimeout(5000),
+		nSecureChannelLifetime(60/*minutes*/ * 60/*seconds per minute*/ * 1000 /* the unit is miliseconds */ ),
+		nSessionTimeout(60/*minutes*/ * 60/*seconds per minute*/ * 1000 /* the unit is miliseconds */)
     {}
 };
 

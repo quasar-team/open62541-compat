@@ -57,7 +57,7 @@ void UaServer::start()
         throw std::logic_error ("Establish the 'running flag' first");
     m_server = UA_Server_new();
     if (!m_server)
-        throw std::runtime_error("UA_Server_new failed");
+        OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "UA_Server_new failed");
     UA_ServerConfig* config = UA_Server_getConfig(m_server);
     UA_ServerConfig_setMinimal(config, m_endpointPortNumber, nullptr);
     m_nodeManager->linkServer(m_server);
@@ -121,7 +121,7 @@ void UaServer::setServerConfig(
          {
              LOG(Log::ERR) << "ServerConfig: Problem at " << error.id() << ":" << error.line() << ": " << error.message();
          }
-         throw std::runtime_error("ServerConfig: failed to load ServerConfig. The exact problem description should have been logged.");
+         OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "ServerConfig: failed to load ServerConfig. The exact problem description should have been logged.");
 
      }
      // minimum one endpoint is guaranteed by the XSD, but in case user declared more, refuse to continue
@@ -129,14 +129,14 @@ void UaServer::setServerConfig(
      const ServerConfig::UaServerConfig& uaServerConfig = serverConfig->UaServerConfig();
      if (uaServerConfig.UaEndpoint().size() > 1)
      {
-         throw std::runtime_error("No support for multiple UaEndpoints yet, simplify your ServerConfig.xml");
+         OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "No support for multiple UaEndpoints yet, simplify your ServerConfig.xml");
      }
      boost::regex endpointUrlRegex("^opc\\.tcp:\\/\\/\\[NodeName\\]:(?<port>\\d+)$");
      boost::smatch matchResults;
      std::string endpointUrl (uaServerConfig.UaEndpoint()[0].Url() );
      bool matched = boost::regex_match( endpointUrl, matchResults, endpointUrlRegex );
      if (!matched)
-         throw std::runtime_error("Can't parse UaEndpoint/Url, note it should look like 'opc.tcp://[NodeName]:4841' perhaps with different port number, yours is '"+endpointUrl+"'");
+         OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "Can't parse UaEndpoint/Url, note it should look like 'opc.tcp://[NodeName]:4841' perhaps with different port number, yours is '"+endpointUrl+"'");
      unsigned int endpointUrlPort = boost::lexical_cast<unsigned int>(matchResults["port"]);
      LOG(Log::INF) << "From your [" << configurationFile.toUtf8() << "] loaded endpoint port number: " << endpointUrlPort;
      m_endpointPortNumber = endpointUrlPort;

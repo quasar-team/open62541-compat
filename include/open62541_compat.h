@@ -47,7 +47,11 @@
 #include <opcua_basedatavariabletype.h>
 
 
-
+#define OPEN62541_COMPAT_LOG_AND_THROW(EXCEPTION_TYPE, MSG) \
+    { \
+    LOG(Log::ERR) << MSG; \
+    throw EXCEPTION_TYPE (MSG); \
+    }
 
 
 class IOManager

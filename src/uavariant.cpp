@@ -496,7 +496,9 @@ UaStatus UaVariant::toDouble( OpcUa_Double& out ) const
 UaStatus UaVariant::toByteString( UaByteString& out) const
 {
 	if (m_impl->type != &UA_TYPES[UA_TYPES_BYTESTRING])
-		throw std::runtime_error("not-a-bytestring-and-conversion-not-implemented");
+		OPEN62541_COMPAT_LOG_AND_THROW(
+				std::runtime_error,
+				"not-a-bytestring-and-conversion-not-implemented");
 
 	UA_ByteString * encapsulated = static_cast<UA_ByteString*> (m_impl->data); // nasty, isn't it?
 
@@ -508,7 +510,7 @@ UaStatus UaVariant::toByteString( UaByteString& out) const
 UaString UaVariant::toString( ) const
 {
     if (m_impl->type != &UA_TYPES[UA_TYPES_STRING])
-        throw std::runtime_error("not-a-string");
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "not-a-string");
     return UaString( (UA_String*)m_impl->data );
 }
 

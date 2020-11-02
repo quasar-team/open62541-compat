@@ -25,6 +25,7 @@
 
 #include <uaserver.h>
 #include <statuscode.h>
+#include <open62541_compat.h>
 
 #include <LogIt.h>
 
@@ -34,11 +35,7 @@
 #include <boost/lexical_cast.hpp>
 #endif // HAS_SERVERCONFIG_LOADER
 
-#define OPEN62541_COMPAT_LOG_AND_THROW(EXCEPTION_TYPE, MSG) \
-    { \
-    LOG(Log::ERR) << MSG; \
-    throw EXCEPTION_TYPE (MSG); \
-    }
+
 
 UaServer::UaServer() :
 m_server(nullptr),

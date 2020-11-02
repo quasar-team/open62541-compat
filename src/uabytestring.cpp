@@ -11,6 +11,7 @@
 #include <statuscode.h>
 
 #include <open62541_compat_common.h>
+#include <open62541_compat.h>
 
 UaByteString::UaByteString ()
 {
@@ -25,7 +26,7 @@ UaByteString::UaByteString( const UA_ByteString& other):
 {
     UaStatus status = UA_ByteString_copy(&other, m_impl);
     if (!status.isGood())
-        throw std::runtime_error("UA_ByteString_copy failed: " + status.toString().toUtf8());
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "UA_ByteString_copy failed: " + status.toString().toUtf8());
 }
 
 UaByteString::UaByteString( const int length, const OpcUa_Byte* data):
@@ -82,7 +83,7 @@ void UaByteString::setByteString (const int len, const OpcUa_Byte *data)
 OpcUa_Int32 UaByteString::length() const
 {
     if (m_impl->length > std::numeric_limits<OpcUa_Int32>::max() )
-        throw std::runtime_error("UaByteString::length() open62541 size too big for UASDK API");
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "UaByteString::length() open62541 size too big for UASDK API")
     else
         return m_impl->length;
 }
@@ -92,7 +93,7 @@ void UaByteString::copyTo(UaByteString* other) const
     other->release();
     UaStatus status = UA_ByteString_copy(m_impl, other->m_impl);
     if (!status.isGood())
-        throw std::runtime_error("UA_ByteString_copy failed with: " + status.toString().toUtf8());
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "UA_ByteString_copy failed with: " + status.toString().toUtf8());
 }
 
 void UaByteString::release()

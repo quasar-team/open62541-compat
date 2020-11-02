@@ -52,13 +52,13 @@ public:
     );
     virtual OpcUa_Byte accessLevel() const { return m_accessLevel; }
     virtual UaDataValue value(Session* session) ;
-    virtual UaQualifiedName browseName() const { return m_browseName; }
-    virtual UaNodeId typeDefinitionId() const { return m_typeDefinitionId; }
+    virtual UaQualifiedName browseName() const override { return m_browseName; }
+    virtual UaNodeId typeDefinitionId() const override { return m_typeDefinitionId; }
     virtual void setDataType( const UaNodeId& typeref ) { m_typeDefinitionId = typeref; }
     virtual void setValueRank (OpcUa_Int32 valueRank) { m_valueRank = valueRank; }
     virtual void setArrayDimensions( const UaUInt32Array &arrayDimensions ) {m_arrayDimensions = arrayDimensions;}
-    virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Variable; }
-    virtual UaNodeId nodeId() const { return m_nodeId; }
+    virtual OpcUa_NodeClass nodeClass() const override { return OpcUa_NodeClass_Variable; }
+    virtual UaNodeId nodeId() const override { return m_nodeId; }
     virtual OpcUa_Int32 valueRank() const { return m_valueRank; }
     virtual void arrayDimensions(UaUInt32Array &    arrayDimensions )   const { arrayDimensions = m_arrayDimensions;}
     const UA_DataValue* valueImpl() const { return m_currentValue.impl(); }

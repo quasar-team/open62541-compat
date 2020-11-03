@@ -87,6 +87,7 @@ OpcUa_NodeClass safeConvertNodeClassToSdk (UA_NodeClass nc)
 	case UA_NodeClass::UA_NODECLASS_OBJECT: return OpcUa_NodeClass::OpcUa_NodeClass_Object;
 	case UA_NodeClass::UA_NODECLASS_VARIABLE: return OpcUa_NodeClass::OpcUa_NodeClass_Variable;
 	default:
-		throw std::runtime_error("This node class is not implemented: " + std::to_string(nc) + ", improve me!");
+		OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error,
+				"This node class is not implemented: " + std::to_string(nc) + ", improve me!");
 	}
 }

@@ -29,6 +29,7 @@
 #include <uadatavalue.h>
 #include <LogIt.h>
 #include <managed_uaarray.h>
+#include <open62541_compat.h>
 
 namespace UaClientSdk
 {
@@ -132,7 +133,8 @@ UaStatus UaSession::read(
     if (nodesToRead.size() != 1)
     {
 
-        throw std::runtime_error("UaSession::read(): So far only single reads are supported, but you requested a read of "
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error,
+    			"UaSession::read(): So far only single reads are supported, but you requested a read of "
                 +boost::lexical_cast<std::string>(nodesToRead.size())+" items. FIXME!");
         // FIXME:implement this
     }
@@ -140,7 +142,8 @@ UaStatus UaSession::read(
     LOG(Log::TRC) << "UaSession::read( nodesToRead=[" << nodesToRead[0].NodeId.toString().toUtf8() << "] )";
 
     if (nodesToRead.size() != values.size())
-        throw std::runtime_error("Size of provided value holders (is "
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error,
+    			"Size of provided value holders (is "
                 +boost::lexical_cast<std::string>(values.size())
                 +" must match size of provided nodesToRead (is "
                 +boost::lexical_cast<std::string>(nodesToRead.size()));
@@ -215,7 +218,8 @@ UaStatus UaSession::write(
     std::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
     if (nodesToWrite.size() != 1)
     {
-        throw std::runtime_error("UaSession::write(): So far only single writes are supported, but you requested a write of "
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error,
+    			"UaSession::write(): So far only single writes are supported, but you requested a write of "
                 +boost::lexical_cast<std::string>(nodesToWrite.size())+" items. FIXME!");
         // FIXME:implement this
     }
@@ -316,7 +320,8 @@ UaStatus UaSession::call(
 
     // there should be at least one callResponse result because we called one method
     if (callResponse.resultsSize != 1)
-        throw std::logic_error("One method called so expected one call response, but instead got: "+boost::lexical_cast<std::string>(callResponse.resultsSize)+", open62541 error?");
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::logic_error,
+    			"One method called so expected one call response, but instead got: "+boost::lexical_cast<std::string>(callResponse.resultsSize)+", open62541 error?");
 
     UA_CallMethodResult *result = &callResponse.results[0];
 

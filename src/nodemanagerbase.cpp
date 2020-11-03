@@ -305,7 +305,9 @@ UaStatus NodeManagerBase::addVariableNodeAndReference(
     	return addDataVariableNodeAndReference(parent, cast, refType);
     }
     else
-    	throw std::logic_error("Can't add this variable: do not know what to do! Added variable address is " + to->nodeId().toString().toUtf8());
+    	OPEN62541_COMPAT_LOG_AND_THROW(
+    			std::logic_error,
+				"Can't add this variable: no obvious handler in existing open62541 interface, do not know what to do! Requested variable address is " + to->nodeId().toString().toUtf8());
 }
 
 UaStatus NodeManagerBase::addPropertyNodeAndReference(
@@ -331,7 +333,9 @@ UaStatus NodeManagerBase::addPropertyNodeAndReference(
 					/* nodeContext */ nullptr,
 					/* outNewNodeId */ nullptr);
 	if (!s.isGood())
-		throw std::runtime_error("failed to add property");
+		OPEN62541_COMPAT_LOG_AND_THROW(
+				std::runtime_error,
+				"failed to add property " + to->nodeId().toString().toUtf8() + " because: " + s.toString().toUtf8());
 	return s;
 }
 
@@ -405,7 +409,9 @@ UaStatus NodeManagerBase::addMethodNodeAndReference(
             nullptr);
     if (! s.isGood())
     {
-        throw std::runtime_error("failed to add the method node:"+std::string(s.toString().toUtf8()));
+    	OPEN62541_COMPAT_LOG_AND_THROW(
+    			std::runtime_error,
+				"failed to add the method node:"+std::string(s.toString().toUtf8()));
     }
     m_listNodes.push_back( to );
     parent->addReferencedTarget( to, refType );
@@ -429,7 +435,9 @@ UaStatus NodeManagerBase::addNodeAndReference(
     case OpcUa_NodeClass_Method:
         return addMethodNodeAndReference(parent, to, refType);
     default:
-        throw std::runtime_error("Adding this nodeClass to the address space is not yet implemented by open62541-compat.");
+        OPEN62541_COMPAT_LOG_AND_THROW(
+			std::runtime_error,
+			"Adding this nodeClass to the address space is not yet implemented by open62541-compat.");
     }
 }
 
@@ -451,7 +459,8 @@ void NodeManagerBase::linkServer( UA_Server* server )
     m_server = server;
     const int nsIndex = UA_Server_addNamespace( m_server, m_nameSpaceUri.c_str() );
     if (nsIndex != 2)
-        throw std::logic_error("UA_Server_addNamespace: namespace added to nsindex different than 2. ");
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::logic_error,
+    			"UA_Server_addNamespace: namespace added to nsindex different than 2 (it must be 2 for the moment due to simplified compatibility with UA-SDK");
 }
 
 UaStatus NodeManagerBase::afterStartUp()

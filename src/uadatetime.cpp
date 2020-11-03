@@ -21,9 +21,11 @@
  */
 
 
-#include <uadatetime.h>
 #include <boost/format.hpp>
 #include <boost/date_time.hpp>
+
+#include <uadatetime.h>
+#include <open62541_compat.h>
 
 UaDateTime::UaDateTime()
 :m_dateTime{0}
@@ -69,7 +71,7 @@ UaDateTime UaDateTime::fromString(const UaString& dateTimeString)
 
                 if(unixEpoch.is_not_a_date_time())
                 {
-                        throw std::runtime_error("Failed to calculate unix epoch, cannot parse any dates from strings.");
+                        OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "Failed to calculate unix epoch, cannot parse any dates from strings.");
                 }
 
                 boost::posix_time::ptime dateTime;
@@ -79,7 +81,7 @@ UaDateTime UaDateTime::fromString(const UaString& dateTimeString)
                 {
                         std::ostringstream err;
                         err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"]";
-                        throw std::runtime_error(err.str());
+                        OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, err.str());
                 }
 
                 const UA_DateTime open62541DateTime = UA_DATETIME_UNIX_EPOCH + ((dateTime - unixEpoch).total_seconds() * UA_DATETIME_SEC);
@@ -89,13 +91,13 @@ UaDateTime UaDateTime::fromString(const UaString& dateTimeString)
         {
                 std::ostringstream err;
                 err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"], error: "<<e.what();
-                throw std::runtime_error(err.str());
+                OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, err.str());
         }
         catch(...)
         {
                 std::ostringstream err;
                 err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"], unknown error";
-                throw std::runtime_error(err.str());
+                OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, err.str());
         }
 }
 

@@ -5,10 +5,10 @@
  *      Author: pnikiel
  */
 
-
-#include <uadatavariablecache.h>
 #include <stdexcept>
 
+#include <uadatavariablecache.h>
+#include <open62541_compat.h>
 
 
 UaPropertyMethodArgument::UaPropertyMethodArgument  (
@@ -54,7 +54,9 @@ OpcUa_StatusCode UaPropertyMethodArgument::setArgument 	(
 const UA_Argument& UaPropertyMethodArgument::implArgument (unsigned int index) const
 {
 	if (index >= m_numberArguments)
-		throw std::runtime_error("wrong arg");
+		OPEN62541_COMPAT_LOG_AND_THROW(
+				std::out_of_range,
+				"asking for argument past initially declared range");
 	return *m_impl[index];
 }
 

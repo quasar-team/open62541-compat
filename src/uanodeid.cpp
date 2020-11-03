@@ -11,6 +11,7 @@
 
 #include <uanodeid.h>
 #include <open62541_compat_common.h>
+#include <open62541_compat.h>
 #include <boost/lexical_cast.hpp>
 
 UaNodeId::UaNodeId ():
@@ -72,14 +73,14 @@ IdentifierType UaNodeId::identifierType() const
     {
     case UA_NODEIDTYPE_NUMERIC: return IdentifierType::OpcUa_IdentifierType_Numeric;
     case UA_NODEIDTYPE_STRING: return IdentifierType::OpcUa_IdentifierType_String;
-    default: throw std::runtime_error("not-implemented");
+    default: OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "not-implemented");
     }
 }
 
 UaString UaNodeId::identifierString() const
 {
     if (m_impl.identifierType != UA_NODEIDTYPE_STRING)
-        throw std::runtime_error("asking for identifierString from a non-string identifier!");
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "asking for identifierString from a non-string identifier!");
     return UaString( &m_impl.identifier.string );
 
 }
@@ -123,7 +124,7 @@ void UaNodeId::copyTo( UaNodeId* other) const
 void UaNodeId::copyTo( UA_NodeId* other) const
 {
     if (!other)
-        throw std::runtime_error("passed a nullptr");
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "passed a nullptr");
     UA_StatusCode status = UA_NodeId_copy( &this->m_impl, other );
     if (status != UA_STATUSCODE_GOOD)
         throw alloc_error();

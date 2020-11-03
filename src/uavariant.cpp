@@ -36,7 +36,7 @@ UA_Variant* UaVariant::createAndCheckOpen62541Variant()
 	UA_Variant* open62541Variant = UA_Variant_new();
     if (!open62541Variant)
     {
-    	throw std::runtime_error("UA_Variant_new() returned 0");
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "UA_Variant_new() returned 0");
     }
     return open62541Variant;
 }
@@ -117,7 +117,7 @@ UaVariant::UaVariant( const UaVariant& other)
 {
     const UaStatus status = UA_Variant_copy( other.m_impl, this->m_impl );
     if (! status.isGood())
-      throw std::runtime_error(std::string("UA_Variant_copy failed:") + status.toString().toUtf8() );
+      OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, std::string("UA_Variant_copy failed:") + status.toString().toUtf8() );
     LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
@@ -134,7 +134,7 @@ void UaVariant::operator= (const UaVariant &other)
     
     const UaStatus status = UA_Variant_copy( other.m_impl, this->m_impl );
     if (! status.isGood())
-        throw std::runtime_error(std::string("UA_Variant_copy failed:") + status.toString().toUtf8() );
+        OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, std::string("UA_Variant_copy failed:") + status.toString().toUtf8() );
 
     LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
@@ -159,7 +159,7 @@ UaVariant::UaVariant( const UA_Variant& other )
 {
     UA_StatusCode status = UA_Variant_copy( &other, this->m_impl );
     if (status != UA_STATUSCODE_GOOD)
-        throw std::runtime_error("UA_Variant_copy failed");
+        OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "UA_Variant_copy failed");
 }
 
 UaVariant::~UaVariant()
@@ -178,7 +178,7 @@ OpcUaType UaVariant::type() const
 	if (m_impl->type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC)
 	    return static_cast<OpcUaType>( m_impl->type->typeId.identifier.numeric );
 	else
-	    throw std::runtime_error("No support for non built-in data types in variant! (yet)");
+	    OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "No support for non built-in data types in variant! (yet)");
     }
 }
 
@@ -197,7 +197,7 @@ void UaVariant::reuseOrRealloc( const UA_DataType* dataType, void* newValue )
         // TODO throw when failed
         UaStatus status = UA_Variant_setScalarCopy( m_impl, newValue, dataType);
         if (! status.isGood())
-	  throw std::runtime_error(std::string("UA_Variant_setScalarCopy failed:")+status.toString().toUtf8());
+	  OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, std::string("UA_Variant_setScalarCopy failed:")+status.toString().toUtf8());
     }
 }
 
@@ -272,7 +272,7 @@ void UaVariant::setString( const UaString& value )
 void UaVariant::setByteString( const UaByteString& value, bool detach)
 {
 	if (detach)
-		throw std::runtime_error("value detachment not yet implemented");
+		OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     if (m_impl->data != 0)
         UA_Variant_deleteMembers( m_impl );
     UA_StatusCode s = UA_Variant_setScalarCopy( m_impl, value.impl(), &UA_TYPES[UA_TYPES_BYTESTRING]);
@@ -301,7 +301,7 @@ void UaVariant::setBoolArray(
         OpcUa_Boolean       bDetach
     )
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     set1DArray( &UA_TYPES[UA_TYPES_BOOLEAN], input );
 }
 
@@ -310,7 +310,7 @@ void UaVariant::setSByteArray(
         OpcUa_Boolean       bDetach
     )
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     set1DArray( &UA_TYPES[UA_TYPES_SBYTE], input );
 }
 
@@ -319,7 +319,7 @@ void UaVariant::setByteArray(
         OpcUa_Boolean       bDetach
     )
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     set1DArray( &UA_TYPES[UA_TYPES_BYTE], input );
 }
 
@@ -328,7 +328,7 @@ void UaVariant::setInt16Array(
         OpcUa_Boolean       bDetach
     )
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     set1DArray( &UA_TYPES[UA_TYPES_INT16], input );
 }
 
@@ -337,7 +337,7 @@ void UaVariant::setUInt16Array(
         OpcUa_Boolean       bDetach
     )
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     set1DArray( &UA_TYPES[UA_TYPES_UINT16], input );
 }
 
@@ -346,7 +346,7 @@ void UaVariant::setInt32Array(
         OpcUa_Boolean       bDetach
     )
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     set1DArray( &UA_TYPES[UA_TYPES_INT32], input );
 }
 
@@ -355,7 +355,7 @@ void UaVariant::setUInt32Array(
         OpcUa_Boolean       bDetach
     )
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     set1DArray( &UA_TYPES[UA_TYPES_UINT32], input );
 }
 
@@ -364,7 +364,7 @@ void UaVariant::setInt64Array(
         OpcUa_Boolean       bDetach
     )
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     set1DArray( &UA_TYPES[UA_TYPES_INT64], input );
 }
 
@@ -373,7 +373,7 @@ void UaVariant::setUInt64Array(
         OpcUa_Boolean       bDetach
     )
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     set1DArray( &UA_TYPES[UA_TYPES_UINT64], input );
 }
 
@@ -382,7 +382,7 @@ void UaVariant::setFloatArray(
         OpcUa_Boolean       bDetach
     )
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     set1DArray( &UA_TYPES[UA_TYPES_FLOAT], input );
 }
 
@@ -391,7 +391,7 @@ void UaVariant::setDoubleArray(
         OpcUa_Boolean       bDetach
     )
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     set1DArray( &UA_TYPES[UA_TYPES_DOUBLE], input );
 }
 
@@ -408,7 +408,7 @@ void UaVariant::set1DArrayComplexTypes(
     {
         UaStatus status = copyFunction( input[i].impl(), &array[i] );
         if (!status.isGood())
-            throw std::runtime_error("copy function failed: "+status.toString().toUtf8());
+            OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "copy function failed: "+status.toString().toUtf8());
     }
     UA_Variant_setArray( m_impl, array, input.size(), dataType);
 }
@@ -418,7 +418,7 @@ void UaVariant::setStringArray(
         OpcUa_Boolean      bDetach
     )
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     this->set1DArrayComplexTypes(&UA_TYPES[UA_TYPES_STRING], input, &UA_String_copy);
 }
 
@@ -426,7 +426,7 @@ void UaVariant::setByteStringArray(
         UaByteStringArray& input,
         OpcUa_Boolean      bDetach)
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     this->set1DArrayComplexTypes(&UA_TYPES[UA_TYPES_BYTESTRING], input, &UA_ByteString_copy);
 }
 
@@ -434,7 +434,7 @@ void UaVariant::setVariantArray(
         UaVariantArray& input,
         OpcUa_Boolean bDetach)
 {
-    if (bDetach) throw std::runtime_error("value detachment not yet implemented");
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     this->set1DArrayComplexTypes(&UA_TYPES[UA_TYPES_VARIANT], input, &UA_Variant_copy);
 }
 
@@ -496,7 +496,9 @@ UaStatus UaVariant::toDouble( OpcUa_Double& out ) const
 UaStatus UaVariant::toByteString( UaByteString& out) const
 {
 	if (m_impl->type != &UA_TYPES[UA_TYPES_BYTESTRING])
-		throw std::runtime_error("not-a-bytestring-and-conversion-not-implemented");
+		OPEN62541_COMPAT_LOG_AND_THROW(
+				std::runtime_error,
+				"not-a-bytestring-and-conversion-not-implemented");
 
 	UA_ByteString * encapsulated = static_cast<UA_ByteString*> (m_impl->data); // nasty, isn't it?
 
@@ -508,7 +510,7 @@ UaStatus UaVariant::toByteString( UaByteString& out) const
 UaString UaVariant::toString( ) const
 {
     if (m_impl->type != &UA_TYPES[UA_TYPES_STRING])
-        throw std::runtime_error("not-a-string");
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "not-a-string");
     return UaString( (UA_String*)m_impl->data );
 }
 

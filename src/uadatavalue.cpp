@@ -13,6 +13,7 @@
 
 #include <LogIt.h>
 #include <uadatavalue.h>
+#include <open62541_compat.h>
 
 UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime ):
 m_lock()
@@ -20,7 +21,9 @@ m_lock()
     m_lock.clear();
     m_impl = UA_DataValue_new ();
     if (!m_impl)
-        throw std::runtime_error( "UA_DataValue_new returned 0" );
+    	OPEN62541_COMPAT_LOG_AND_THROW(
+    			std::runtime_error,
+				"UA_DataValue_new returned null ptr" );
 
     // TODO: duplicate the variant
     UA_Variant_copy( variant.impl(), &m_impl->value );

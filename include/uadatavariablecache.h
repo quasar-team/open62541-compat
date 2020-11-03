@@ -34,10 +34,10 @@ public:
 			OpcUa_UInt32   numberOfArguments,
 			ArgumentType   argumentType);
 
-	virtual UaNodeId nodeId() const { return m_nodeId; }
-	virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE,0); }
-	virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Variable; }
-	virtual UaQualifiedName browseName() const { return m_browseName; }
+	virtual UaNodeId nodeId() const override { return m_nodeId; }
+	virtual UaNodeId typeDefinitionId() const override { return UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE,0); }
+	virtual OpcUa_NodeClass nodeClass() const override { return OpcUa_NodeClass_Variable; }
+	virtual UaQualifiedName browseName() const override { return m_browseName; }
 
 	OpcUa_StatusCode setArgument 	(
 			OpcUa_UInt32  	        index,
@@ -74,10 +74,10 @@ public:
 			OpcUa_Byte      accessLevel,
 			const UaString& defaultLocaleId);
 
-	virtual UaNodeId nodeId() const { return m_nodeId; }
-	virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_PROPERTYTYPE,0); }
-	virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Variable; }
-	virtual UaQualifiedName browseName() const { return m_browseName; }
+	virtual UaNodeId nodeId() const override { return m_nodeId; }
+	virtual UaNodeId typeDefinitionId() const override { return UaNodeId(UA_NS0ID_PROPERTYTYPE,0); }
+	virtual OpcUa_NodeClass nodeClass() const override { return OpcUa_NodeClass_Variable; }
+	virtual UaQualifiedName browseName() const override { return m_browseName; }
 	virtual UaDataValue value(Session* session) { return UaDataValue(m_value, OpcUa_Good, UaDateTime::now(), UaDateTime::now()); }
 
 private:

@@ -49,10 +49,10 @@ namespace OpcUa
 
 	    );
 
-	virtual UaQualifiedName browseName() const { return m_browseName; }
-	virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Object; }
-	virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEOBJECTTYPE,0); }
-	virtual UaNodeId nodeId() const { return m_nodeId; }
+	virtual UaQualifiedName browseName() const override { return m_browseName; }
+	virtual OpcUa_NodeClass nodeClass() const override { return OpcUa_NodeClass_Object; }
+	virtual UaNodeId typeDefinitionId() const override { return UaNodeId(UA_NS0ID_BASEOBJECTTYPE,0); }
+	virtual UaNodeId nodeId() const override { return m_nodeId; }
 
 	virtual UaStatus beginCall (
 			MethodManagerCallback *callback,
@@ -79,11 +79,11 @@ namespace OpcUa
 
 
 
-    	virtual OpcUa_NodeClass nodeClass() const { return OpcUa_NodeClass_Method; }
-    	virtual UaQualifiedName browseName() const { return m_browseName; }
+    	virtual OpcUa_NodeClass nodeClass() const override { return OpcUa_NodeClass_Method; }
+    	virtual UaQualifiedName browseName() const override { return m_browseName; }
     	// FIXME
-    	virtual UaNodeId typeDefinitionId() const { return UaNodeId(UA_NS0ID_BASEOBJECTTYPE,0); }
-    	virtual UaNodeId nodeId() const { return m_nodeId; }
+    	virtual UaNodeId typeDefinitionId() const override { return UaNodeId(UA_NS0ID_BASEOBJECTTYPE,0); }
+    	virtual UaNodeId nodeId() const override { return m_nodeId; }
     private:
     	UaNodeId m_nodeId;
     	UaQualifiedName m_browseName;

@@ -765,9 +765,17 @@ void UaVariant::arrayDimensions( UaUInt32Array &arrayDimensions ) const
     }
 }
 
-OpcUa_Boolean UaVariant::isArray ()   const
+OpcUa_Boolean UaVariant::isArray () const
 {
     return !this->isScalarValue();
+}
+
+OpcUa_Int32 UaVariant::arraySize () const
+{
+	if (!this->isArray())
+		return -1;
+	else
+		return m_impl->arrayLength;
 }
 
 OpcUa_Boolean UaVariant::isEmpty () const

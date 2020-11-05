@@ -153,6 +153,9 @@ class UaVariant
 
   void arrayDimensions( UaUInt32Array &arrayDimensions ) const;
   OpcUa_Boolean isArray  () const;
+  /* For 1D arrays it should return the actual size. For higher dimensions it should return total number of elements. */
+  OpcUa_Int32 arraySize () const;
+
   OpcUa_Boolean isEmpty () const;
 
  private:

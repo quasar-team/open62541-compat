@@ -320,7 +320,7 @@ UaStatus NodeManagerBase::addPropertyNodeAndReference(
     attr.displayName = *displayName.impl();
     to->value(nullptr).value()->copyTo(&attr.value);
 
-    LOG(Log::INF) << "to=" << to->nodeId().toFullString().toUtf8() << " reftype=" << refType.toFullString().toUtf8();
+    LOG(Log::TRC) << "to=" << to->nodeId().toFullString().toUtf8() << " reftype=" << refType.toFullString().toUtf8();
 	UaStatus s =
 			UA_Server_addVariableNode(
 					m_server,

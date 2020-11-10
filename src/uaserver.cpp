@@ -145,7 +145,8 @@ void UaServer::setServerConfig(
 
 void UaServer::stop ()
 {
-    m_open62541_server_thread.join();
+	if (m_open62541_server_thread.joinable()) // if start() was never called, or server failed to start, the thread is not joinable...
+		m_open62541_server_thread.join();
     delete m_nodeManager;
     m_nodeManager = nullptr;
     UA_Server_delete(m_server);

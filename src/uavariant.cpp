@@ -438,6 +438,12 @@ void UaVariant::setVariantArray(
     this->set1DArrayComplexTypes(&UA_TYPES[UA_TYPES_VARIANT], input, &UA_Variant_copy);
 }
 
+void UaVariant::clear ()
+{
+	destroyOpen62541Variant(m_impl);
+	m_impl = createAndCheckOpen62541Variant();
+}
+
 UaStatus UaVariant::toBool( OpcUa_Boolean& out ) const
 {
     return toSimpleType( &UA_TYPES[UA_TYPES_BOOLEAN], &out );

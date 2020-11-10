@@ -109,7 +109,7 @@ class UaVariant
   void setByteStringArray( UaByteStringArray& val, OpcUa_Boolean bDetach = OpcUa_False );
   void setVariantArray( UaVariantArray& val, OpcUa_Boolean bDetach = OpcUa_False );
 
-  void clear () {}; // TODO:
+  void clear ();
   
 
 

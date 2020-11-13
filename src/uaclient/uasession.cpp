@@ -373,7 +373,7 @@ UaStatus UaSession::browse(
     		UA_BrowseResult& br = browseResponse.results[0];
     		LOG(Log::DBG) << "Browse result 0, references size: " << br.referencesSize;
     		referenceDescriptions.create(br.referencesSize);
-    		for (int j=0; j < br.referencesSize; j++)
+    		for (size_t j=0; j < br.referencesSize; j++)
     		{
     			UA_ReferenceDescription& rd = br.references[j];
     			LOG(Log::DBG) << "... ref #" << j << ": " <<

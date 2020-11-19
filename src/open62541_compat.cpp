@@ -86,6 +86,11 @@ OpcUa_NodeClass safeConvertNodeClassToSdk (UA_NodeClass nc)
 	case UA_NodeClass::UA_NODECLASS_METHOD: return OpcUa_NodeClass::OpcUa_NodeClass_Method;
 	case UA_NodeClass::UA_NODECLASS_OBJECT: return OpcUa_NodeClass::OpcUa_NodeClass_Object;
 	case UA_NodeClass::UA_NODECLASS_VARIABLE: return OpcUa_NodeClass::OpcUa_NodeClass_Variable;
+	case UA_NodeClass::UA_NODECLASS_OBJECTTYPE: return OpcUa_NodeClass::OpcUa_NodeClass_ObjectType;
+	case UA_NodeClass::UA_NODECLASS_VARIABLETYPE: return OpcUa_NodeClass::OpcUa_NodeClass_VariableType;
+	case UA_NodeClass::UA_NODECLASS_REFERENCETYPE: return OpcUa_NodeClass::OpcUa_NodeClass_ReferenceType;
+	case UA_NodeClass::UA_NODECLASS_DATATYPE: return OpcUa_NodeClass::OpcUa_NodeClass_DataType;
+	case UA_NodeClass::UA_NODECLASS_VIEW: return OpcUa_NodeClass::OpcUa_NodeClass_View;
 	default:
 		OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error,
 				"This node class is not implemented: " + std::to_string(nc) + ", improve me!");

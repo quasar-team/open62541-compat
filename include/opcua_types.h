@@ -34,7 +34,12 @@ enum OpcUa_NodeClass
 {
     OpcUa_NodeClass_Object = UA_NodeClass::UA_NODECLASS_OBJECT,
     OpcUa_NodeClass_Variable = UA_NodeClass::UA_NODECLASS_VARIABLE,
-	OpcUa_NodeClass_Method = UA_NodeClass::UA_NODECLASS_METHOD
+	OpcUa_NodeClass_Method = UA_NodeClass::UA_NODECLASS_METHOD,
+	OpcUa_NodeClass_ObjectType = UA_NodeClass::UA_NODECLASS_OBJECTTYPE,
+	OpcUa_NodeClass_VariableType = UA_NodeClass::UA_NODECLASS_VARIABLETYPE,
+	OpcUa_NodeClass_ReferenceType = UA_NodeClass::UA_NODECLASS_REFERENCETYPE,
+	OpcUa_NodeClass_DataType = UA_NodeClass::UA_NODECLASS_DATATYPE,
+	OpcUa_NodeClass_View = UA_NodeClass::UA_NODECLASS_VIEW
 };
 
 OpcUa_NodeClass safeConvertNodeClassToSdk (UA_NodeClass nc);

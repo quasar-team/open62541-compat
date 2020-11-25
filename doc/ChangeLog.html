@@ -18,35 +18,66 @@
             </b></td>
         </tr>
         <tr>
-          <td valign="top">1.3.5<br>
+          <td valign="top">1.3.6<br>
           </td>
-          <td valign="top">New Feature
+          <td valign="top">Bug
             <br>
             <ul>
-              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2028">OPCUA-2028</a>]
-                - open62541-compat BrowseAPI completion: NodeClass
-                support
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2046">OPCUA-2046</a>]
+                - Leftover log levels for property support
               </li>
-              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2030">OPCUA-2030</a>]
-                - Expose open62541-compat client session timeout and
-                secure channel lifetime
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2053">OPCUA-2053</a>]
+                - Exception from joining a thread that was never started
               </li>
-              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2043">OPCUA-2043</a>]
-                - Add UaVariant::arraySize()
+            </ul>
+            <br>
+            New Feature
+            <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2079">OPCUA-2079</a>]
+                - Support UA_NODECLASS_OBJECTTYPE,
+                UA_NODECLASS_VARIABLETYPE, UA_NODECLASS_REFERENCETYPE,
+                UA_NODECLASS_VIEW
               </li>
             </ul>
             <br>
             Improvement
             <br>
             <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2045">OPCUA-2045</a>]
+                - UaVariant::clear needs a valid implementation
+              </li>
+            </ul>
+          </td>
+          <td valign="top">1.1<br>
+            (bundled) </td>
+          <td valign="top">New features were needed by the
+            UaSwissArmyKnife and the improvements in quasar<br>
+          </td>
+        </tr>
+        <tr>
+          <td valign="top">1.3.5<br>
+          </td>
+          <td valign="top">New Feature <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2028">OPCUA-2028</a>]
+                - open62541-compat BrowseAPI completion: NodeClass
+                support </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2030">OPCUA-2030</a>]
+                - Expose open62541-compat client session timeout and
+                secure channel lifetime </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2043">OPCUA-2043</a>]
+                - Add UaVariant::arraySize() </li>
+            </ul>
+            <br>
+            Improvement <br>
+            <ul>
               <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2020">OPCUA-2020</a>]
                 - Add override/final specifier to polymorphic calls in
-                open62541-compat
-              </li>
+                open62541-compat </li>
               <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2036">OPCUA-2036</a>]
                 - Unify usage of OPEN62541_COMPAT_LOG_AND_THROW in
-                open62541-compat
-              </li>
+                open62541-compat </li>
             </ul>
           </td>
           <td valign="top">1.1<br>
@@ -254,6 +285,8 @@
             can be deployed independently from quasar, that is e.g. via
             "make install". The profit of it is <a
               href="https://its.cern.ch/jira/browse/OPCUA-1632">explained
+
+
 
 
 

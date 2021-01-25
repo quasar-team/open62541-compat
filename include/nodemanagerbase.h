@@ -57,7 +57,15 @@ public:
     UaStatus addNodeAndReference(
         UaNode* from,
         UaNode* to,
-        const UaNodeId& refType); // { return addNodeAndReference( from->nodeId(), to, refType ); }
+        const UaNodeId& refType);
+
+    UaStatus addUaReference(
+        const UaNodeId& from,
+        const UaNodeId& to,
+        const UaNodeId& refType);
+
+
+
 
     void linkServer( UA_Server* server );
 

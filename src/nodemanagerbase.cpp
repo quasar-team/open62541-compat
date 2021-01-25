@@ -25,6 +25,7 @@
 #include <nodemanagerbase.h>
 #include <opcua_basedatavariabletype.h>
 #include <uadatavariablecache.h>
+#include <open62541.h>
 
 static UaLocalizedText emptyDescription( "en_US", "" );
 
@@ -453,6 +454,32 @@ UaStatus NodeManagerBase::addNodeAndReference(
     return addNodeAndReference( parentNode, to, refType);
 }
 
+UaStatus NodeManagerBase::addUaReference(
+    const UaNodeId& from,
+    const UaNodeId& to,
+    const UaNodeId& refType)
+{
+	LOG(Log::INF) << "addUaReference: from: " << from.toFullString().toUtf8() << ", to: " << to.toFullString().toUtf8() << ", refType: " << refType.toFullString().toUtf8();
+	// resolve namespace id.
+	// this is where we had issues ;-) seems addUaReference can only work within the same server.
+
+//	UA_ExpandedNodeId expandedTarget;
+//	expandedTarget.nodeId = to.impl();
+//	expandedTarget.namespaceUri = *UaString("adas").impl();
+//	expandedTarget.serverIndex = 1;
+//
+//	UaStatus s = UA_Server_addReference(
+//			m_server,
+//			from.impl(),
+//			refType.impl(),
+//			expandedTarget,
+//			OpcUa_True /*isForward*/);
+//	LOG(Log::INF) << "addUaReference returned: " << s.toString().toUtf8();
+//	return s;
+    OPEN62541_COMPAT_LOG_AND_THROW(
+		std::runtime_error,
+		"addUaReference is not yet well implemented, implement me.");
+}
 
 void NodeManagerBase::linkServer( UA_Server* server )
 {

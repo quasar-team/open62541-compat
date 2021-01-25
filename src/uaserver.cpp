@@ -35,7 +35,50 @@
 #include <boost/lexical_cast.hpp>
 #endif // HAS_SERVERCONFIG_LOADER
 
+static Log::LogComponentHandle logItComponentHandle = Log::INVALID_HANDLE;
 
+static void logFromOpen62541 (
+		void *logContext,
+		UA_LogLevel level,
+		UA_LogCategory category,
+        const char *msg,
+		va_list args)
+{
+	// translate open62541 log level into LogIt log level
+	Log::LOG_LEVEL logItLogLevel;
+	switch (level)
+	{
+		case UA_LOGLEVEL_DEBUG: logItLogLevel = Log::DBG; break;
+		case UA_LOGLEVEL_ERROR: logItLogLevel = Log::ERR; break;
+		case UA_LOGLEVEL_FATAL: logItLogLevel = Log::ERR; break;
+		case UA_LOGLEVEL_INFO: logItLogLevel = Log::INF; break;
+		case UA_LOGLEVEL_TRACE: logItLogLevel = Log::TRC; break;
+		case UA_LOGLEVEL_WARNING: logItLogLevel = Log::WRN; break;
+		default: logItLogLevel = Log::ERR; // just in case they added a new level.
+	}
+	// translate open62541 category.
+	std::string categoryStr ("category_unknown");
+	switch (category)
+	{
+		case UA_LOGCATEGORY_CLIENT: categoryStr = "client"; break;
+		case UA_LOGCATEGORY_NETWORK: categoryStr = "network"; break;
+		case UA_LOGCATEGORY_SECURECHANNEL: categoryStr = "securechannel"; break;
+		case UA_LOGCATEGORY_SECURITYPOLICY: categoryStr = "securitypolicy"; break;
+		case UA_LOGCATEGORY_SERVER: categoryStr = "server"; break;
+		case UA_LOGCATEGORY_SESSION: categoryStr = "session"; break;
+		case UA_LOGCATEGORY_USERLAND: categoryStr = "userland"; break;
+	}
+	char line [1024] = {0};
+	vsnprintf(line, sizeof line-1, msg, args);
+	LOG(logItLogLevel, logItComponentHandle) << categoryStr << ": " << line;
+}
+
+static UA_Logger logItLogger =
+{
+		.log = &logFromOpen62541,
+		.context = nullptr,
+		.clear = nullptr
+};
 
 UaServer::UaServer() :
 m_server(nullptr),
@@ -60,6 +103,11 @@ void UaServer::start()
         OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "UA_Server_new failed");
     UA_ServerConfig* config = UA_Server_getConfig(m_server);
     UA_ServerConfig_setMinimal(config, m_endpointPortNumber, nullptr);
+    config->logger = logItLogger;
+    Log::LogComponentHandle handle = Log::getComponentHandle("open62541");
+    if (handle == Log::INVALID_HANDLE)
+    	handle =  Log::registerLoggingComponent("open62541", Log::INF);
+    logItComponentHandle = handle;
     m_nodeManager->linkServer(m_server);
     m_nodeManager->afterStartUp();
 

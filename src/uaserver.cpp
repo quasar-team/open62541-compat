@@ -103,11 +103,13 @@ void UaServer::start()
         OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "UA_Server_new failed");
     UA_ServerConfig* config = UA_Server_getConfig(m_server);
     UA_ServerConfig_setMinimal(config, m_endpointPortNumber, nullptr);
-    config->logger = logItLogger;
-    Log::LogComponentHandle handle = Log::getComponentHandle("open62541");
+		// register LogIt component for open62541
+		Log::LogComponentHandle handle = Log::getComponentHandle("open62541");
     if (handle == Log::INVALID_HANDLE)
     	handle =  Log::registerLoggingComponent("open62541", Log::INF);
     logItComponentHandle = handle;
+		// use LogIt logger for open62541
+    config->logger = logItLogger;
     m_nodeManager->linkServer(m_server);
     m_nodeManager->afterStartUp();
 

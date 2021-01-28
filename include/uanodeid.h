@@ -43,7 +43,7 @@ public:
 	UaNodeId ();
 
     //! Create string address
-    UaNodeId ( const UaString& stringAddress, int ns);
+    UaNodeId ( const UaString& stringAddress, OpcUa_UInt16 ns);
 
     //! Create numeric address
     UaNodeId ( OpcUa_UInt32 numericAddress, OpcUa_UInt16 ns=0);

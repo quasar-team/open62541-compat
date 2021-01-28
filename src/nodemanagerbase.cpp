@@ -369,7 +369,7 @@ UaStatus NodeManagerBase::addMethodNodeAndReference(
     for ( std::list<UaNode::ReferencedTarget>::const_iterator it = referenced->cbegin(); it!=referenced->cend(); it++ )
     {
         const UaNode::ReferencedTarget& refTarget = *it;
-        if (refTarget.referenceTypeId == OpcUaId_HasProperty)
+        if (refTarget.referenceTypeId == UaNodeId(OpcUaId_HasProperty, 0))
         {
             const UaPropertyMethodArgument* property = dynamic_cast<const UaPropertyMethodArgument*> ( refTarget.target );
             if (property->argumentType() == UaPropertyMethodArgument::INARGUMENTS)

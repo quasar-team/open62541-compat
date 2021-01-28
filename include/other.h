@@ -31,12 +31,7 @@
 #define OpcUa_False false
 
 
-#define OpcUaId_ObjectsFolder UA_NS0ID_OBJECTSFOLDER
 
-
-#define OpcUaId_HasComponent UaNodeId(UA_NS0ID_HASCOMPONENT, 0)
-#define OpcUaId_Organizes    UaNodeId(UA_NS0ID_ORGANIZES, 0)
-#define OpcUaId_HasProperty  UaNodeId(UA_NS0ID_HASPROPERTY, 0)
 
 
 enum OpcUa_AccessLevels

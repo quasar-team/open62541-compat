@@ -24,7 +24,7 @@
 
 #include <statuscode.h>
 #include <uanode.h>
-#include <other.h>
+#include <opcua_identifiers.h>
 
 // forward-decls
 namespace OpcUa

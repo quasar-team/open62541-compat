@@ -19,7 +19,7 @@ UaNodeId::UaNodeId ():
 {
 }
 
-UaNodeId::UaNodeId ( const UaString& stringAddress, int ns)
+UaNodeId::UaNodeId ( const UaString& stringAddress, OpcUa_UInt16 ns)
 {
     // TODO: not implemented yet in open62541
     //    UA_NodeId_fromInteger( 2, 2);
@@ -31,7 +31,7 @@ UaNodeId::UaNodeId ( const UaString& stringAddress, int ns)
 }
 
 
-UaNodeId::UaNodeId( int numericAddress, int ns ):
+UaNodeId::UaNodeId( OpcUa_UInt32 numericAddress, OpcUa_UInt16 ns):
     m_impl( UA_NODEID_NUMERIC( ns, numericAddress ))
 {
 

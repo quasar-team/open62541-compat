@@ -24,6 +24,14 @@
 
 #include <uanode.h>
 
+enum ValueHandling
+{
+	UaVariable_Value_None = 0x00,
+	UaVariable_Value_Cache = 0x01,
+	UaVariable_Value_CacheIsSource = 0x02
+	// not supported: UaVariable_Value_CacheIsUpdatedOnRequest = 0x04
+};
+
 class UaObject: public UaNode
 {
 

@@ -89,8 +89,8 @@ private:
      */
     ValueHandling m_valueHandling;
 
-    UaStatus requestWriteToServer (UA_NodeId variableNodeId, const UaDataValue& dataValue);
-    UaDataValue requestReadFromServer ();
+    UaStatus requestWriteToServer (UaNodeId variableNodeId, const UaDataValue& dataValue);
+    UaDataValue requestReadFromServer (UaNodeId variableNodeId);
 
     UA_Server* m_associatedServer;
 

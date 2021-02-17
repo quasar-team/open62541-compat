@@ -83,7 +83,7 @@ UaDataValue BaseDataVariableType::value(Session* session)
 	{
 		case ValueHandling::UaVariable_Value_None: OPEN62541_COMPAT_LOG_AND_THROW(std::logic_error, "This mode of ValueHandling requires that value(...) is overridden in a subclass.");
 		case ValueHandling::UaVariable_Value_Cache:
-			return requestReadFromServer();
+			return requestReadFromServer(m_nodeId.impl());
 
 		case ValueHandling::UaVariable_Value_CacheIsSource:
 		    return m_currentValue.clone();
@@ -92,18 +92,21 @@ UaDataValue BaseDataVariableType::value(Session* session)
 	}
 }
 
-UaStatus BaseDataVariableType::requestWriteToServer (UA_NodeId variableNodeId, const UaDataValue& dataValue)
+UaStatus BaseDataVariableType::requestWriteToServer (UaNodeId variableNodeId, const UaDataValue& dataValue)
 {
 	if (!m_associatedServer)
 		OPEN62541_COMPAT_LOG_AND_THROW(std::logic_error, "Can't perform write request before knowing which server to talk to. Perhaps wrong ValueHandling mode?");
-	return UA_Server_writeValue(m_associatedServer, variableNodeId, *dataValue.value()->impl());
+	return UA_Server_writeValue(m_associatedServer, variableNodeId.impl(), *dataValue.value()->impl());
 }
 
-UaDataValue BaseDataVariableType::requestReadFromServer ()
+UaDataValue BaseDataVariableType::requestReadFromServer (UaNodeId variableNodeId)
 {
-	// TODO: fake
-	UaDataValue dv (UaVariant(), OpcUa_Good, UaDateTime::now(), UaDateTime::now());
-	return dv;
+	UA_Variant valueRead;
+	UA_Variant_init(&valueRead);
+	UaStatus status = UA_Server_readValue(m_associatedServer, variableNodeId.impl(), &valueRead);
+	if (!status.isGood())
+		OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "UA_Server_readValue for variable: "+variableNodeId.toFullString().toUtf8()+" returned not-good:"+status.toString().toUtf8());
+	return UaDataValue (valueRead, OpcUa_Good, UaDateTime::now(), UaDateTime::now());
 }
 
 void BaseDataVariableType::associateServer( UA_Server* server )

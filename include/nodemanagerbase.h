@@ -86,6 +86,10 @@ private:
         UaNode* parent,
         UaNode* to,
         const UaNodeId& refType);
+    UaStatus addDataSourceVariableNodeAndReference(
+            UaNode* parent,
+			OpcUa::BaseDataVariableType* to,
+            const UaNodeId& refType);
     UaStatus addDataVariableNodeAndReference(
             UaNode* parent,
 			OpcUa::BaseDataVariableType* to,

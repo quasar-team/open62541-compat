@@ -15,7 +15,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 file(GLOB OPEN62541_COMPAT_MODULE_TEST_SRCS src/*.cpp)
 include_directories( include )
 
-clone_googletest("master")
+clone_googletest("release-1.10.0")
 set( BUILD_GTEST ON CACHE BOOL "We do want to build gtest")
 set( BUILD_GMOCK OFF CACHE BOOL "we do not want to build gmock")
 set( gtest_force_shared_crt ON CACHE BOOL "use shared CRT" FORCE)

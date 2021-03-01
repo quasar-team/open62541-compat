@@ -75,9 +75,9 @@ static void logFromOpen62541 (
 
 static UA_Logger logItLogger =
 {
-		.log = &logFromOpen62541,
-		.context = nullptr,
-		.clear = nullptr
+		&logFromOpen62541,
+		nullptr,
+		nullptr
 };
 
 UaServer::UaServer() :

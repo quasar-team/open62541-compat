@@ -121,5 +121,5 @@ UaString UaDateTime::toString() const
 
 OpcUa_Int32 UaDateTime::secsTo(const UaDateTime& dt) const
 {
-	return (dt.m_dateTime - m_dateTime) * 10^4;
+	return (dt.m_dateTime - m_dateTime) / pow(10, 7);
 }

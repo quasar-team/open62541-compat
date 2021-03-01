@@ -38,20 +38,20 @@ TEST(UaDatetimeTest, testAddSecs)
 {
 	UaDateTime testee;
 	testee.addSecs(1);
-	EXPECT_EQ(pow(10, 7), static_cast<UA_DateTime>(testee)) << "time stored as 100usec intervals since epoch";
+	EXPECT_EQ(1E7, static_cast<UA_DateTime>(testee)) << "time stored as 100usec intervals since epoch";
 }
 
 TEST(UaDatetimeTest, testAddMilliSecs)
 {
 	UaDateTime testee;
 	testee.addMilliSecs(1);
-	EXPECT_EQ(pow(10, 4), static_cast<UA_DateTime>(testee)) << "time stored as 100usec intervals since epoch";
+	EXPECT_EQ(1E4, static_cast<UA_DateTime>(testee)) << "time stored as 100usec intervals since epoch";
 }
 
 TEST(UaDatetimeTest, testSecsTo)
 {
-	UaDateTime earlier(static_cast<UA_DateTime>(1*pow(10, 7))); // 1s
-	UaDateTime later(static_cast<UA_DateTime>(5*pow(10, 7))); // 5s
+	UaDateTime earlier(static_cast<UA_DateTime>(1*1E7)); // 1s
+	UaDateTime later(static_cast<UA_DateTime>(5*1E7)); // 5s
 
 	EXPECT_EQ(4, earlier.secsTo(later));
 	EXPECT_EQ(-4, later.secsTo(earlier));

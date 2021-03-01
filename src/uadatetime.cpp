@@ -118,3 +118,8 @@ UaString UaDateTime::toString() const
 
         return UaString(result.str().c_str());
 }
+
+OpcUa_Int32 UaDateTime::secsTo(const UaDateTime& dt) const
+{
+	return (dt.m_dateTime - m_dateTime) / 1E7;
+}

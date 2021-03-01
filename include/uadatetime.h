@@ -35,6 +35,7 @@ public:
 
 	void addSecs(int secs);
 	void addMilliSecs(int msecs);
+	OpcUa_Int32 secsTo(const UaDateTime&) const;
 
 	static UaDateTime fromString(const UaString&);
 	UaString toString() const;

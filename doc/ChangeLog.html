@@ -18,35 +18,69 @@
             </b></td>
         </tr>
         <tr>
-          <td valign="top">1.3.6<br>
+          <td valign="top">1.3.7<br>
           </td>
-          <td valign="top">Bug
-            <br>
+          <td valign="top">
+            <p>Bug
+            </p>
             <ul>
-              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2046">OPCUA-2046</a>]
-                - Leftover log levels for property support
-              </li>
-              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2053">OPCUA-2053</a>]
-                - Exception from joining a thread that was never started
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2141">OPCUA-2141</a>]
+                - OpcUaId_Organizes is of wrong type in open62541-compat
+                (and maybe other similar constants)
               </li>
             </ul>
             <br>
             New Feature
             <br>
             <ul>
-              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2079">OPCUA-2079</a>]
-                - Support UA_NODECLASS_OBJECTTYPE,
-                UA_NODECLASS_VARIABLETYPE, UA_NODECLASS_REFERENCETYPE,
-                UA_NODECLASS_VIEW
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2142">OPCUA-2142</a>]
+                - open62541-compat: support addUaReference
+              </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2143">OPCUA-2143</a>]
+                - UA_Logger for LogIt(server)
               </li>
             </ul>
             <br>
             Improvement
             <br>
             <ul>
-              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2045">OPCUA-2045</a>]
-                - UaVariant::clear needs a valid implementation
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2211">OPCUA-2211</a>]
+                - Add UaDateTime.secsTo() implementation to open6 compat
               </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2214">OPCUA-2214</a>]
+                - fix windows build for open62541-compat
+              </li>
+            </ul>
+          </td>
+          <td valign="top">1.1<br>
+            (bundled) </td>
+          <td valign="top">open62541 now logs via LogIt.<br>
+          </td>
+        </tr>
+        <tr>
+          <td valign="top">1.3.6<br>
+          </td>
+          <td valign="top">Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2046">OPCUA-2046</a>]
+                - Leftover log levels for property support </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2053">OPCUA-2053</a>]
+                - Exception from joining a thread that was never started
+              </li>
+            </ul>
+            <br>
+            New Feature <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2079">OPCUA-2079</a>]
+                - Support UA_NODECLASS_OBJECTTYPE,
+                UA_NODECLASS_VARIABLETYPE, UA_NODECLASS_REFERENCETYPE,
+                UA_NODECLASS_VIEW </li>
+            </ul>
+            <br>
+            Improvement <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2045">OPCUA-2045</a>]
+                - UaVariant::clear needs a valid implementation </li>
             </ul>
           </td>
           <td valign="top">1.1<br>
@@ -285,6 +319,8 @@
             can be deployed independently from quasar, that is e.g. via
             "make install". The profit of it is <a
               href="https://its.cern.ch/jira/browse/OPCUA-1632">explained
+
+
 
 
 

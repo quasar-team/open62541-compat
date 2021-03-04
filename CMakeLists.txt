@@ -106,7 +106,12 @@ endif(SERVERCONFIG_LOADER)
 
 if(NOT STANDALONE_BUILD)
   add_library ( open62541-compat OBJECT ${SRCS} )
-  add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
+  if(${PULL_OPEN62541})  # fetching open62541 (NOT default)
+    add_custom_target( quasar_opcua_backend_is_ready DEPENDS open62541-compat )
+  else(${PULL_OPEN62541}) # using bundled open62541 (default)
+      add_custom_target( quasar_opcua_backend_is_ready ) # ready anytime basically.
+  endif(${PULL_OPEN62541})
+
 else()
 
   # We need some C++11 (via cmake platform agnostic flag)

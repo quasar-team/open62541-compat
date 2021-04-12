@@ -367,7 +367,7 @@ UaStatus UaSession::browse(
 
     if (UaStatus(browseResponse.responseHeader.serviceResult).isGood())
     {
-    	LOG(Log::INF) << "After browse (was OK): resultsSize= " << browseResponse.resultsSize;
+    	LOG(Log::TRC) << "After browse (was OK): resultsSize= " << browseResponse.resultsSize;
     	if (browseResponse.resultsSize == 1) // we asked to browse one node, so should get one result.
     	{
     		UA_BrowseResult& br = browseResponse.results[0];

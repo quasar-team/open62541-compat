@@ -35,7 +35,7 @@ class UaDataValue
     ~UaDataValue ();
 
     const UA_DataValue* impl() const { return m_impl; }
-    UaVariant* value() const{ return new UaVariant(m_impl->value); }
+    const UA_Variant* value() const{ return &m_impl->value; }
 
     OpcUa_StatusCode statusCode() const { return m_impl->status; }
 

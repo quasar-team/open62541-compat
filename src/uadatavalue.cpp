@@ -27,7 +27,7 @@ m_lock()
 
     // TODO: duplicate the variant
     UA_Variant_copy( variant.impl(), &m_impl->value );
-    LOG(Log::TRC) << "After UA_Variant_copy: src="<<variant.impl()<<" src.data="<<variant.impl()->data<<" dst="<<&m_impl->value<<" dst.data="<<m_impl->value.data;
+    //LOG(Log::TRC) << "After UA_Variant_copy: src="<<variant.impl()<<" src.data="<<variant.impl()->data<<" dst="<<&m_impl->value<<" dst.data="<<m_impl->value.data;
 
     m_impl->status = statusCode;
     m_impl->hasStatus = 1;

@@ -52,64 +52,54 @@ void UaVariant::destroyOpen62541Variant(UA_Variant* open62541Variant)
 
 UaVariant::UaVariant ()
 :m_impl(createAndCheckOpen62541Variant())
-{
-    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
-}
+{}
 
 UaVariant::UaVariant( OpcUa_UInt32 v )
 :m_impl(createAndCheckOpen62541Variant())
 {
     setUInt32( v );
-    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_Int32 v )
 :m_impl(createAndCheckOpen62541Variant())
 {
     setInt32( v );
-    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_UInt64 v )
 :m_impl(createAndCheckOpen62541Variant())
 {
     setUInt64( v );
-    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_Int64 v )
 :m_impl(createAndCheckOpen62541Variant())
 {
     setInt64( v );
-    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const UaString& v )
 :m_impl(createAndCheckOpen62541Variant())
 {
     setString( v );
-    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_Float v )
 :m_impl(createAndCheckOpen62541Variant())
 {
 	setFloat(v);
-	LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_Double v )
 :m_impl(createAndCheckOpen62541Variant())
 {
 	setDouble(v);
-	LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( OpcUa_Boolean v )
 :m_impl(createAndCheckOpen62541Variant())
 {
 	setBool(v);
-	LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const UaVariant& other)
@@ -118,7 +108,6 @@ UaVariant::UaVariant( const UaVariant& other)
     const UaStatus status = UA_Variant_copy( other.m_impl, this->m_impl );
     if (! status.isGood())
       OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, std::string("UA_Variant_copy failed:") + status.toString().toUtf8() );
-    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 UaVariant::UaVariant( const UaByteString& v)
@@ -135,8 +124,6 @@ void UaVariant::operator= (const UaVariant &other)
     const UaStatus status = UA_Variant_copy( other.m_impl, this->m_impl );
     if (! status.isGood())
         OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, std::string("UA_Variant_copy failed:") + status.toString().toUtf8() );
-
-    LOG(Log::TRC) << __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
 }
 
 bool UaVariant::operator==(const UaVariant& other) const
@@ -164,7 +151,6 @@ UaVariant::UaVariant( const UA_Variant& other )
 
 UaVariant::~UaVariant()
 {
-    LOG(Log::TRC) <<"+"<< __FUNCTION__ << " m_impl="<<m_impl<<" m_impl.data="<<m_impl->data;
     destroyOpen62541Variant(m_impl);
     m_impl = 0;
 }

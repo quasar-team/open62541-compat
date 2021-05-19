@@ -264,7 +264,7 @@ UaStatus NodeManagerBase::addDataVariableNodeAndReference(
         attr.arrayDimensions = &arrayDimensions[0];
     else
         attr.arrayDimensions = nullptr;
-    UaVariant(variable->value(/*session*/nullptr).value()).copyTo(&attr.value);
+    UaVariant(*variable->value(/*session*/nullptr).value()).copyTo(&attr.value);
     UA_StatusCode s =
         UA_Server_addDataSourceVariableNode(m_server,
                                             variable->nodeId().impl(),
@@ -319,7 +319,7 @@ UaStatus NodeManagerBase::addPropertyNodeAndReference(
 	UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.displayName = *displayName.impl();
-    UaVariant(to->value(nullptr).value()).copyTo(&attr.value);
+    UaVariant(*to->value(nullptr).value()).copyTo(&attr.value);
 
     LOG(Log::TRC) << "to=" << to->nodeId().toFullString().toUtf8() << " reftype=" << refType.toFullString().toUtf8();
 	UaStatus s =

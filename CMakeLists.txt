@@ -75,6 +75,7 @@ SET( SRCS
   src/uabytearray.cpp
   src/opcua_basedatavariabletype.cpp
   src/uaserver.cpp
+  src/logit_logger.cpp
   src/uaclient/uasession.cpp
 )
 

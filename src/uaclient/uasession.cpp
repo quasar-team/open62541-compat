@@ -30,6 +30,7 @@
 #include <LogIt.h>
 #include <managed_uaarray.h>
 #include <open62541_compat.h>
+#include <logit_logger.h>
 
 namespace UaClientSdk
 {
@@ -73,6 +74,10 @@ UaStatus UaSession::connect(
     clientConfig->timeout = connectInfo.internalServiceCallTimeout;
     clientConfig->secureChannelLifeTime = connectInfo.nSecureChannelLifetime;
     clientConfig->requestedSessionTimeout = connectInfo.nSessionTimeout;
+
+    initializeOpen62541LogIt();
+    clientConfig->logger = theLogItLogger;
+
     // TODO @Piotr note that many possibly important settings are not carried
     // from UA-SDK API to open6! At the moment, only timeout is.
     LOG(Log::DBG) << "Will connect to OPC-UA endpoint [" << endpoint.toUtf8().c_str() << "], " <<

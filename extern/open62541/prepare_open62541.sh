@@ -5,7 +5,7 @@
 
 # this script was created to be used only by quasar-developers team.
 
-TAG=v1.1
+TAG=v1.1.6
 
 # prepare the dir structure
 mkdir include

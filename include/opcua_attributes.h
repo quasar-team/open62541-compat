@@ -26,7 +26,36 @@
 
 enum Attributes
 {
-    OpcUa_Attributes_Value = UA_ATTRIBUTEID_VALUE
+    OpcUa_Attributes_NodeId = UA_ATTRIBUTEID_NODEID,
+    OpcUa_Attributes_NodeClass = UA_ATTRIBUTEID_NODECLASS,
+    OpcUa_Attributes_BrowseName = UA_ATTRIBUTEID_BROWSENAME,
+    OpcUa_Attributes_DisplayName = UA_ATTRIBUTEID_DISPLAYNAME,
+    OpcUa_Attributes_Description = UA_ATTRIBUTEID_DESCRIPTION,
+    OpcUa_Attributes_WriteMask = UA_ATTRIBUTEID_WRITEMASK,
+    OpcUa_Attributes_UserWriteMask = UA_ATTRIBUTEID_USERWRITEMASK,
+    OpcUa_Attributes_IsAbstract = UA_ATTRIBUTEID_ISABSTRACT,
+    OpcUa_Attributes_Symmetric = UA_ATTRIBUTEID_SYMMETRIC,
+    OpcUa_Attributes_InverseName = UA_ATTRIBUTEID_INVERSENAME,
+    OpcUa_Attributes_ContainsNoLoops = UA_ATTRIBUTEID_CONTAINSNOLOOPS,
+    OpcUa_Attributes_EventNotifier = UA_ATTRIBUTEID_EVENTNOTIFIER,
+    OpcUa_Attributes_Value = UA_ATTRIBUTEID_VALUE,
+    OpcUa_Attributes_DataType = UA_ATTRIBUTEID_DATATYPE,
+    OpcUa_Attributes_ValueRank = UA_ATTRIBUTEID_VALUERANK,
+    OpcUa_Attributes_ArrayDimensions = UA_ATTRIBUTEID_ARRAYDIMENSIONS,
+    OpcUa_Attributes_AccessLevel = UA_ATTRIBUTEID_ACCESSLEVEL,
+    OpcUa_Attributes_UserAccessLevel = UA_ATTRIBUTEID_USERACCESSLEVEL,
+    OpcUa_Attributes_MinimumSamplingInterval = UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
+    OpcUa_Attributes_Historizing = UA_ATTRIBUTEID_HISTORIZING,
+    OpcUa_Attributes_Executable = UA_ATTRIBUTEID_EXECUTABLE,
+    OpcUa_Attributes_UserExecutable = UA_ATTRIBUTEID_USEREXECUTABLE,
+    OpcUa_Attributes_DataTypeDefinition = UA_ATTRIBUTEID_DATATYPEDEFINITION
+	/* the following are not yet in open62541, at least not in 1.1.6. TODO!
+	OpcUa_Attributes_RolePermissions
+	OpcUa_Attributes_UserRolePermissions
+	OpcUa_Attributes_AccessRestrictions
+	OpcUa_Attributes_AccessLevelEx
+	*/
+
 };
 
 

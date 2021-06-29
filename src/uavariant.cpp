@@ -501,9 +501,33 @@ UaStatus UaVariant::toByteString( UaByteString& out) const
 
 UaString UaVariant::toString( ) const
 {
-    if (m_impl->type != &UA_TYPES[UA_TYPES_STRING])
-    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "not-a-string");
-    return UaString( (UA_String*)m_impl->data );
+    if (isEmpty())
+        return "";
+    else if (m_impl->type == &UA_TYPES[UA_TYPES_BOOLEAN])
+    {
+        return *(UA_Boolean*)(m_impl->data) ? "true" : "false";
+    }
+    else if (m_impl->type == &UA_TYPES[UA_TYPES_STRING])
+        return UaString( (UA_String*)m_impl->data );
+    else if (this->isNumericType(*m_impl->type))
+    {
+        if (isFloatingPointType(*m_impl->type))
+        {
+            OpcUa_Double number;
+            this->convertNumericType(&number);
+            return std::to_string(number).c_str();
+        }
+        else
+        {
+            OpcUa_Int64 number;
+            this->convertNumericType(&number);
+            return std::to_string(number).c_str();
+        }
+
+    }
+    else
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "dont know how to do toString() on this data type");
+    
 }
 
 UaString UaVariant::toFullString() const
@@ -639,6 +663,11 @@ bool UaVariant::isNumericType( const UA_DataType& dataType ) const
 	default:
 		return false;
 	}
+}
+
+bool UaVariant::isFloatingPointType (const UA_DataType& dataType)
+{
+    return dataType.typeIndex == UA_TYPES_FLOAT || dataType.typeIndex == UA_TYPES_DOUBLE;
 }
 
 template<typename T, typename U>

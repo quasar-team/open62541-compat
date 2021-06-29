@@ -183,6 +183,8 @@ class UaVariant
     UaStatus convertNumericType(TTargetNumericType* out ) const;
 
   bool isNumericType( const UA_DataType& dataType ) const;
+  
+  static bool isFloatingPointType (const UA_DataType& dataType);
 
   template<typename T, typename U>
   OpcUa_StatusCode toArray( const UA_DataType* dataType, U& out) const;

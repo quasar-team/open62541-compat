@@ -100,7 +100,7 @@ void UaByteString::release()
 {
     if (m_impl->data)
     {
-        UA_ByteString_deleteMembers( m_impl );
+        UA_ByteString_clear( m_impl );
         m_impl->data = nullptr;
         m_impl->length = 0;
     }

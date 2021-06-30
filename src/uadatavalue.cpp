@@ -58,7 +58,7 @@ void UaDataValue:: operator=(const UaDataValue& other )
     while (m_lock.test_and_set(std::memory_order_acquire));  // acquire lock
     if (m_impl)
     {
-        UA_DataValue_deleteMembers (m_impl);
+        UA_DataValue_clear (m_impl);
         UA_DataValue_delete( m_impl );
         m_impl = 0;
     }
@@ -82,7 +82,7 @@ UaDataValue:: ~UaDataValue ()
 {
     if (m_impl)
     {
-        UA_DataValue_deleteMembers( m_impl );
+        UA_DataValue_clear( m_impl );
         UA_DataValue_delete( m_impl );
         m_impl = 0;
     }

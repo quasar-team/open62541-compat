@@ -54,7 +54,7 @@ UaNodeId::UaNodeId ( const UA_NodeId& other)
 
 const UaNodeId& UaNodeId::operator=(const UaNodeId & other)
 {
-    UA_NodeId_deleteMembers( &m_impl );
+    UA_NodeId_clear( &m_impl );
     UA_NodeId_init( &m_impl );
     UA_StatusCode status = UA_NodeId_copy( other.pimpl(), &this->m_impl );
     if (status != UA_STATUSCODE_GOOD)
@@ -64,7 +64,7 @@ const UaNodeId& UaNodeId::operator=(const UaNodeId & other)
 
 UaNodeId::~UaNodeId ()
 {
-    UA_NodeId_deleteMembers( &m_impl );
+    UA_NodeId_clear( &m_impl );
 }
 
 IdentifierType UaNodeId::identifierType() const

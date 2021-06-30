@@ -76,7 +76,7 @@ UaString::UaString( const UA_String* other )
 UaString::~UaString ()
 {
     if (m_impl -> data)
-	UA_String_deleteMembers( m_impl );
+	UA_String_clear( m_impl );
     UA_String_delete( m_impl );
     m_impl = 0;
 }
@@ -90,7 +90,7 @@ UaString UaString::operator+(const UaString& other)
 const UaString& UaString::operator=(const UaString& other)
 {
     if (m_impl -> data)
-	UA_String_deleteMembers( m_impl );
+	UA_String_clear( m_impl );
 
     if( UA_String_copy( other.m_impl, m_impl ) != UA_STATUSCODE_GOOD)
     {
@@ -103,7 +103,7 @@ const UaString& UaString::operator=(const UaString& other)
 const UaString& UaString::operator=(const UA_String& other)
 {
     if (m_impl -> data)
-    UA_String_deleteMembers( m_impl );
+    UA_String_clear( m_impl );
 
     if( UA_String_copy( &other, m_impl ) != UA_STATUSCODE_GOOD)
     {

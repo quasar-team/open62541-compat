@@ -501,9 +501,11 @@ UaStatus UaVariant::toByteString( UaByteString& out) const
 
 UaString UaVariant::toString( ) const
 {
-    if (m_impl->type != &UA_TYPES[UA_TYPES_STRING])
-    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "not-a-string");
-    return UaString( (UA_String*)m_impl->data );
+    UA_String* output (UA_String_new());
+    UA_print(m_impl->data, m_impl->type, output);
+    UaString rtrn (output);
+    UA_String_clear(output);
+    return rtrn;
 }
 
 UaString UaVariant::toFullString() const

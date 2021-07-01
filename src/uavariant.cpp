@@ -45,7 +45,7 @@ void UaVariant::destroyOpen62541Variant(UA_Variant* open62541Variant)
 {
 	if(open62541Variant)
 	{
-	    UA_Variant_deleteMembers( open62541Variant );
+	    UA_Variant_clear( open62541Variant );
 	    UA_Variant_delete( open62541Variant );
 	}
 }
@@ -179,7 +179,7 @@ void UaVariant::reuseOrRealloc( const UA_DataType* dataType, void* newValue )
     else
     {
         /* Data type different - have to realloc */
-        UA_Variant_deleteMembers( m_impl );
+        UA_Variant_clear( m_impl );
         // TODO throw when failed
         UaStatus status = UA_Variant_setScalarCopy( m_impl, newValue, dataType);
         if (! status.isGood())
@@ -247,7 +247,7 @@ void UaVariant::setString( const UaString& value )
 {
     /* UASTRING isn't a simple type and has to be handled with care. */
     if (m_impl->data != 0)
-        UA_Variant_deleteMembers( m_impl );
+        UA_Variant_clear( m_impl );
     /* Now we assume that the variant is empty */
     UA_StatusCode s = UA_Variant_setScalarCopy( m_impl, value.impl(), &UA_TYPES[UA_TYPES_STRING]);
     
@@ -260,7 +260,7 @@ void UaVariant::setByteString( const UaByteString& value, bool detach)
 	if (detach)
 		OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     if (m_impl->data != 0)
-        UA_Variant_deleteMembers( m_impl );
+        UA_Variant_clear( m_impl );
     UA_StatusCode s = UA_Variant_setScalarCopy( m_impl, value.impl(), &UA_TYPES[UA_TYPES_BYTESTRING]);
     if (s != UA_STATUSCODE_GOOD)
         throw alloc_error();
@@ -270,7 +270,7 @@ template<typename ArrayType>
 void UaVariant::set1DArray( const UA_DataType* dataType, const ArrayType& input )
 {
     if (m_impl->data != 0)
-        UA_Variant_deleteMembers( m_impl );
+        UA_Variant_clear( m_impl );
     const void* rawInput = 0;
     if (input.size()>0)
         rawInput = &input[0];
@@ -388,7 +388,7 @@ void UaVariant::set1DArrayComplexTypes(
         UA_StatusCode(*copyFunction)(const StackType* from, StackType* to))
 {
     if (m_impl->data != 0)
-        UA_Variant_deleteMembers( m_impl );
+        UA_Variant_clear( m_impl );
     StackType* array = static_cast<StackType*> (UA_Array_new(input.size(), dataType)) ;
     for (unsigned int i=0; i<input.size(); ++i)
     {

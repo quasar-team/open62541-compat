@@ -40,7 +40,7 @@ UaLocalizedText::UaLocalizedText( const char* locale, const char* text)
 
 UaLocalizedText::~UaLocalizedText ()
 {
-    UA_LocalizedText_deleteMembers( &m_impl );
+    UA_LocalizedText_clear( &m_impl );
 }
 
 UaNode::UaNode ()

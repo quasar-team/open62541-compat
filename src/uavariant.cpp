@@ -503,6 +503,10 @@ UaString UaVariant::toString( ) const
 {
 	if (this->isEmpty())
 		return "";
+	else if (this->isArray())
+	{
+		return "[array toString() not yet implemented]";
+	}
 	else
 	{
 		UA_String* output (UA_String_new());

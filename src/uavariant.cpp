@@ -501,11 +501,16 @@ UaStatus UaVariant::toByteString( UaByteString& out) const
 
 UaString UaVariant::toString( ) const
 {
-    UA_String* output (UA_String_new());
-    UA_print(m_impl->data, m_impl->type, output);
-    UaString rtrn (output);
-    UA_String_clear(output);
-    return rtrn;
+	if (this->isEmpty())
+		return "";
+	else
+	{
+		UA_String* output (UA_String_new());
+		UA_print(m_impl->data, m_impl->type, output);
+		UaString rtrn (output);
+		UA_String_clear(output);
+		return rtrn;
+	}
 }
 
 UaString UaVariant::toFullString() const

@@ -32,6 +32,7 @@ class UaDataValue
     UaDataValue( const UaDataValue& other );
     void operator=(const UaDataValue& other );
     bool operator==(const UaDataValue &other) const;
+    bool operator!=(const UaDataValue &other) const;
 
     ~UaDataValue ();
 

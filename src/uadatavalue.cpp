@@ -74,6 +74,11 @@ bool UaDataValue:: operator==(const UaDataValue &other) const
     throw std::runtime_error(" UaDataValue:: operator== not implemented yet!");
 }
 
+bool UaDataValue:: operator!=(const UaDataValue &other) const
+{
+    throw std::runtime_error(" UaDataValue:: operator!= not implemented yet!");
+}
+
 UaDataValue UaDataValue::clone()
 {
     while (m_lock.test_and_set(std::memory_order_acquire));  // acquire lock

@@ -14,3 +14,8 @@ TEST(UaDataValueTest, testOperatorIsEqual)
     EXPECT_TRUE(testee == testee);
 }
 
+TEST(UaDataValueTest, testOperatorNotIsEqual)
+{
+    UaDataValue testee( UaVariant("some string value"), OpcUa_Good, UaDateTime::now(), UaDateTime::now() );
+    EXPECT_TRUE(testee != testee);
+}

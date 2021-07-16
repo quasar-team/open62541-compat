@@ -6,10 +6,18 @@
  */
 
 #include "gtest/gtest.h"
+#include <other.h>
 
 #include <other.h>
 
-TEST(UaQualifiedNameTest, testDefaultConstructor)
+TEST(UaQualifiedNameTest, testToString)
 {
-    EXPECT_EQ(true, false) << "WTF ?";
+    UaQualifiedName testee(2, "a.b.c");
+    EXPECT_EQ("a.b.c", testee.toString().toUtf8());
+}
+
+TEST(UaQualifiedNameTest, testToFullString)
+{
+    UaQualifiedName testee(2, "a.b.c");
+    EXPECT_EQ("ns=2|a.b.c", testee.toFullString().toUtf8());
 }

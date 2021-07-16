@@ -33,9 +33,17 @@ UaQualifiedName::UaQualifiedName(int ns, const UaString& name):
     m_impl.namespaceIndex = ns;
 }
 
+UaString  UaQualifiedName::toString() const
+{
+    return UaString(m_impl.name);
+}
+
 UaString  UaQualifiedName::toFullString() const
 {
-    throw new std::runtime_error(" UaQualifiedName::toFullString() - missing implementation");
+    std::ostringstream result;
+    result << "ns="<<m_impl.namespaceIndex << "|" << UaString(m_impl.name).toUtf8();
+    return UaString(result.str().c_str());
+//    throw new std::runtime_error(" UaQualifiedName::toFullString() - missing implementation");
 }
 
 UaLocalizedText::UaLocalizedText( const char* locale, const char* text) 

@@ -68,5 +68,6 @@ UaPropertyCache::UaPropertyCache (
 		const UaString& defaultLocaleId) :
 				m_nodeId(nodeId),
 				m_browseName(0, name),
-				m_value(defaultValue)
+				m_value(defaultValue),
+				m_typeDefinitionId(defaultValue.type())
 {}

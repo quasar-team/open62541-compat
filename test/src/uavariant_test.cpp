@@ -172,3 +172,11 @@ TEST_F(UaVariantTest, testConvertFromUInt32)
 	EXPECT_EQ(OpcUa_Good, m_testee.toInt32(int32Result));
 	EXPECT_EQ(numeric_limits<int32_t>::max(), int32Result);
 }
+
+TEST_F(UaVariantTest, testisEqualOperatorForStringVariants)
+{
+	m_testee.setString("some string value");
+	EXPECT_TRUE(m_testee == m_testee);
+	EXPECT_TRUE(m_testee == UaVariant(UaString("some string value")));
+	EXPECT_FALSE(m_testee == UaVariant(UaString("DIFFERENT string value")));
+}

@@ -136,8 +136,14 @@ bool UaVariant::operator==(const UaVariant& other) const
 	{
 		if(m_impl->arrayDimensions[arrayDimensionIndex] != other.m_impl->arrayDimensions[arrayDimensionIndex]) return false;
 	}
-	if(0 != memcmp(m_impl->data, other.m_impl->data, m_impl->arrayLength)) return false;
-
+    if(type() == OpcUaType_String)
+    {
+        return toString() == other.toString();
+    }
+    else
+    {
+	    if(0 != memcmp(m_impl->data, other.m_impl->data, m_impl->arrayLength)) return false;
+    }
 	return true;
 }
 

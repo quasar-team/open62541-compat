@@ -69,14 +69,15 @@ UaStatus UaSession::connect(
     m_client = UA_Client_new();
     if (!m_client)
         throw alloc_error();
+
+    initializeOpen62541LogIt(); // safe to rerun
     UA_ClientConfig* clientConfig = UA_Client_getConfig(m_client);
+    clientConfig->logger = theLogItLogger;
+
     UA_ClientConfig_setDefault(clientConfig);
     clientConfig->timeout = connectInfo.internalServiceCallTimeout;
     clientConfig->secureChannelLifeTime = connectInfo.nSecureChannelLifetime;
     clientConfig->requestedSessionTimeout = connectInfo.nSessionTimeout;
-
-    initializeOpen62541LogIt();
-    clientConfig->logger = theLogItLogger;
 
     // TODO @Piotr note that many possibly important settings are not carried
     // from UA-SDK API to open6! At the moment, only timeout is.

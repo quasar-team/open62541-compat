@@ -5,7 +5,7 @@
     <title>open62541-compat ChangeLog</title>
   </head>
   <body>
-    <table width="100%" cellspacing="2" cellpadding="2" border="1">
+    <table cellspacing="2" cellpadding="2" border="1" width="100%">
       <tbody>
         <tr>
           <td valign="top"><b>Version</b><b><br>
@@ -18,40 +18,62 @@
             </b></td>
         </tr>
         <tr>
-          <td valign="top">1.4.0<br>
-            <font size="-2">(02-Jul-2021)</font><br>
+          <td valign="top">1.4.1<br>
+            <font size="-2">(12-Aug-2021)</font><br>
           </td>
-          <td valign="top">
-            <br>
-            Bug
-            <br>
-            <ul>
-              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2419">OPCUA-2419</a>]
-                - addPropertyNodeAndReference not setting DataType
-                correctly
-              </li>
-            </ul>
-            <br>
-            New Feature
+          <td valign="top"><br>
+            Task
             <br>
             <ul>
-              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2362">OPCUA-2362</a>]
-                - NodeId printing support for UaVariant
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2443">OPCUA-2443</a>]
+                - Add example client program
               </li>
-              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2363">OPCUA-2363</a>]
-                - Profit from UA_print
-              </li>
-              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2364">OPCUA-2364</a>]
-                - With open62541 1.2.2
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2444">OPCUA-2444</a>]
+                - UaVariant::toString superflouous quotes for string
+                (toSameTypeTestFailing ?)
               </li>
             </ul>
             <br>
             Improvement
             <br>
             <ul>
-              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2427">OPCUA-2427</a>]
-                - Add missing OpcUaId_... for built in data-types
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2392">OPCUA-2392</a>]
+                - Controlling the order (or the place) in which / at
+                which piping configuration kicks in
               </li>
+            </ul>
+          </td>
+          <td valign="top">1.2.2<br>
+            (bundled) </td>
+          <td valign="top">(-)<br>
+          </td>
+        </tr>
+        <tr>
+          <td valign="top">1.4.0<br>
+            <font size="-2">(02-Jul-2021)</font><br>
+          </td>
+          <td valign="top"> <br>
+            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2419">OPCUA-2419</a>]
+                - addPropertyNodeAndReference not setting DataType
+                correctly </li>
+            </ul>
+            <br>
+            New Feature <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2362">OPCUA-2362</a>]
+                - NodeId printing support for UaVariant </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2363">OPCUA-2363</a>]
+                - Profit from UA_print </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2364">OPCUA-2364</a>]
+                - With open62541 1.2.2 </li>
+            </ul>
+            <br>
+            Improvement <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2427">OPCUA-2427</a>]
+                - Add missing OpcUaId_... for built in data-types </li>
             </ul>
           </td>
           <td valign="top">1.2.2<br>
@@ -438,6 +460,8 @@
             can be deployed independently from quasar, that is e.g. via
             "make install". The profit of it is <a
               href="https://its.cern.ch/jira/browse/OPCUA-1632">explained
+
+
 
 
 

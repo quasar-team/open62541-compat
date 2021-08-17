@@ -515,11 +515,17 @@ UaString UaVariant::toString( ) const
 	}
 	else
 	{
-		UA_String* output (UA_String_new());
-		UA_print(m_impl->data, m_impl->type, output);
-		UaString rtrn (output);
-		UA_String_clear(output);
-		return rtrn;
+		// UA_print can't be used for strings because it wraps stuff in quotes
+	    if (m_impl->type == &UA_TYPES[UA_TYPES_STRING])
+	    	return UaString( (UA_String*)m_impl->data );
+	    else
+	    {
+			UA_String* output (UA_String_new());
+			UA_print(m_impl->data, m_impl->type, output);
+			UaString rtrn (output);
+			UA_String_clear(output);
+			return rtrn;
+	    }
 	}
 }
 

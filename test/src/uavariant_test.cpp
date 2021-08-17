@@ -50,7 +50,7 @@ TEST_F(UaVariantTest, testConvertToSameInternalType)
 	EXPECT_EQ(uint64Value, uint64Result);
 
 	m_testee.setString(UaString("abcde"));
-	EXPECT_EQ("\"abcde\"", m_testee.toString().toUtf8());
+	EXPECT_EQ("abcde", m_testee.toString().toUtf8());
 }
 
 TEST_F(UaVariantTest, testConvertFromBoolean)

@@ -25,6 +25,8 @@
 
 #define OpcUaId_ObjectsFolder UA_NS0ID_OBJECTSFOLDER
 
+#define OpcUaId_BaseDataType UA_NS0ID_BASEDATATYPE
+
 // common reference types
 
 #define OpcUaId_HasComponent UA_NS0ID_HASCOMPONENT

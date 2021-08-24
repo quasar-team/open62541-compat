@@ -33,6 +33,18 @@ UaQualifiedName::UaQualifiedName(int ns, const UaString& name):
     m_impl.namespaceIndex = ns;
 }
 
+UaString  UaQualifiedName::toString() const
+{
+    return UaString(m_impl.name);
+}
+
+UaString  UaQualifiedName::toFullString() const
+{
+    std::ostringstream result;
+    result << "ns="<<m_impl.namespaceIndex << "|" << UaString(m_impl.name).toUtf8();
+    return UaString(result.str().c_str());
+}
+
 UaLocalizedText::UaLocalizedText( const char* locale, const char* text) 
 {
     m_impl = UA_LOCALIZEDTEXT_ALLOC( locale, text ); 

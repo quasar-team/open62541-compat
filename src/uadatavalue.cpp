@@ -69,6 +69,25 @@ void UaDataValue:: operator=(const UaDataValue& other )
 
 }
 
+bool UaDataValue:: operator==(const UaDataValue &other) const
+{
+    if(this == &other) return true;
+    if(m_impl->status == other.m_impl->status &&
+       m_impl->serverTimestamp == other.m_impl->serverTimestamp &&
+       m_impl->sourceTimestamp == other.m_impl->sourceTimestamp)
+    {
+        // compare values - apparently no direct open62541 comparator, so, compare via compat API
+        return UaVariant(m_impl->value) == UaVariant(other.m_impl->value);
+    }
+
+    return false;
+}
+
+bool UaDataValue:: operator!=(const UaDataValue &other) const
+{
+    return !(*this == other);
+}
+
 UaDataValue UaDataValue::clone()
 {
     while (m_lock.test_and_set(std::memory_order_acquire));  // acquire lock

@@ -60,6 +60,8 @@ class UaQualifiedName
     UaQualifiedName(int ns, const UaString& name);
     UA_QualifiedName impl() const { return m_impl; }
     UaString unqualifiedName() const { return m_unqualifiedName; }
+    UaString toString() const;
+    UaString toFullString() const;
   private:
     UaString m_unqualifiedName;
     UA_QualifiedName m_impl;

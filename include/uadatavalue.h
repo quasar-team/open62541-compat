@@ -31,6 +31,8 @@ class UaDataValue
     UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime );
     UaDataValue( const UaDataValue& other );
     void operator=(const UaDataValue& other );
+    bool operator==(const UaDataValue &other) const;
+    bool operator!=(const UaDataValue &other) const;
 
     ~UaDataValue ();
 

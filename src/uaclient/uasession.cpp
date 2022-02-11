@@ -32,6 +32,8 @@
 #include <open62541_compat.h>
 #include <logit_logger.h>
 
+#include <chrono>
+
 namespace UaClientSdk
 {
 
@@ -55,9 +57,17 @@ UaSession::~UaSession ()
 
 void UaSession::clientRunIterateThread(void)
 {
-    while(m_clientRunIterateToggle) {
-        UA_Client_run_iterate(m_client, 1000);
+    
+    while(m_clientRunIterateToggle) 
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        UaStatus status = UA_Client_run_iterate(m_client, 1000);
+        if( !status.isGood() )
+        {
+            LOG(Log::ERR) << "in UaSession::clientRunIterateThread() " << status.toString().toUtf8();
+        }
     }
+
 }
 
 UaStatus UaSession::connect(

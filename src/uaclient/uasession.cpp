@@ -99,7 +99,7 @@ UaStatus UaSession::connect(
 			"secureChannelLifeTime=[" << clientConfig->secureChannelLifeTime << "] ms, " <<
             "connectivityCheckInterval=[" << clientConfig->connectivityCheckInterval << "] ms";
     UaStatus status = UA_Client_connect(m_client, endpoint.toUtf8().c_str());
-    UA_Client_connect(m_client, "opc.tcp://localhost:48020");
+
     if(! status.isGood())
     {
         UA_Client_delete(m_client);

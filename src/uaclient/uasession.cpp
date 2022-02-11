@@ -53,6 +53,13 @@ UaSession::~UaSession ()
 
 }
 
+void UaSession::clientRunIterateThread(void)
+{
+    while(m_clientRunIterateToggle) {
+        UA_Client_run_iterate(m_client, 1000);
+    }
+}
+
 UaStatus UaSession::connect(
         const UaString&                endpoint,
         const SessionConnectInfo&      connectInfo,
@@ -67,6 +74,7 @@ UaStatus UaSession::connect(
         return OpcUa_Bad;  // Already connected!
     }
     m_client = UA_Client_new();
+
     if (!m_client)
         throw alloc_error();
 
@@ -78,14 +86,20 @@ UaStatus UaSession::connect(
     clientConfig->timeout = connectInfo.internalServiceCallTimeout;
     clientConfig->secureChannelLifeTime = connectInfo.nSecureChannelLifetime;
     clientConfig->requestedSessionTimeout = connectInfo.nSessionTimeout;
+    // Look at OPCUA-2603
+    // In cases where a long operation is taking place and the server max session timeout is reached
+    // it is important that the client makes a periodic (2000ms) connectivy check
+    clientConfig->connectivityCheckInterval = 2000;
 
     // TODO @Piotr note that many possibly important settings are not carried
     // from UA-SDK API to open6! At the moment, only timeout is.
     LOG(Log::DBG) << "Will connect to OPC-UA endpoint [" << endpoint.toUtf8().c_str() << "], " <<
     		"serviceCallTimeout=[" << clientConfig->timeout << "] ms, " <<
 			"requestedSessionTimeout=[" << clientConfig->requestedSessionTimeout << "] ms, " <<
-			"secureChannelLifeTime=[" << clientConfig->secureChannelLifeTime << "] ms";
+			"secureChannelLifeTime=[" << clientConfig->secureChannelLifeTime << "] ms, " <<
+            "connectivityCheckInterval=[" << clientConfig->connectivityCheckInterval << "] ms";
     UaStatus status = UA_Client_connect(m_client, endpoint.toUtf8().c_str());
+    UA_Client_connect(m_client, "opc.tcp://localhost:48020");
     if(! status.isGood())
     {
         UA_Client_delete(m_client);
@@ -93,6 +107,9 @@ UaStatus UaSession::connect(
         LOG(Log::ERR) << "in UaSession::connect() " << status.toString().toUtf8();
         return status;
     }
+
+    m_clientRunIterateToggle = true;
+    m_clientRunIterateThreadFuture = std::async(std::launch::async, &UaSession::clientRunIterateThread, this);
 
     return OpcUa_Good;
 }
@@ -107,6 +124,10 @@ UaStatus UaSession::disconnect(
     )
 {
     std::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
+
+    m_clientRunIterateToggle = false;
+    m_clientRunIterateThreadFuture.get();
+
     if (! m_client)
     {
         LOG(Log::WRN) << "Can't disconnect because not connected.";

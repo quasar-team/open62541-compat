@@ -28,6 +28,9 @@
 #include <uaclient/uaclientsdk.h>
 #include <arrays.h>
 
+#include <atomic>
+#include <future>
+
 // forward-decl
 struct UA_Client;
 
@@ -144,8 +147,13 @@ public:
 
 
 private:
-    UA_Client     *m_client;
-    std::mutex    m_accessMutex; // used to make all UaSession's methods synchronized
+    UA_Client           *m_client;
+    std::mutex          m_accessMutex; // used to make all UaSession's methods synchronized
+
+    void                clientRunIterateThread(void);
+    std::future<void>   m_clientRunIterateThreadFuture;
+    std::atomic<bool>   m_clientRunIterateToggle;
+
 };
 
 }

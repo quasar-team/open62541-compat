@@ -150,9 +150,11 @@ private:
     UA_Client           *m_client;
     std::mutex          m_accessMutex; // used to make all UaSession's methods synchronized
 
+#ifdef OPCUA_2603
     void                clientRunIterateThread(void);
     std::future<void>   m_clientRunIterateThreadFuture;
     std::atomic<bool>   m_clientRunIterateToggle;
+#endif
 
 };
 

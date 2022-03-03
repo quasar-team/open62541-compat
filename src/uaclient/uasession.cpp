@@ -55,6 +55,7 @@ UaSession::~UaSession ()
 
 }
 
+#ifdef OPCUA_2603
 void UaSession::clientRunIterateThread(void)
 {
     
@@ -69,6 +70,7 @@ void UaSession::clientRunIterateThread(void)
     }
 
 }
+#endif
 
 UaStatus UaSession::connect(
         const UaString&                endpoint,
@@ -118,8 +120,10 @@ UaStatus UaSession::connect(
         return status;
     }
 
+#ifdef OPCUA_2603
     m_clientRunIterateToggle = true;
     m_clientRunIterateThreadFuture = std::async(std::launch::async, &UaSession::clientRunIterateThread, this);
+#endif
 
     return OpcUa_Good;
 }
@@ -135,8 +139,10 @@ UaStatus UaSession::disconnect(
 {
     std::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
 
+#ifdef OPCUA_2603
     m_clientRunIterateToggle = false;
     m_clientRunIterateThreadFuture.get();
+#endif
 
     if (! m_client)
     {

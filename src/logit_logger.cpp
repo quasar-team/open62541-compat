@@ -39,6 +39,15 @@ static void logFromOpen62541 (
 		case UA_LOGLEVEL_WARNING: logItLogLevel = Log::WRN; break;
 		default: logItLogLevel = Log::ERR; // just in case they added a new level.
 	}
+
+	auto open62541LogItHandle = Log::getComponentHandle("open62541");
+	if (open62541LogItHandle == Log::INVALID_HANDLE) return;
+
+	Log::LOG_LEVEL userLogLevel = Log::INF;
+	if (!Log::getComponentLogLevel(open62541LogItHandle, userLogLevel)) return;
+
+	if (userLogLevel > logItLogLevel) return;
+
 	// translate open62541 category.
 	std::string categoryStr ("category_unknown");
 	switch (category)

@@ -20,7 +20,7 @@ mkdir tmp && cd tmp
 git clone https://github.com/open62541/open62541.git --depth=1 -b $TAG || exit
 cd open62541
 mkdir build && cd build
-cmake -DUA_ENABLE_AMALGAMATION=ON -DUA_ENABLE_METHODCALLS=ON ../ || exit
+cmake -DUA_ENABLE_AMALGAMATION=ON -DUA_ENABLE_METHODCALLS=ON -DUA_LOGLEVEL=100 ../ || exit
 make || exit
 cd $WD
 

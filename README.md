@@ -6,12 +6,16 @@ For bugs or suggestions please file a GitHub ticket.
 Versions
 --------
 
-| Branch/Version | open62541 version | LogIt version | Description |
-| -------------- | ----------------- | ------------- | ----------- |
-| 0.9            | 0.2 rc2           | "master"      | Stable, will stay cmake2.8 compatible. OK for native Linux and Win. Not useful for Yocto or PetaLinux.  |
-| 1.0            | 0.2 rc2           | "master"      | Significantly improved CMake scripting etc. Usable in Yocto and PetaLinux. |
-| 1.1            | 0.3(-rc2)         | v0.1.1        | Uses open62541 0.3. |
-| 1.2            | 1.0               | v0.1.1        | Uses open62541 1.0. |
+| Branch/Version | open62541 version included | LogIt version | Years active | Description |
+| -------------- | ----------------- | ------------- | --- | ----------- |
+| 1.4.x          | 1.2.x             | v0.1.1        | 2021- | Stable, widely used. |
+| 1.3.x          | 1.1.x             | v0.1.1        | 2020-2021 |Old-stable.          |
+| 1.2.x          | 1.0.x             | v0.1.1        | 2019-2020 | Historic. Uses open62541 1.0. |
+| 1.1            | 0.3(-rc2)         | v0.1.1        | 2018-2019 | Historic. Uses open62541 0.3. |
+| 1.0            | 0.2 rc2           | "master"      | 2018      | Prehistoric. Significantly improved CMake scripting etc. Usable in Yocto and PetaLinux. |
+| 0.9            | 0.2 rc2           | "master"      | 2015-2018 | Prehistoric. Will stay cmake2.8 compatible. OK for native Linux and Win. Not useful for Yocto or PetaLinux.  |
+
+
 
 
 Quick-start guide in Quasar

@@ -53,6 +53,7 @@ public:
     virtual OpcUa_Byte accessLevel() const { return m_accessLevel; }
     virtual UaDataValue value(Session* session) ;
     virtual UaQualifiedName browseName() const override { return m_browseName; }
+    virtual void setAccessLevel (OpcUa_Byte accessLevel) { m_accessLevel = accessLevel; }
     virtual UaNodeId typeDefinitionId() const override { return m_typeDefinitionId; }
     virtual void setDataType( const UaNodeId& typeref ) { m_typeDefinitionId = typeref; }
     virtual void setValueRank (OpcUa_Int32 valueRank) { m_valueRank = valueRank; }

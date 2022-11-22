@@ -30,17 +30,6 @@
 #define OpcUa_True true
 #define OpcUa_False false
 
-
-
-
-
-enum OpcUa_AccessLevels
-{
-  OpcUa_AccessLevels_CurrentRead = UA_ACCESSLEVELMASK_READ,
-  OpcUa_AccessLevels_CurrentReadOrWrite = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE
-};
-
-
 class UaLocalizedText
 {
 public:

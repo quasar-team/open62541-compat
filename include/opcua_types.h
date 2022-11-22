@@ -44,4 +44,11 @@ enum OpcUa_NodeClass
 
 OpcUa_NodeClass safeConvertNodeClassToSdk (UA_NodeClass nc);
 
+enum OpcUa_AccessLevels
+{
+  OpcUa_AccessLevels_CurrentRead = UA_ACCESSLEVELMASK_READ,
+  OpcUa_AccessLevels_CurrentWrite = UA_ACCESSLEVELMASK_WRITE,
+  OpcUa_AccessLevels_CurrentReadOrWrite = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE
+};
+
 #endif /* OPEN62541_COMPAT_INCLUDE_OPCUA_TYPES_H_ */

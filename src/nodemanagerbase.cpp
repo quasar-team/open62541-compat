@@ -239,7 +239,11 @@ UaStatus NodeManagerBase::addObjectNodeAndReference(
 
 }
 
-UaStatus NodeManagerBase::addDataVariableNodeAndReference(
+/** Piotr's comment: this mechanism was used historically to handle cache-variables in open62541-compat.
+ * However, it is no longer needed for cache-variables as we have better ways of doing it, using proper Variables.
+ * I'm not deprecating it though because it very well matches what's needed for synchronous source-variables.
+ */
+UaStatus NodeManagerBase::addDataSourceVariableNodeAndReference(
         UaNode* parent,
 		OpcUa::BaseDataVariableType* variable,
         const UaNodeId& refType)
@@ -282,6 +286,48 @@ UaStatus NodeManagerBase::addDataVariableNodeAndReference(
         m_listNodes.push_back( variable );
         parent->addReferencedTarget( variable, refType );
     }
+    return s;
+}
+
+UaStatus NodeManagerBase::addDataVariableNodeAndReference(
+        UaNode* parent,
+		OpcUa::BaseDataVariableType* variable,
+        const UaNodeId& refType)
+{
+	UaLocalizedText displayName( "en_US", variable->browseName().unqualifiedName().toUtf8().c_str());
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.description = *emptyDescription.impl();
+    attr.displayName = *displayName.impl();
+    attr.dataType = variable->typeDefinitionId().impl();
+    attr.valueRank = variable->valueRank();
+    attr.accessLevel = variable->accessLevel();
+    UaUInt32Array arrayDimensions;
+    variable->arrayDimensions(arrayDimensions);
+    attr.arrayDimensionsSize = arrayDimensions.size();
+    if (arrayDimensions.size() > 0)
+        attr.arrayDimensions = &arrayDimensions[0];
+    else
+        attr.arrayDimensions = nullptr;
+    variable->value(/*session*/nullptr).value()->copyTo(&attr.value);
+    UA_StatusCode s =
+        UA_Server_addVariableNode(  m_server,
+									variable->nodeId().impl(),
+									parent->nodeId().impl(),
+									refType.impl(),
+									variable->browseName().impl(),
+									UaNodeId(UA_NS0ID_BASEDATAVARIABLETYPE ,0).impl() ,
+									attr,
+									nullptr, /* nodecontext */
+									nullptr /* output nodeid - not using automatic assignment so don't care */
+								   );
+    if (UA_STATUSCODE_GOOD == s)
+    {
+        m_listNodes.push_back( variable );
+        parent->addReferencedTarget( variable, refType );
+    }
+    variable->associateServer(m_server);
+    variable->setValueHandling(ValueHandling::UaVariable_Value_Cache);
     return s;
 }
 

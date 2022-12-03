@@ -28,6 +28,7 @@
 #include <nodemanagerbase.h>
 #include <open62541_compat.h>
 #include <statuscode.h>
+#include <uabasenodes.h>
 
 namespace OpcUa
 {
@@ -62,7 +63,11 @@ public:
     virtual UaNodeId nodeId() const override { return m_nodeId; }
     virtual OpcUa_Int32 valueRank() const { return m_valueRank; }
     virtual void arrayDimensions(UaUInt32Array &    arrayDimensions )   const { arrayDimensions = m_arrayDimensions;}
+
+
     const UA_DataValue* valueImpl() const { return m_currentValue.impl(); }
+    void associateServer( UA_Server* server );
+    void setValueHandling( ValueHandling valueHandling ) { m_valueHandling = valueHandling; }
 
 private:
     UaQualifiedName m_browseName;
@@ -72,6 +77,24 @@ private:
     OpcUa_Int32 m_valueRank;
     OpcUa_Byte m_accessLevel;
     UaUInt32Array m_arrayDimensions;
+
+    /* It seems necessary to comment on ValueHandling policies within open62541-compat; as it is a wrapper layer on top of open62541,
+     * attempting to look&feel like UASDK is not necessarily easy.
+     * To me (Piotr) I choose the following mapping:
+     * None - the m_currentValue is not used at all. setValue() and value() should be overridden by a subclass. Within this class their behaviour is undefined.
+     * Cache - the m_currentValue only reflects last value passed to setValue(). setValue() will invoke open62541 writeValues() and value() will invoke
+     *   open62541 readValues. This mode seems to match the new implementation of cache-variables in open62541-compat.
+     * CacheIsSource - the m_currentValue stores the actual "online" value, open62541 will use value() to sample it. This matches the historic way of doing
+     *   cache variables using open62541-compat and remains to be used for simpler DataSource applications in future.
+     * CacheIsUpdatedOnRequest - not supported at all in open62541 at this very moment.
+     */
+    ValueHandling m_valueHandling;
+
+    UaStatus requestWriteToServer (UaNodeId variableNodeId, const UaDataValue& dataValue);
+    UaDataValue requestReadFromServer (UaNodeId variableNodeId);
+
+    UA_Server* m_associatedServer;
+
 };
 
 

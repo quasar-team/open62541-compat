@@ -15,10 +15,8 @@
 #include <uadatavalue.h>
 #include <open62541_compat.h>
 
-UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime ):
-m_lock()
+UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime )
 {
-    m_lock.clear();
     m_impl = UA_DataValue_new ();
     if (!m_impl)
     	OPEN62541_COMPAT_LOG_AND_THROW(
@@ -44,10 +42,8 @@ m_lock()
 
 }
 
-UaDataValue::UaDataValue( const UaDataValue& other ):
-            m_lock()
+UaDataValue::UaDataValue( const UaDataValue& other )
 {
-    m_lock.clear();
     m_impl = UA_DataValue_new ();
     // LOG(Log::INF) << "allocated new UA_DataValue @ " <<  m_impl;
     UA_DataValue_copy( other.m_impl, m_impl );
@@ -55,7 +51,7 @@ UaDataValue::UaDataValue( const UaDataValue& other ):
 
 void UaDataValue:: operator=(const UaDataValue& other )
 {
-    while (m_lock.test_and_set(std::memory_order_acquire));  // acquire lock
+    std::lock_guard<std::mutex> lock(m_lock);
     if (m_impl)
     {
         UA_DataValue_clear (m_impl);
@@ -65,7 +61,6 @@ void UaDataValue:: operator=(const UaDataValue& other )
     m_impl = UA_DataValue_new ();
     // LOG(Log::INF) << "allocated new UA_DataValue @ " <<  m_impl;
     UA_DataValue_copy( other.m_impl, m_impl );
-    m_lock.clear(std::memory_order_release);
 
 }
 
@@ -90,9 +85,8 @@ bool UaDataValue:: operator!=(const UaDataValue &other) const
 
 UaDataValue UaDataValue::clone()
 {
-    while (m_lock.test_and_set(std::memory_order_acquire));  // acquire lock
+    std::lock_guard<std::mutex> lock(m_lock);
     UaDataValue aCopy ( *this );
-    m_lock.clear(std::memory_order_release);
     return aCopy;
 
 }

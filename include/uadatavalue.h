@@ -8,22 +8,9 @@
 #ifndef INCLUDE_UADATAVALUE_H_
 #define INCLUDE_UADATAVALUE_H_
 
+#include <mutex>
+
 #include <uavariant.h>
-
-#ifdef __linux__
-
-#define GCC_VERSION (__GNUC__ * 10000 \
-                               + __GNUC_MINOR__ * 100 \
-                               + __GNUC_PATCHLEVEL__)
-#if GCC_VERSION > 40800
-#include <atomic>
-#else // GCC_VERSION
-#include <stdatomic.h>
-#endif // GCC_VERSION
-
-#else //  __linux__ not defined, so windows or so...
-#include <atomic>
-#endif // __linux__
 
 class UaDataValue
 {
@@ -45,7 +32,10 @@ class UaDataValue
 
   private:
     UA_DataValue *m_impl;
-    std::atomic_flag m_lock;
+
+    //! The locking done here is to let UaDataValue be concurrently used from multiple threads 
+    // (e.g. network stack for monitoring and a quasar server "above" to publish) to make up for the UASDK behaviour.
+    std::mutex m_lock;
 
 
 

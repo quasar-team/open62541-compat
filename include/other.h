@@ -24,6 +24,7 @@
 
 #include <open62541.h>
 #include <uastring.h>
+#include <ostream>
 //TODO: amalgamated or not
 
 
@@ -55,6 +56,8 @@ class UaQualifiedName
     UaString m_unqualifiedName;
     UA_QualifiedName m_impl;
 };
+
+std::ostream& operator<<(std::ostream& os, const UaQualifiedName& n);
 
 class UaMutexRefCounted {};
 

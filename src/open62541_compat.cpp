@@ -108,3 +108,9 @@ OpcUa_NodeClass safeConvertNodeClassToSdk (UA_NodeClass nc)
 				"This node class is not implemented: " + std::to_string(nc) + ", improve me!");
 	}
 }
+
+std::ostream& operator<<(std::ostream& os, const UaQualifiedName& n)
+{
+	os << n.toString().toUtf8();
+	return os;
+}

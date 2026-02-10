@@ -18,7 +18,7 @@
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
 project(open62541-compat LANGUAGES C CXX)
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.5)
 cmake_policy(SET CMP0012 NEW)
 cmake_policy(SET CMP0057 NEW) # enables IN_LIST operator
 

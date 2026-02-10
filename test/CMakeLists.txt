@@ -1,24 +1,13 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 2.8)
 project(open62541-compat-Test)
 find_package(Threads REQUIRED)
 
 message( STATUS "building unit tests, a wise choice. Remember to execute the tests too!" )
 
 function ( clone_googletest GOOGLETEST_VERSION)
-  if(EXISTS "${PROJECT_BINARY_DIR}/googletest/CMakeLists.txt")
-    message(STATUS "googletest already available in ${PROJECT_BINARY_DIR}/googletest")
-    return()
-  endif()
   message(STATUS "cloning googletest from github. *NOTE* cloning [${GOOGLETEST_VERSION}]")
-  execute_process(
-    COMMAND git clone -b ${GOOGLETEST_VERSION} https://github.com/google/googletest.git
-    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-    RESULT_VARIABLE GOOGLETEST_CLONE_RESULT
-  )
-  if(NOT GOOGLETEST_CLONE_RESULT EQUAL 0)
-    message(FATAL_ERROR "Failed to clone googletest release [${GOOGLETEST_VERSION}]")
-  endif()
-  message(STATUS "googletest cloned")
+  execute_process(COMMAND git clone -b ${GOOGLETEST_VERSION} https://github.com/google/googletest.git WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+  message(STATUS "googletest cloned")    
 endfunction()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)

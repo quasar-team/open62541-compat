@@ -17,11 +17,10 @@
 # Authors:
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
-cmake_minimum_required(VERSION 3.10)
 project(open62541-compat LANGUAGES C CXX)
+cmake_minimum_required(VERSION 3.3)
 cmake_policy(SET CMP0012 NEW)
 cmake_policy(SET CMP0057 NEW) # enables IN_LIST operator
-set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 
 include (cmake/Open62541CompatFetchContent.cmake)
 option(PULL_OPEN62541 "Pull open62541 from their github instead of using the bundled one (not recommended!)" OFF)

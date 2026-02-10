@@ -136,50 +136,26 @@ else()
   include_directories( include )
   include_directories( ${PROJECT_BINARY_DIR}/open62541 )
 
-  # Legacy hook retained for custom downstream build scripts.
+  #
+  # Load stand-alone build toolchain file (used for defining build-specific boost (BOOST_LIBS), amongst other things)
+  #
   if(DEFINED OPEN62541-COMPAT_BUILD_CONFIG_FILE)
     message("OPEN62541-COMPAT_BUILD_CONFIG_FILE is defined -- including [[${OPEN62541-COMPAT_BUILD_CONFIG_FILE}]]")
     include(${OPEN62541-COMPAT_BUILD_CONFIG_FILE})
   endif()
 
   if( NOT DEFINED BOOST_LIBS)
-    set(BOOST_COMPONENTS
-      date_time
-      program_options
-      regex
-    )
-    set(BOOST_HOME "$ENV{BOOST_HOME}")
-    if(BOOST_HOME)
-      if(NOT EXISTS "${BOOST_HOME}")
-        message(FATAL_ERROR "BOOST_HOME does not exist: ${BOOST_HOME}")
-      endif()
-      list(APPEND CMAKE_PREFIX_PATH "${BOOST_HOME}")
-      message(STATUS "Using BOOST_HOME from environment: ${BOOST_HOME}")
+    if(NOT DEFINED BOOST_ROOT AND DEFINED ENV{BOOST_HOME} AND NOT "$ENV{BOOST_HOME}" STREQUAL "")
+      set(BOOST_ROOT "$ENV{BOOST_HOME}")
+      message(STATUS "Using BOOST_HOME as BOOST_ROOT: [${BOOST_ROOT}]")
     endif()
-
-    set(Boost_USE_STATIC_LIBS ON)
-    set(Boost_USE_STATIC_RUNTIME ON)
-    find_package(Boost CONFIG QUIET COMPONENTS ${BOOST_COMPONENTS})
-
-    if(Boost_FOUND)
-      set(BOOST_LIBS "")
-      foreach(boost_component IN LISTS BOOST_COMPONENTS)
-        if(NOT TARGET "Boost::${boost_component}")
-          message(FATAL_ERROR "Boost config did not provide target Boost::${boost_component}")
-        endif()
-        list(APPEND BOOST_LIBS "Boost::${boost_component}")
-      endforeach()
-      if(Boost_INCLUDE_DIRS)
-        include_directories( ${Boost_INCLUDE_DIRS} )
-      endif()
-      message(STATUS "Found boost via BoostConfig, version [${Boost_VERSION}]")
+    # try to resolve using find_package
+    set(Boost_NO_BOOST_CMAKE ON)
+    find_package(Boost REQUIRED chrono date_time thread program_options)
+    if(NOT Boost_FOUND)
+      message(FATAL_ERROR "Failed to find boost installation. Install it (dev packages), if necessary make sure that BOOST_ROOT is exported, or use a dedicated build config file (some of which are attached to open62541-compat repository, e.g. boost_standard_install_cc7")
     else()
-      set(Boost_NO_BOOST_CMAKE ON)
-      find_package(Boost REQUIRED COMPONENTS ${BOOST_COMPONENTS})
-      if(NOT Boost_FOUND)
-        message(FATAL_ERROR "Failed to find boost installation. Install it (dev packages), or set BOOST_HOME to a boost installation root.")
-      endif()
-      message(STATUS "Found boost via FindBoost, version [${Boost_VERSION}], include dir [${Boost_INCLUDE_DIRS}] library dir [${Boost_LIBRARY_DIRS}], libs [${Boost_LIBRARIES}]")
+      message(STATUS "Found system boost, version [${Boost_VERSION}], include dir [${Boost_INCLUDE_DIRS}] library dir [${Boost_LIBRARY_DIRS}], libs [${Boost_LIBRARIES}]")
       include_directories( ${Boost_INCLUDE_DIRS} )
       set( BOOST_LIBS ${Boost_LIBRARIES} )
     endif()

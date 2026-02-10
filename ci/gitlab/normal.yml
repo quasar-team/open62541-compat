@@ -1,0 +1,25 @@
+variables:
+  ALMA_LATEST_IMAGE: "gitlab-registry.cern.ch/quasar-team/images/alma-10-build:latest"
+
+Compile on Linux:
+  stage: unstagged
+  image: $ALMA_LATEST_IMAGE
+  variables:
+    BOOST_HOME: "/opt/boost"
+  script:
+    - rm -rf build
+    - cmake -B build -DSTANDALONE_BUILD=ON -DCMAKE_BUILD_TYPE=Release
+    - cmake --build build --config Release
+  artifacts:
+    paths:
+      - build/
+    when: always
+
+Run tests on Linux:
+  stage: unstagged
+  image: $ALMA_LATEST_IMAGE
+  needs:
+    - job: Compile on Linux
+      artifacts: true
+  script:
+    - ./build/test/open62541-compat-Test

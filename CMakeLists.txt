@@ -150,6 +150,8 @@ else()
     endif()
     # try to resolve using find_package
     set(Boost_NO_BOOST_CMAKE ON)
+    set(Boost_USE_STATIC_RUNTIME ON)
+    set(Boost_USE_STATIC_LIBS ON)
     find_package(Boost CONFIG REQUIRED COMPONENTS chrono date_time thread program_options)
     if(NOT Boost_FOUND)
       message(FATAL_ERROR "Failed to find boost installation. Install it (dev packages), if necessary make sure that BOOST_ROOT is exported, or use a dedicated build config file (some of which are attached to open62541-compat repository, e.g. boost_standard_install_cc7")

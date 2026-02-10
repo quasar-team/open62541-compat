@@ -1,5 +1,6 @@
 variables:
   ALMA_LATEST_IMAGE: "gitlab-registry.cern.ch/quasar-team/images/alma-10-build:latest"
+  WINDOWS_LATEST_IMAGE: "gitlab-registry.cern.ch/quasar-team/images/win2025-build:latest"
 
 Compile on Linux:
   stage: unstagged
@@ -15,6 +16,21 @@ Compile on Linux:
       - build/
     when: always
 
+Compile on Windows:
+  stage: unstagged
+  image: $WINDOWS_LATEST_IMAGE
+  tags:
+    - win2025-container
+  variables:
+    BOOST_HOME: "C:/boost"
+  script:
+    - cmake -B build -DSTANDALONE_BUILD=ON -DCMAKE_BUILD_TYPE=Release
+    - cmake --build build --config Release
+  artifacts:
+    paths:
+      - build/
+    when: always
+
 Run tests on Linux:
   stage: unstagged
   image: $ALMA_LATEST_IMAGE
@@ -23,3 +39,14 @@ Run tests on Linux:
       artifacts: true
   script:
     - ./build/test/open62541-compat-Test
+
+Run tests on Windows:
+  stage: unstagged
+  image: $WINDOWS_LATEST_IMAGE
+  tags:
+    - win2025-container
+  needs:
+    - job: Compile on Windows
+      artifacts: true
+  script:
+    - ./build/test/Release/open62541-compat-Test.exe

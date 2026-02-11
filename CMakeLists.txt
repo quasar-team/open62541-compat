@@ -152,13 +152,18 @@ else()
     set(Boost_NO_BOOST_CMAKE ON)
     set(Boost_USE_STATIC_RUNTIME ON)
     set(Boost_USE_STATIC_LIBS ON)
-    find_package(Boost CONFIG REQUIRED COMPONENTS chrono date_time thread program_options)
+    find_package(Boost CONFIG REQUIRED COMPONENTS chrono date_time regex thread program_options)
     if(NOT Boost_FOUND)
       message(FATAL_ERROR "Failed to find boost installation. Install it (dev packages), if necessary make sure that BOOST_ROOT is exported, or use a dedicated build config file (some of which are attached to open62541-compat repository, e.g. boost_standard_install_cc7")
     else()
-      message(STATUS "Found system boost, version [${Boost_VERSION}], include dir [${Boost_INCLUDE_DIRS}] library dir [${Boost_LIBRARY_DIRS}], libs [${Boost_LIBRARIES}]")
+      message(STATUS "Found system boost, version [${Boost_VERSION}], include dir [${Boost_INCLUDE_DIRS}]")
       include_directories( ${Boost_INCLUDE_DIRS} )
-      set( BOOST_LIBS ${Boost_LIBRARIES} )
+      set(BOOST_LIBS
+        Boost::chrono
+        Boost::date_time
+        Boost::regex
+        Boost::thread
+        Boost::program_options)
     endif()
   endif()
 

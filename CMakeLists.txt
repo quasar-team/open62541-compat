@@ -17,10 +17,8 @@
 # Authors:
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
+cmake_minimum_required(VERSION 3.15) # Includes policy CMP0091, CMP0012, CMP0057
 project(open62541-compat LANGUAGES C CXX)
-cmake_minimum_required(VERSION 3.10)
-cmake_policy(SET CMP0012 NEW)
-cmake_policy(SET CMP0057 NEW) # enables IN_LIST operator
 
 include (cmake/Open62541CompatFetchContent.cmake)
 option(PULL_OPEN62541 "Pull open62541 from their github instead of using the bundled one (not recommended!)" OFF)
@@ -29,6 +27,10 @@ option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 option(SKIP_TESTS "do not build the tests (not advised)" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
+
+# Keep the MSVC runtime consistent with Boost static-runtime binaries.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # "OPEN62541_VERSION" will be used only if you use PULL_OPEN62541
 SET (OPEN62541_VERSION "v1.0" CACHE STRING "Which open62541 commit/tag/branch to take")
 option (UA_ENABLE_AMALGAMATION "Whether open62541 should amalgamate" ON )
@@ -144,10 +146,6 @@ else()
   endif()
 
   if( NOT DEFINED BOOST_LIBS)
-    if(NOT DEFINED BOOST_ROOT AND DEFINED ENV{BOOST_HOME} AND NOT "$ENV{BOOST_HOME}" STREQUAL "")
-      set(BOOST_ROOT "$ENV{BOOST_HOME}")
-      message(STATUS "Using BOOST_HOME as BOOST_ROOT: [${BOOST_ROOT}]")
-    endif()
     set(BOOST_HOME "$ENV{BOOST_HOME}")
     list(APPEND CMAKE_PREFIX_PATH "${BOOST_HOME}")
     set(Boost_USE_STATIC_RUNTIME ON)

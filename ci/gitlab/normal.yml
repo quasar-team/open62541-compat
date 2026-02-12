@@ -9,7 +9,7 @@ Compile on Linux:
     BOOST_HOME: "/opt/boost"
   script:
     - rm -rf build
-    - cmake -B build -DSTANDALONE_BUILD=ON -DCMAKE_BUILD_TYPE=Release
+    - cmake -B build -DSTANDALONE_BUILD=ON 
     - cmake --build build --config Release
   artifacts:
     paths:
@@ -24,7 +24,7 @@ Compile on Windows:
   variables:
     BOOST_HOME: "C:/boost"
   script:
-    - cmake -B build -DSTANDALONE_BUILD=ON -DCMAKE_BUILD_TYPE=Release
+    - cmake -B build -DSTANDALONE_BUILD=ON 
     - cmake --build build --config Release
   artifacts:
     paths:

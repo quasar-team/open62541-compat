@@ -17,7 +17,7 @@
 # Authors:
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
-cmake_minimum_required(VERSION 3.15) # Includes policy CMP0091, CMP0012, CMP0057
+cmake_minimum_required(VERSION 3.30) # Includes policy CMP0091, CMP0012, CMP0057
 project(open62541-compat LANGUAGES C CXX)
 
 include (cmake/Open62541CompatFetchContent.cmake)

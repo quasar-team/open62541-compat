@@ -190,6 +190,7 @@ else()
 
   if(WIN32)
     target_link_libraries( open62541-compat ws2_32 )
+    target_compile_definitions(open62541-compat PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
   endif()
 
   #

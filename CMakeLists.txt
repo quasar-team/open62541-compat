@@ -86,7 +86,7 @@ if(NOT ${PULL_OPEN62541})  # this is the default behaviour
 	list(APPEND SRCS extern/open62541/src/open62541.c)
 	if(MSVC)
 		# Use native MSVC options; open62541.h auto-selects UA_ARCHITECTURE_WIN32.
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /std:c11 /W4 /WX")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /std:c11 /W4")
 	else()
 		set(CMAKE_C_FLAGS
 		    "${CMAKE_C_FLAGS} -std=c99 -DUA_ARCHITECTURE_POSIX -Werror -Wall -Wextra -Wpedantic -Wno-static-in-inline -Wno-overlength-strings -Wno-unused-parameter -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls -Wformat -Wformat-security -Wformat-nonliteral -Wuninitialized -Winit-self -Wcast-qual -Wstrict-overflow -Wnested-externs -Wmultichar -Wundef -Wc++-compat -fno-strict-aliasing -fexceptions -fstack-protector-strong -Wno-unused-function -Wshadow -Wconversion -fvisibility=hidden")

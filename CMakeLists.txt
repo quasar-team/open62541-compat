@@ -28,9 +28,6 @@ option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared libra
 option(SKIP_TESTS "do not build the tests (not advised)" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
 
-# Keep the MSVC runtime consistent with Boost static-runtime binaries.
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-
 # "OPEN62541_VERSION" will be used only if you use PULL_OPEN62541
 SET (OPEN62541_VERSION "v1.0" CACHE STRING "Which open62541 commit/tag/branch to take")
 option (UA_ENABLE_AMALGAMATION "Whether open62541 should amalgamate" ON )

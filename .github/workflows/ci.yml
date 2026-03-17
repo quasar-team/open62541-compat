@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    container: almalinux:9
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: >
+          dnf install -y cmake gcc-c++ make git
+          boost-devel boost-system boost-chrono boost-date-time
+          boost-thread boost-program-options boost-filesystem
+
+      - name: Configure
+        run: cmake -B build -DSTANDALONE_BUILD=ON -DCMAKE_CXX_FLAGS=-Wno-error=maybe-uninitialized
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Test
+        run: ./build/test/open62541-compat-Test

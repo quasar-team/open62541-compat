@@ -9,7 +9,10 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    container: almalinux:9
+    strategy:
+      matrix:
+        container: [almalinux:9, almalinux:10]
+    container: ${{ matrix.container }}
 
     steps:
       - uses: actions/checkout@v4

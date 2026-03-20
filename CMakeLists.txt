@@ -17,10 +17,8 @@
 # Authors:
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
+cmake_minimum_required(VERSION 3.30) # Includes policy CMP0091, CMP0012, CMP0057
 project(open62541-compat LANGUAGES C CXX)
-cmake_minimum_required(VERSION 3.3)
-cmake_policy(SET CMP0012 NEW)
-cmake_policy(SET CMP0057 NEW) # enables IN_LIST operator
 
 include (cmake/Open62541CompatFetchContent.cmake)
 option(PULL_OPEN62541 "Pull open62541 from their github instead of using the bundled one (not recommended!)" OFF)
@@ -29,6 +27,7 @@ option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 option(SKIP_TESTS "do not build the tests (not advised)" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
+
 # "OPEN62541_VERSION" will be used only if you use PULL_OPEN62541
 SET (OPEN62541_VERSION "v1.0" CACHE STRING "Which open62541 commit/tag/branch to take")
 option (UA_ENABLE_AMALGAMATION "Whether open62541 should amalgamate" ON )
@@ -82,7 +81,13 @@ SET( SRCS
 if(NOT ${PULL_OPEN62541})  # this is the default behaviour
 	include_directories(extern/open62541/include)
 	list(APPEND SRCS extern/open62541/src/open62541.c)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -DUA_ARCHITECTURE_POSIX -Werror -Wall -Wextra -Wpedantic -Wno-static-in-inline -Wno-overlength-strings -Wno-unused-parameter -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls -Wformat -Wformat-security -Wformat-nonliteral -Wuninitialized -Winit-self -Wcast-qual -Wstrict-overflow -Wnested-externs -Wmultichar -Wundef -Wc++-compat -fno-strict-aliasing -fexceptions -fstack-protector-strong  -Wno-unused-function -Wshadow -Wconversion -fvisibility=hidden")
+	if(MSVC)
+		# Use native MSVC options; open62541.h auto-selects UA_ARCHITECTURE_WIN32.
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /std:c11 /W4")
+	else()
+		set(CMAKE_C_FLAGS
+		    "${CMAKE_C_FLAGS} -std=c99 -DUA_ARCHITECTURE_POSIX -Werror -Wall -Wextra -Wpedantic -Wno-static-in-inline -Wno-overlength-strings -Wno-unused-parameter -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls -Wformat -Wformat-security -Wformat-nonliteral -Wuninitialized -Winit-self -Wcast-qual -Wstrict-overflow -Wnested-externs -Wmultichar -Wundef -Wc++-compat -fno-strict-aliasing -fexceptions -fstack-protector-strong -Wno-unused-function -Wshadow -Wconversion -fvisibility=hidden")
+	endif()
 endif(NOT ${PULL_OPEN62541})
 
 if(${PULL_OPEN62541})  # this is not default
@@ -144,15 +149,27 @@ else()
   endif()
 
   if( NOT DEFINED BOOST_LIBS)
+    if(DEFINED ENV{BOOST_HOME})
+      set(BOOST_HOME "$ENV{BOOST_HOME}")
+      list(APPEND CMAKE_PREFIX_PATH "${BOOST_HOME}")
+      set(Boost_USE_STATIC_LIBS ON)
+    else()
+      message(STATUS "BOOST_HOME environment variable is not set")
+    endif()
+
     # try to resolve using find_package
-    set(Boost_NO_BOOST_CMAKE ON)
-    find_package(Boost REQUIRED system chrono date_time thread program_options)
+    find_package(Boost CONFIG REQUIRED COMPONENTS chrono date_time regex thread program_options)
     if(NOT Boost_FOUND)
       message(FATAL_ERROR "Failed to find boost installation. Install it (dev packages), if necessary make sure that BOOST_ROOT is exported, or use a dedicated build config file (some of which are attached to open62541-compat repository, e.g. boost_standard_install_cc7")
     else()
-      message(STATUS "Found system boost, version [${Boost_VERSION}], include dir [${Boost_INCLUDE_DIRS}] library dir [${Boost_LIBRARY_DIRS}], libs [${Boost_LIBRARIES}]")
+      message(STATUS "Found system boost, version [${Boost_VERSION}], include dir [${Boost_INCLUDE_DIRS}]")
       include_directories( ${Boost_INCLUDE_DIRS} )
-      set( BOOST_LIBS ${Boost_LIBRARIES} )
+      set(BOOST_LIBS
+        Boost::chrono
+        Boost::date_time
+        Boost::regex
+        Boost::thread
+        Boost::program_options)
     endif()
   endif()
 

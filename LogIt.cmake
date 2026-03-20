@@ -23,7 +23,7 @@
 
 
 function ( fetch_LogIt )
-  SET (LOGIT_VERSION "v0.1.1") #change to master post-merge
+  SET (LOGIT_VERSION "master") #change to master post-merge
   message(STATUS "fetching LogIt from github. *NOTE* fetching version [${LOGIT_VERSION}]")
   Open62541CompatFetchContent_Declare(
     LogIt

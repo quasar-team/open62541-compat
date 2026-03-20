@@ -23,3 +23,5 @@ test/open62541-compat-Test
 .project
 .settings/
 build
+.env
+.gitlab-ci-local/

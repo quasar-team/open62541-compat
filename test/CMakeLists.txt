@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.30)
 project(open62541-compat-Test)
 find_package(Threads REQUIRED)
 
@@ -15,10 +15,10 @@ set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 file(GLOB OPEN62541_COMPAT_MODULE_TEST_SRCS src/*.cpp)
 include_directories( include )
 
-clone_googletest("release-1.10.0")
+clone_googletest("v1.17.0")
 set( BUILD_GTEST ON CACHE BOOL "We do want to build gtest")
 set( BUILD_GMOCK OFF CACHE BOOL "we do not want to build gmock")
-set( gtest_force_shared_crt ON CACHE BOOL "use shared CRT" FORCE)
+
 add_subdirectory( ${PROJECT_BINARY_DIR}/googletest ${PROJECT_BINARY_DIR}/googletest EXCLUDE_FROM_ALL)
 
 add_executable( open62541-compat-Test ${OPEN62541_COMPAT_MODULE_TEST_SRCS} )
@@ -32,7 +32,6 @@ target_link_libraries (open62541-compat-Test
 	${CMAKE_THREAD_LIBS_INIT}
 	${LOGIT_LIB}
 	gtest
-	-ldl
 )
 
 add_dependencies (open62541-compat-Test gtest)

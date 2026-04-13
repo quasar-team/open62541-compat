@@ -44,17 +44,17 @@ Quick-start guide to get an stand-alone(independent) library
    - Build open62541-compat as a static library on linux. Use whatever the system installation of boost-devel is and build LogIt
      directly into the compat library
      ```
-     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON
+     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install.cmake -DSTANDALONE_BUILD=ON
      ```
 
    - Build open62541-compat as a **shared** library on linux (and boost/LogIt treated as above) - just add **STANDALONE_BUILD_SHARED**
      ```
-     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON
+     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON
      ```
 
    - Build open62541-compat as a shared library on linux but with the LogIt library pulled in from some external build location (here LogIt is consumed as a shared library from /tmp/LogIt/). Note the **-DLOGIT** options define how LogIt is built into open62541-compat.
      ```
-     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -DLOGIT_BUILD_OPTION=LOGIT_AS_EXT_SHARED -DLOGIT_EXT_LIB_DIR=/tmp/LogIt/ -DLOGIT_INCLUDE_DIR=/tmp/LogIt/include/
+     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -DLOGIT_BUILD_OPTION=LOGIT_AS_EXT_SHARED -DLOGIT_EXT_LIB_DIR=/tmp/LogIt/ -DLOGIT_INCLUDE_DIR=/tmp/LogIt/include/
      ```
 ### Windows examples (using a mingw 'git bash' command prompt)
    - Build open62541-compat as a static library on windows (visual studio 2017). Use a custom boost build (perhaps you built boost
@@ -92,7 +92,7 @@ Writing unit tests (and running unit tests) is a good habit; developers - if you
 #### Skipping tests
 If, for some reason, you feel you must omit unit tests from the build then there is a way, just add __-DSKIP_TESTS=ON__ to your cmake invocation command line. Taking the example of the stand-alone static library build on linux above the command line would be
 ```
-cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install_cc7.cmake -DSTANDALONE_BUILD=ON -DSKIP_TESTS=ON
+cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install.cmake -DSTANDALONE_BUILD=ON -DSKIP_TESTS=ON
 ```
 (and feel guilty.)
 

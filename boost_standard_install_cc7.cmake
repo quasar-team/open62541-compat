@@ -34,7 +34,7 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ".so")
 set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
 
 find_package(Boost REQUIRED
-	program_options system filesystem chrono date_time thread)
+	program_options filesystem chrono date_time thread OPTIONAL_COMPONENTS system)
 
 if(NOT Boost_FOUND)
 	message(FATAL_ERROR "Failed to find system boost installation (is the boost-devel package installed on this machine?)")

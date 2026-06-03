@@ -16,7 +16,7 @@
 
 # Authors:
 # Ben Farnham <firstNm.secondNm@cern.ch>
-cmake_minimum_required( VERSION 3.5 )
+cmake_minimum_required( VERSION 3.16 )
 #project( FindSystemBoost CXX )
 message(STATUS "Using file [boost_standard_install.cmake] toolchain file")
 

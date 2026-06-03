@@ -16,9 +16,9 @@
 
 # Authors:
 # Ben Farnham <firstNm.secondNm@cern.ch>
-cmake_minimum_required( VERSION 2.8 )
+cmake_minimum_required( VERSION 3.5 )
 #project( FindSystemBoost CXX )
-message(STATUS "Using file [boost_standard_install_cc7.cmake] toolchain file")
+message(STATUS "Using file [boost_standard_install.cmake] toolchain file")
 
 message(STATUS "CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES [${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES}]")
 
@@ -34,7 +34,7 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ".so")
 set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
 
 find_package(Boost REQUIRED
-	program_options system filesystem chrono date_time thread)
+	program_options filesystem chrono date_time thread OPTIONAL_COMPONENTS system)
 
 if(NOT Boost_FOUND)
 	message(FATAL_ERROR "Failed to find system boost installation (is the boost-devel package installed on this machine?)")

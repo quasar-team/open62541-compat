@@ -4,7 +4,7 @@ message(STATUS "Using file [boost_lcg.cmake] file")
 # That is a workaround for boost-1.7.0 cmake config modules.
 set(Boost_NO_BOOST_CMAKE ON)
 
-find_package(Boost REQUIRED program_options system filesystem chrono date_time thread)
+find_package(Boost REQUIRED program_options filesystem chrono date_time thread OPTIONAL_COMPONENTS system)
 if(NOT Boost_FOUND)
     message(FATAL_ERROR "Failed to find boost installation")
 else()

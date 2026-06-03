@@ -18,7 +18,7 @@
 # Piotr Nikiel <piotr@nikiel.info>
 # Ben Farnham <firstNm.secondNm@cern.ch>
 project(open62541-compat LANGUAGES C CXX)
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.5)
 cmake_policy(SET CMP0012 NEW)
 cmake_policy(SET CMP0057 NEW) # enables IN_LIST operator
 
@@ -146,9 +146,9 @@ else()
   if( NOT DEFINED BOOST_LIBS)
     # try to resolve using find_package
     set(Boost_NO_BOOST_CMAKE ON)
-    find_package(Boost REQUIRED system chrono date_time thread program_options)
+    find_package(Boost REQUIRED chrono date_time thread program_options OPTIONAL_COMPONENTS system)
     if(NOT Boost_FOUND)
-      message(FATAL_ERROR "Failed to find boost installation. Install it (dev packages), if necessary make sure that BOOST_ROOT is exported, or use a dedicated build config file (some of which are attached to open62541-compat repository, e.g. boost_standard_install_cc7")
+      message(FATAL_ERROR "Failed to find boost installation. Install it (dev packages), if necessary make sure that BOOST_ROOT is exported, or use a dedicated build config file (some of which are attached to open62541-compat repository, e.g. boost_standard_install")
     else()
       message(STATUS "Found system boost, version [${Boost_VERSION}], include dir [${Boost_INCLUDE_DIRS}] library dir [${Boost_LIBRARY_DIRS}], libs [${Boost_LIBRARIES}]")
       include_directories( ${Boost_INCLUDE_DIRS} )

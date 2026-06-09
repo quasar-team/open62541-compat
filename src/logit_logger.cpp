@@ -8,6 +8,8 @@
 #include <logit_logger.h>
 #include <LogIt.h>
 
+extern "C" int mp_vsnprintf(char* s, size_t count, const char* format, va_list arg);
+
 static Log::LogComponentHandle logItComponentHandle = Log::INVALID_HANDLE;
 
 void initializeOpen62541LogIt (Log::LOG_LEVEL logLevel)
@@ -64,7 +66,7 @@ static void logFromOpen62541 (
 		case UA_LOGCATEGORY_DISCOVERY: categoryStr = "discovery"; break;
 	}
 	char line [1024] = {0};
-	vsnprintf(line, sizeof line-1, msg, args);
+	mp_vsnprintf(line, sizeof line-1, msg, args);
 	LOG(logItLogLevel, logItComponentHandle) << categoryStr << ": " << line;
 }
 

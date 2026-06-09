@@ -150,7 +150,9 @@ class AsyncOperations
 public:
     explicit AsyncOperations(UA_Server* server);
 
-    bool isOpen();
+    bool deferralActive();
+    bool isClosed();
+    void setServing();
     void establishDeferral(std::shared_ptr<AsyncOperationBlock> block);
     void push(std::shared_ptr<AsyncOperationBlock> block);
     void drain(UA_Server* server);
@@ -168,6 +170,7 @@ private:
     std::mutex                                          m_queueMutex;
     std::condition_variable                             m_queueCv;
     std::vector<std::shared_ptr<AsyncOperationBlock> >  m_queue;
+    bool                                                m_serving;
     bool                                                m_closed;
     unsigned int                                        m_inflight;
 };

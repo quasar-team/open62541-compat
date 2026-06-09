@@ -73,6 +73,7 @@ void UaServer::start()
     m_nodeManager->linkServer(m_server);
     m_nodeManager->afterStartUp();
 
+    m_asyncOperations->setServing();
     UA_StatusCode status = UA_Server_run_startup(m_server);
     if (status != UA_STATUSCODE_GOOD)
         throw std::runtime_error("UA_Server_run_startup returned not-good, server can't start. Error was:"+

@@ -115,14 +115,27 @@ void AsyncMethodBlock::finishDeferred(UA_Server* server)
 
 AsyncOperations::AsyncOperations(UA_Server* server):
     m_server(server),
+    m_serving(false),
     m_closed(false),
     m_inflight(0)
 {}
 
-bool AsyncOperations::isOpen()
+bool AsyncOperations::deferralActive()
 {
     std::lock_guard<std::mutex> lock(m_queueMutex);
-    return !m_closed;
+    return m_serving && !m_closed;
+}
+
+bool AsyncOperations::isClosed()
+{
+    std::lock_guard<std::mutex> lock(m_queueMutex);
+    return m_closed;
+}
+
+void AsyncOperations::setServing()
+{
+    std::lock_guard<std::mutex> lock(m_queueMutex);
+    m_serving = true;
 }
 
 void AsyncOperations::establishDeferral(std::shared_ptr<AsyncOperationBlock> block)

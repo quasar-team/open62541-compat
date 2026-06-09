@@ -79,11 +79,9 @@ static UA_StatusCode unifiedRead(
     // we expect that the handle points to an object of subclass of BaseDataVariableType -- cause it's how we add then
     OpcUa::BaseDataVariableType *variable = static_cast<OpcUa::BaseDataVariableType*>(nodeContext);
 
-    if (variable->handlesIo())
+    AsyncOperations* operations = AsyncOperations::fromServer(server);
+    if (variable->handlesIo() && operations && operations->deferralActive())
     {
-        AsyncOperations* operations = AsyncOperations::fromServer(server);
-        if (!operations || !operations->isOpen())
-            return UA_STATUSCODE_BADOUTOFSERVICE;
         std::shared_ptr<AsyncReadBlock> block = std::make_shared<AsyncReadBlock>(operations, dataValue);
         variable->beginRead(AsyncReadHandle(block));
         if (block->phase().exchange(AsyncOperationBlock::Deferred) == AsyncOperationBlock::Finished)
@@ -125,18 +123,16 @@ static UA_StatusCode unifiedWrite(
     OpcUa::BaseDataVariableType *variable = static_cast<OpcUa::BaseDataVariableType*>(nodeContext);
     UaVariant variant ( dataValue->value );
 
-    if (variable->handlesIo())
+    AsyncOperations* writeOperations = AsyncOperations::fromServer(server);
+    if (variable->handlesIo() && writeOperations && writeOperations->deferralActive())
     {
-        AsyncOperations* operations = AsyncOperations::fromServer(server);
-        if (!operations || !operations->isOpen())
-            return UA_STATUSCODE_BADOUTOFSERVICE;
-        std::shared_ptr<AsyncWriteBlock> block = std::make_shared<AsyncWriteBlock>(operations, dataValue);
+        std::shared_ptr<AsyncWriteBlock> block = std::make_shared<AsyncWriteBlock>(writeOperations, dataValue);
         variable->beginWrite(
             UaDataValue( variant, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ),
             AsyncWriteHandle(block));
         if (block->phase().exchange(AsyncOperationBlock::Deferred) == AsyncOperationBlock::Finished)
             return block->result();
-        operations->establishDeferral(block);
+        writeOperations->establishDeferral(block);
         return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
     }
 
@@ -164,7 +160,7 @@ UA_StatusCode unifiedCall(
     OpcUa::BaseObjectType *receiver = static_cast<OpcUa::BaseObjectType*> ( handle->pUaObject() );
 
     AsyncOperations* operations = AsyncOperations::fromServer(server);
-    if (!operations || !operations->isOpen())
+    if (!operations || operations->isClosed())
         return UA_STATUSCODE_BADOUTOFSERVICE;
 
     ServiceContext sc;

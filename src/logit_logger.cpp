@@ -59,6 +59,9 @@ static void logFromOpen62541 (
 		case UA_LOGCATEGORY_SERVER: categoryStr = "server"; break;
 		case UA_LOGCATEGORY_SESSION: categoryStr = "session"; break;
 		case UA_LOGCATEGORY_USERLAND: categoryStr = "userland"; break;
+		case UA_LOGCATEGORY_EVENTLOOP: categoryStr = "eventloop"; break;
+		case UA_LOGCATEGORY_PUBSUB: categoryStr = "pubsub"; break;
+		case UA_LOGCATEGORY_DISCOVERY: categoryStr = "discovery"; break;
 	}
 	char line [1024] = {0};
 	vsnprintf(line, sizeof line-1, msg, args);

@@ -82,6 +82,9 @@ SET( SRCS
 if(NOT ${PULL_OPEN62541})  # this is the default behaviour
 	include_directories(extern/open62541/include)
 	list(APPEND SRCS extern/open62541/src/open62541.c)
+	if(APPLE)
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DARWIN_C_SOURCE=1")
+	endif()
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -DUA_ARCHITECTURE_POSIX -Wall -Wextra -Wpedantic -Wno-static-in-inline -Wno-overlength-strings -Wno-unused-parameter -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls -Wformat -Wformat-security -Wformat-nonliteral -Wuninitialized -Winit-self -Wcast-qual -Wstrict-overflow -Wnested-externs -Wmultichar -Wundef -Wc++-compat -fno-strict-aliasing -fexceptions -fstack-protector-strong  -Wno-unused-function -Wshadow -Wconversion -fvisibility=hidden")
 endif(NOT ${PULL_OPEN62541})
 

@@ -92,7 +92,7 @@ UaStatus UaSession::connect(
 
     initializeOpen62541LogIt(); // safe to rerun
     UA_ClientConfig* clientConfig = UA_Client_getConfig(m_client);
-    clientConfig->logger = theLogItLogger;
+    clientConfig->logging = &theLogItLogger;
 
     UA_ClientConfig_setDefault(clientConfig);
     clientConfig->timeout = connectInfo.internalServiceCallTimeout;

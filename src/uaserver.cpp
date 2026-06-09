@@ -59,11 +59,9 @@ void UaServer::start()
     if (!m_server)
         OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "UA_Server_new failed");
     UA_ServerConfig* config = UA_Server_getConfig(m_server);
-    UA_ServerConfig_setMinimal(config, m_endpointPortNumber, nullptr);
-
-	// use LogIt logger for open62541
     initializeOpen62541LogIt();
-    config->logger = theLogItLogger;
+    config->logging = &theLogItLogger;
+    UA_ServerConfig_setMinimal(config, m_endpointPortNumber, nullptr);
 
     m_nodeManager->linkServer(m_server);
     m_nodeManager->afterStartUp();

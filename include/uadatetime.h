@@ -39,7 +39,7 @@ public:
 
 	static UaDateTime fromString(const UaString&);
 	UaString toString() const;
-	explicit operator UA_DateTime() const {return m_dateTime;};
+	explicit operator UA_DateTime() const {return m_dateTime;}
 
 private:
 

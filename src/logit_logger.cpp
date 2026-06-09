@@ -21,7 +21,7 @@ void initializeOpen62541LogIt (Log::LOG_LEVEL logLevel)
 }
 
 static void logFromOpen62541 (
-		void *logContext,
+		void *,
 		UA_LogLevel level,
 		UA_LogCategory category,
         const char *msg,

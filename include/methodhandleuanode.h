@@ -30,13 +30,13 @@
 class MethodHandle
 {
 public:
-	virtual ~MethodHandle() {};
+	virtual ~MethodHandle() {}
 };
 
 class MethodHandleUaNode: public MethodHandle
 {
 public:
-	virtual ~MethodHandleUaNode() {};
+	virtual ~MethodHandleUaNode() {}
 	MethodHandleUaNode():
 		m_obj(0),
 		m_method(0)

@@ -112,6 +112,8 @@ void UaServer::setServerConfig(
 {
 #ifndef HAS_SERVERCONFIG_LOADER
     LOG(Log::INF) << "Note: you built open62541-compat without configuration loading (option SERVERCONFIG_LOADER). So loading of ServerConfig.xml is not supported. Assuming hardcoded server settings (endpoint's port, etc.)";
+    (void) configurationFile;
+    (void) applicationPath;
     //! With open62541 1.0, it is the UA_Server that holds the config.
 #else // HAS_SERVERCONFIG_LOADER is defined, means the user wants the option
     std::unique_ptr< ::ServerConfig::OpcServerConfig > serverConfig;

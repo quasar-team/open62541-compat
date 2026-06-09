@@ -13,7 +13,7 @@
 
 UaPropertyMethodArgument::UaPropertyMethodArgument  (
 			const UaNodeId &nodeId,
-			OpcUa_Byte     accessLevel,
+			OpcUa_Byte,
 			OpcUa_UInt32   numberOfArguments,
 			ArgumentType   argumentType):
 			m_nodeId(nodeId),
@@ -33,8 +33,8 @@ OpcUa_StatusCode UaPropertyMethodArgument::setArgument 	(
 			const UaString &  	    name,
 			const UaNodeId &  	    dataType,
 			OpcUa_Int32  	        valueRank,
-			const UaUInt32Array &  	arrayDimensions,
-			const UaLocalizedText & description
+			const UaUInt32Array &,
+			const UaLocalizedText &
 		)
 {
 	if (index >= m_numberArguments)
@@ -64,8 +64,8 @@ UaPropertyCache::UaPropertyCache (
 		const UaString  &name,
 		const UaNodeId  &nodeId,
 		const UaVariant &defaultValue,
-		OpcUa_Byte      accessLevel,
-		const UaString& defaultLocaleId) :
+		OpcUa_Byte,
+		const UaString&) :
 				m_nodeId(nodeId),
 				m_browseName(0, name),
 				m_value(defaultValue),

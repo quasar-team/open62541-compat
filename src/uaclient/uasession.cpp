@@ -75,8 +75,8 @@ void UaSession::clientRunIterateThread(void)
 UaStatus UaSession::connect(
         const UaString&                endpoint,
         const SessionConnectInfo&      connectInfo,
-        const SessionSecurityInfo&     securityInfo,
-        UaSessionCallback*             callback)
+        const SessionSecurityInfo&,
+        UaSessionCallback*)
 {
     std::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
 
@@ -133,8 +133,8 @@ UaStatus UaSession::connect(
  * TODO: deleteSubscriptions
  */
 UaStatus UaSession::disconnect(
-        ServiceSettings &       serviceSettings,
-        OpcUa_Boolean           deleteSubscriptions
+        ServiceSettings &,
+        OpcUa_Boolean
     )
 {
     std::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
@@ -165,12 +165,12 @@ UaStatus UaSession::disconnect(
  *
  */
 UaStatus UaSession::read(
-            ServiceSettings &           serviceSettings,
+            ServiceSettings &,
             OpcUa_Double                maxAge,
             OpcUa_TimestampsToReturn    timeStamps,
             const UaReadValueIds &      nodesToRead,
             UaDataValues &              values,
-            UaDiagnosticInfos &         diagnosticInfos  )
+            UaDiagnosticInfos & )
 {
     std::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
     if (nodesToRead.size() != 1)
@@ -253,10 +253,10 @@ UaStatus UaSession::read(
 }
 
 UaStatus UaSession::write(
-        ServiceSettings &       serviceSettings,
+        ServiceSettings &,
         const UaWriteValues &   nodesToWrite,
         UaStatusCodeArray &     results,
-        UaDiagnosticInfos &     diagnosticInfos )
+        UaDiagnosticInfos & )
 {
     std::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
     if (nodesToWrite.size() != 1)
@@ -308,7 +308,7 @@ UaStatus UaSession::write(
  * - diagnosticInfos
  */
 UaStatus UaSession::call(
-        ServiceSettings &       serviceSettings,
+        ServiceSettings &,
         const CallIn &          callIn,
         CallOut &               callOut
     )
@@ -383,10 +383,10 @@ UaStatus UaSession::call(
 }
 
 UaStatus UaSession::browse(
-        ServiceSettings&         serviceSettings,
+        ServiceSettings&,
         const UaNodeId&          nodeToBrowse,
-        const BrowseContext&     browseContext,
-        UaByteString&            continuationPoint,
+        const BrowseContext&,
+        UaByteString&,
         UaReferenceDescriptions& referenceDescriptions)
 {
 	referenceDescriptions.clear();

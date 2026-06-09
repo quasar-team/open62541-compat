@@ -66,7 +66,7 @@ namespace OpcUa
         const UaNodeId& nodeId,
         const UaString& name,
         OpcUa_UInt16  browseNameNameSpaceIndex, 
-        NodeManagerConfig *nm
+        NodeManagerConfig *
         ):
         m_nodeId(nodeId),
         m_browseName( browseNameNameSpaceIndex, name )
@@ -79,7 +79,7 @@ namespace OpcUa
 			const UaNodeId &nodeId,
 			const UaString &name,
 			OpcUa_UInt16 browseNameNameSpaceIndex,
-			UaMutexRefCounted *pSharedMutex):
+			UaMutexRefCounted *):
 				m_nodeId(nodeId),
 				m_browseName(browseNameNameSpaceIndex, name)
 
@@ -89,7 +89,7 @@ namespace OpcUa
 
 
 
-};
+}
 
 OpcUa_NodeClass safeConvertNodeClassToSdk (UA_NodeClass nc)
 {

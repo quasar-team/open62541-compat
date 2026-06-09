@@ -32,12 +32,12 @@
 class UaExpandedNodeId
 {
 public:
-	UaExpandedNodeId () {};
+	UaExpandedNodeId () {}
 
 	UaExpandedNodeId (
 			const UaNodeId &id,
-			const UaString &sNsUri,
-			OpcUa_UInt32 serverIndex) :
+			const UaString &,
+			OpcUa_UInt32) :
 				m_nodeId (id)
 	{}
 

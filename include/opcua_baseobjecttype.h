@@ -55,11 +55,11 @@ namespace OpcUa
 	virtual UaNodeId nodeId() const override { return m_nodeId; }
 
 	virtual UaStatus beginCall (
-			MethodManagerCallback *callback,
-			const ServiceContext  &context,
-			OpcUa_UInt32          callbackHandle,
-			MethodHandle          *methodHandle,
-			const UaVariantArray  &inputArguments) { return OpcUa_Bad; }
+			MethodManagerCallback *,
+			const ServiceContext  &,
+			OpcUa_UInt32          ,
+			MethodHandle          *,
+			const UaVariantArray  &) override { return OpcUa_Bad; }
 
     private:
 	UaNodeId m_nodeId;

@@ -31,8 +31,8 @@ static UaLocalizedText emptyDescription( "en_US", "" );
 
 NodeManagerBase::NodeManagerBase(
         const char* sNamespaceUri,
-        bool        firesEvents,
-        OpcUa_Int32 nHashTableSize):
+        bool,
+        OpcUa_Int32):
     m_server(nullptr),
     m_nameSpaceUri(sNamespaceUri)
 {
@@ -62,13 +62,13 @@ UaNode* NodeManagerBase::getNode( const UaNodeId& nodeId ) const
 }
 
 static UA_StatusCode unifiedRead(
-    UA_Server *server,
-    const UA_NodeId *sessionId,
-    void *sessionContext,
-    const UA_NodeId *nodeId,
+    UA_Server *,
+    const UA_NodeId *,
+    void *,
+    const UA_NodeId *,
     void *nodeContext,
-    UA_Boolean includeSourceTimeStamp,
-    const UA_NumericRange *range,
+    UA_Boolean,
+    const UA_NumericRange *,
     UA_DataValue *dataValue)
 
 
@@ -84,12 +84,12 @@ static UA_StatusCode unifiedRead(
 }
 
 static UA_StatusCode unifiedWrite(
-    UA_Server *server,
-    const UA_NodeId *sessionId,
-    void *sessionContext,
-    const UA_NodeId *nodeId,
+    UA_Server *,
+    const UA_NodeId *,
+    void *,
+    const UA_NodeId *,
     void *nodeContext,
-    const UA_NumericRange *range,
+    const UA_NumericRange *,
     const UA_DataValue *dataValue
 )
 {
@@ -116,11 +116,11 @@ public:
     virtual ~SynchronousMethodCallback () {}
 
     virtual UaStatus 	finishCall (
-        OpcUa_UInt32 callbackHandle,
-        UaStatusCodeArray &inputArgumentResults,
-        UaDiagnosticInfos &inputArgumentDiag,
+        OpcUa_UInt32,
+        UaStatusCodeArray &,
+        UaDiagnosticInfos &,
         UaVariantArray &outputArguments,
-        UaStatus &statusCode)
+        UaStatus &statusCode) override
     {
         // TODO: store the answer
         this->m_resultStatus = statusCode;
@@ -144,13 +144,13 @@ private:
 
 //! IMPORTANT: in adding methods we pass nodeContext but where is this routed to in the end? To methodContext or objectContext?
 UA_StatusCode unifiedCall(
-    UA_Server *server,
-    const UA_NodeId *sessionId,
-    void *sessionContext,
-    const UA_NodeId *methodId,
+    UA_Server *,
+    const UA_NodeId *,
+    void *,
+    const UA_NodeId *,
     void *methodContext,
-    const UA_NodeId *objectId,
-    void *objectContext,
+    const UA_NodeId *,
+    void *,
     size_t inputSize,
     const UA_Variant *input,
     size_t outputSize,

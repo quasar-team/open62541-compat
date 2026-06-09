@@ -30,8 +30,8 @@ BaseDataVariableType::BaseDataVariableType(
     OpcUa_UInt16       browseNameNameSpaceIndex,
     const UaVariant&   initialValue,
     OpcUa_Byte         accessLevel,
-    NodeManagerConfig* pNodeConfig,
-    UaMutexRefCounted* pSharedMutex):
+    NodeManagerConfig*,
+    UaMutexRefCounted*):
 
     m_browseName( browseNameNameSpaceIndex, name),
     m_currentValue( initialValue, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ),
@@ -46,7 +46,7 @@ BaseDataVariableType::BaseDataVariableType(
 
 
 UaStatus BaseDataVariableType::setValue(
-    Session *session,
+    Session *,
     const UaDataValue& dataValue,
     OpcUa_Boolean checkAccessLevel
 )
@@ -61,7 +61,7 @@ UaStatus BaseDataVariableType::setValue(
 
 }
 
-UaDataValue BaseDataVariableType::value(Session* session)
+UaDataValue BaseDataVariableType::value(Session*)
 {
     return m_currentValue.clone();
 }

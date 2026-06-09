@@ -43,7 +43,7 @@ public:
             OpcUa_Byte         accessLevel,
             NodeManagerConfig* pNodeConfig,
             UaMutexRefCounted* pSharedMutex = NULL);
-    virtual ~BaseDataVariableType() {};
+    virtual ~BaseDataVariableType() {}
 
     virtual UaStatus setValue(
             Session *session,

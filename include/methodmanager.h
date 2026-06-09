@@ -43,7 +43,7 @@ public:
 			UaDiagnosticInfos &inputArgumentDiag,
 			UaVariantArray &outputArguments,
 			UaStatus &statusCode)=0;
-	virtual ~MethodManagerCallback() {};
+	virtual ~MethodManagerCallback() {}
 
 
 };
@@ -51,7 +51,7 @@ public:
 class MethodManager
 {
 public:
-	virtual ~MethodManager() {};
+	virtual ~MethodManager() {}
 	virtual UaStatus beginCall (
 			MethodManagerCallback *callback,
 			const ServiceContext  &context,

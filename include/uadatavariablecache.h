@@ -78,7 +78,7 @@ public:
 	virtual UaNodeId typeDefinitionId() const override { return m_typeDefinitionId; }
 	virtual OpcUa_NodeClass nodeClass() const override { return OpcUa_NodeClass_Variable; }
 	virtual UaQualifiedName browseName() const override { return m_browseName; }
-	virtual UaDataValue value(Session* session) { return UaDataValue(m_value, OpcUa_Good, UaDateTime::now(), UaDateTime::now()); }
+	virtual UaDataValue value(Session*) { return UaDataValue(m_value, OpcUa_Good, UaDateTime::now(), UaDateTime::now()); }
 
 private:
 	const UaNodeId        m_nodeId;

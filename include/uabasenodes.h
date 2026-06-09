@@ -32,7 +32,7 @@ class UaObject: public UaNode
 class UaMethod: public UaNode
 {
 public:
-	UaMethod() {};
+	UaMethod() {}
 
 };
 

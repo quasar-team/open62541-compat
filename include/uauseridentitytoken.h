@@ -1,8 +1,7 @@
-/* © Copyright Piotr Nikiel, CERN, 2017.  All rights not expressly granted are reserved.
- *  uaplatformlayer.h
+/* © Copyright Paris Moschovakos, CERN, 2026.  All rights not expressly granted are reserved.
  *
- *  Created on: 29 Nov, 2017
- *      Author: Piotr Nikiel <piotr@nikiel.info>
+ *  Created on: 9 Jun,  2026
+ *      Author: Paris Moschovakos <paris.moschovakos@cern.ch>
  *
  *  This file is part of Quasar.
  *
@@ -19,14 +18,10 @@
  *  along with Quasar.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef OPEN62541_COMPAT_INCLUDE_UAPLATFORMLAYER_H_
-#define OPEN62541_COMPAT_INCLUDE_UAPLATFORMLAYER_H_
 
+#ifndef __UAUSERIDENTITYTOKEN_H__
+#define __UAUSERIDENTITYTOKEN_H__
 
-namespace UaPlatformLayer
-{
-    void init() {} // this obviously is a fake
-}
+class UaUserIdentityToken {};
 
-
-#endif /* OPEN62541_COMPAT_INCLUDE_UAPLATFORMLAYER_H_ */
+#endif // __UAUSERIDENTITYTOKEN_H__

@@ -28,6 +28,9 @@
 #include <uaclient/uaclientsdk.h>
 #include <arrays.h>
 
+#include <session.h>
+#include <uauseridentitytoken.h>
+
 #include <atomic>
 #include <future>
 

@@ -1,6 +1,6 @@
 # Async parity for the open62541 backend — design
 
-Status: draft for adversarial review. Target branches: `async-parity-open62541-15` in `open62541-compat` and `quasar`.
+Status: revision 2, post adversarial review (§8). Target branches: `async-parity-open62541-15` in `open62541-compat` and `quasar`.
 
 ## 1. Problem
 
@@ -17,15 +17,13 @@ Under the open62541 backend, all three glue callbacks (`unifiedRead`, `unifiedWr
 
 ## 2. Enabler: open62541 1.5
 
-The bundled open62541 v1.2.2 cannot defer responses: its async-operation enum contains only `UA_ASYNCOPERATIONTYPE_CALL` with `READ`/`WRITE` as commented-out placeholders (`extern/open62541/include/open62541.h:26543`), and the amalgamation was produced without async support (`prepare_open62541.sh`). open62541 1.5 supports deferring read, write, and call: the operation callback returns `UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY` and the result is posted later — explicitly from a worker thread — via `UA_Server_setAsyncReadResult` / `UA_Server_setAsyncWriteResult` / the call-result equivalent, with `asyncOperationTimeout` and `maxAsyncOperationQueueSize` config and operation-cancellation notification. Exact signatures, build flags, and thread-safety guarantees are being extracted from the v1.5.4 sources; all names below marked ⟨1.5-API⟩ are to be bound to the verified signatures before implementation.
-
-Verified against the v1.5.4 sources (full API map in the engineering log):
+The bundled open62541 v1.2.2 cannot defer responses: its async-operation enum contains only `UA_ASYNCOPERATIONTYPE_CALL` with `READ`/`WRITE` as commented-out placeholders (`extern/open62541/include/open62541.h:26543`), and the amalgamation was produced without async support (`prepare_open62541.sh`). open62541 1.5 supports deferring read, write, and call: the operation callback returns `UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY` and the result is posted later — explicitly from a worker thread — via `UA_Server_setAsyncReadResult` / `UA_Server_setAsyncWriteResult` / the call-result equivalent, with `asyncOperationTimeout` and `maxAsyncOperationQueueSize` config and operation-cancellation notification. Verified against the v1.5.4 sources (full API map in the engineering log):
 
 - The 1.2-era queue model (`UA_Server_setMethodNodeAsync` + worker pull + `UA_Server_setAsyncOperationResult`) is removed. Async is per-invocation: the operation callback returns `UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY`; the pending operation is created by the stack *upon that return*.
 - Completion (all `UA_THREADSAFE`): `UA_Server_setAsyncCallMethodResult(server, UA_Variant *output, UA_StatusCode)` keyed by the method callback's output array pointer; `UA_Server_setAsyncReadResult(server, UA_DataValue *result)` keyed by the read callback's value pointer; `UA_Server_setAsyncWriteResult(server, const UA_DataValue *value, UA_StatusCode)`. All return `BADNOTFOUND` when no pending operation matches (cancelled / timed out / not yet created).
 - Cancellation: `config->asyncOperationCancelCallback(server, const void *out)` fires with the same identifying pointer; the output memory is invalid afterwards. Config: `asyncOperationTimeout` (ms), `maxAsyncOperationQueueSize`.
 - No build flag gates async (`UA_ENABLE_ASYNCOPERATIONS` no longer exists); thread-safe external calls require `UA_MULTITHREADING >= 100`, which is the 1.5 default on POSIX/Windows and is baked into the amalgamation at generation time.
-- Two consequences shape §3: (a) completing *before* returning from the callback must bypass the async API entirely (the operation does not exist yet — `BADNOTFOUND`); (b) completing *after* must not write into the stack-owned result memory from a worker thread, because cancellation (EventLoop thread) frees it — worker-side writes race the free, and guarding both sides with one compat mutex inverts against the server's internal lock. Deferred completions therefore hop through the EventLoop via `UA_Server_addTimedCallback` (zero-delay), where they are inherently serialized with cancellation; the stack's own server-local async API documents the same pattern ("the result-callback is executed only in the next iteration of the Eventloop").
+- Two consequences shape §3: (a) completing *before* returning from the callback must bypass the async API entirely (the operation does not exist yet — `BADNOTFOUND`); (b) completing *after* must not write into the stack-owned result memory from a worker thread, because cancellation (EventLoop thread) frees it — worker-side writes race the free. Deferred completions therefore resolve on the EventLoop thread; the transport carrying them there is specified in §3.1 (revised after adversarial review — an earlier `UA_Server_addTimedCallback` design was rejected for deadlock and wake-latency defects, see §8).
 
 Decision: bump the bundled stack to the latest v1.5.x and build the async parity on the stack's own deferral mechanism. Rejected alternatives:
 

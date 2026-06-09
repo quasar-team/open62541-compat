@@ -50839,3 +50839,8 @@ UA_Log_Syslog(void);
 _UA_END_DECLS
 
 #endif /* OPEN62541_H_ */
+
+#if defined(__cplusplus) && defined(UA_HAVE_C11_ATOMICS)
+#undef _Atomic
+#undef atomic_uintptr_t
+#endif

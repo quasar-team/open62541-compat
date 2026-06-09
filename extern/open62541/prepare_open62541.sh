@@ -26,6 +26,7 @@ cd $WD
 
 # deploy files
 find tmp -name open62541.h -ok cp {} include \; || exit
+printf '\n#if defined(__cplusplus) && defined(UA_HAVE_C11_ATOMICS)\n#undef _Atomic\n#undef atomic_uintptr_t\n#endif\n' >> include/open62541.h
 find tmp -name open62541.c -ok cp {} src \; || exit
 
 read -n 1 -p "Would you like to commit the freshly amalgamated open62541? type y if so." answer

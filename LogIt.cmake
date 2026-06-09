@@ -17,13 +17,14 @@
 # Authors:
 # Ben Farnham <firstNm.secondNm@cern.ch>
 # Piotr Nikiel <piotr@nikiel.info>
-# 
+# Paris Moschovakos <paris.moschovakos@cern.ch>
+#
 # Note: the following code was mostly contributed by Ben, in the master CMakeLists of open62541-compat
 # Then moved by Piotr to this file for easier maintenance, further fixes by Piotr
 
 
 function ( fetch_LogIt )
-  SET (LOGIT_VERSION "v1.0.0") #change to master post-merge
+  SET (LOGIT_VERSION "v1.0.0")
   message(STATUS "fetching LogIt from github. *NOTE* fetching version [${LOGIT_VERSION}]")
   Open62541CompatFetchContent_Declare(
     LogIt

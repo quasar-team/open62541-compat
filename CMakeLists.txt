@@ -76,6 +76,7 @@ SET( SRCS
   src/opcua_basedatavariabletype.cpp
   src/uaserver.cpp
   src/logit_logger.cpp
+  src/async_operations.cpp
   src/uaclient/uasession.cpp
 )
 

@@ -27,6 +27,7 @@
 #include <statuscode.h>
 #include <open62541_compat.h>
 #include <logit_logger.h>
+#include <async_operations.h>
 
 #include <LogIt.h>
 
@@ -40,6 +41,7 @@
 UaServer::UaServer() :
 m_server(nullptr),
 m_nodeManager(nullptr),
+m_asyncOperations(nullptr),
 m_runningFlag(nullptr),
 m_endpointPortNumber(4841)
 {
@@ -63,6 +65,11 @@ void UaServer::start()
     config->logging = &theLogItLogger;
     UA_ServerConfig_setMinimal(config, m_endpointPortNumber, nullptr);
 
+    m_asyncOperations = new AsyncOperations(m_server);
+    config->context = m_asyncOperations;
+    config->asyncOperationCancelCallback = &AsyncOperations::serverCancelCallback;
+    UA_Server_addRepeatedCallback(m_server, &AsyncOperations::drainCallback, m_asyncOperations, 20.0, nullptr);
+
     m_nodeManager->linkServer(m_server);
     m_nodeManager->afterStartUp();
 
@@ -81,6 +88,7 @@ void UaServer::runThread()
     while (*m_runningFlag)
     {
         UA_Server_run_iterate(m_server, true);
+        m_asyncOperations->drain(m_server);
     }
     UA_StatusCode status = UA_Server_run_shutdown(m_server);
     if (status != UA_STATUSCODE_GOOD)
@@ -152,8 +160,16 @@ void UaServer::stop ()
 {
 	if (m_open62541_server_thread.joinable()) // if start() was never called, or server failed to start, the thread is not joinable...
 		m_open62541_server_thread.join();
+    if (m_asyncOperations)
+    {
+        m_asyncOperations->shutdown();
+        m_asyncOperations->drain(m_server);
+        m_asyncOperations->clearRegistry();
+    }
     delete m_nodeManager;
     m_nodeManager = nullptr;
     UA_Server_delete(m_server);
     m_server = nullptr;
+    delete m_asyncOperations;
+    m_asyncOperations = nullptr;
 }

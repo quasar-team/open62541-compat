@@ -28,6 +28,7 @@
 #include <nodemanagerbase.h>
 #include <open62541_compat.h>
 #include <statuscode.h>
+#include <async_operations.h>
 
 namespace OpcUa
 {
@@ -63,6 +64,10 @@ public:
     virtual OpcUa_Int32 valueRank() const { return m_valueRank; }
     virtual void arrayDimensions(UaUInt32Array &    arrayDimensions )   const { arrayDimensions = m_arrayDimensions;}
     const UA_DataValue* valueImpl() const { return m_currentValue.impl(); }
+
+    virtual OpcUa_Boolean handlesIo() const { return OpcUa_False; }
+    virtual void beginRead (AsyncReadHandle handle) { handle.complete(value(nullptr)); }
+    virtual void beginWrite (const UaDataValue& dataValue, AsyncWriteHandle handle) { handle.complete(setValue(nullptr, dataValue, OpcUa_True)); }
 
 private:
     UaQualifiedName m_browseName;

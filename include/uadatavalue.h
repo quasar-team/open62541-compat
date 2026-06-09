@@ -15,7 +15,7 @@
 class UaDataValue
 {
   public:
-    UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime );
+    UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& sourceTime, const UaDateTime& serverTime );
     UaDataValue( const UaDataValue& other );
     void operator=(const UaDataValue& other );
     bool operator==(const UaDataValue &other) const;

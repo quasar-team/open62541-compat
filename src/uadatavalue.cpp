@@ -15,7 +15,7 @@
 #include <uadatavalue.h>
 #include <open62541_compat.h>
 
-UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& serverTime, const UaDateTime& sourceTime )
+UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& sourceTime, const UaDateTime& serverTime )
 {
     m_impl = UA_DataValue_new ();
     if (!m_impl)

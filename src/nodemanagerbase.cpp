@@ -366,6 +366,8 @@ UaStatus NodeManagerBase::addMethodNodeAndReference(
     int inArgsSize = 0;
     UA_Argument *outArgs = 0;
     int outArgsSize = 0;
+    UaNodeId inArgsNodeId;
+    UaNodeId outArgsNodeId;
 
     for ( std::list<UaNode::ReferencedTarget>::const_iterator it = referenced->cbegin(); it!=referenced->cend(); it++ )
     {
@@ -381,6 +383,7 @@ UaStatus NodeManagerBase::addMethodNodeAndReference(
                 {
                     inArgs[i] = property->implArgument(i);
                 }
+                inArgsNodeId = property->nodeId();
             }
             else
             {
@@ -390,12 +393,13 @@ UaStatus NodeManagerBase::addMethodNodeAndReference(
                 {
                     outArgs[i] = property->implArgument(i);
                 }
+                outArgsNodeId = property->nodeId();
             }
         }
     }
 
     UaStatus s =
-        UA_Server_addMethodNode(
+        UA_Server_addMethodNodeEx(
             m_server,
             to->nodeId().impl(),
             parent->nodeId().impl(),
@@ -405,8 +409,12 @@ UaStatus NodeManagerBase::addMethodNodeAndReference(
             unifiedCall,
             /*size_t inputArgumentsSize*/ inArgsSize,
             /*const UA_Argument* inputArguments*/ inArgs,
+            inArgsNodeId.impl(),
+            nullptr,
             /*size_t outputArgumentsSize*/ outArgsSize,
             /*const UA_Argument* outputArguments*/ outArgs,
+            outArgsNodeId.impl(),
+            nullptr,
             /*void *nodeContext */ (void*)handle,
             nullptr);
     if (! s.isGood())

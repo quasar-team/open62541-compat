@@ -37,66 +37,53 @@ Decision: bump the bundled stack to the latest v1.5.x and build the async parity
 
 Dependency direction is preserved: compat exposes UASDK-shaped deferral seams; quasar owns all threading policy (which pool, which jobs, which mutexes).
 
-### 3.1 Methods
+### 3.1 Completion transport (revised after adversarial review)
 
-`unifiedCall` becomes deferral-capable; the decision to defer is made by the generated quasar code, not by compat:
+Verified facts that shape the transport: the server's `serviceMutex` is held while user callbacks run, and `UA_Server_addTimedCallback` takes it — so a worker holding a quasar device mutex must never call any server API (lock cycle through inline-under-mutex device code on the iterate thread). Timed callbacks also do not wake a sleeping EventLoop (only `el->cancel` writes the self-pipe; the stack wakes itself explicitly in its own async completion path). Server-internal locks are reentrant: server APIs are callable from inside server callbacks.
 
-1. `addMethodNodeAndReference` is unchanged (no per-node marking exists in 1.5; deferral is decided per-call by the return code).
-2. `unifiedCall` allocates an `AsyncMethodCallback : MethodManagerCallback` on the heap carrying the server pointer, the stack's `UA_Variant *output` array (the operation identity), the output arity, and a two-phase atomic handshake. It invokes `receiver->beginCall(cb, …)` exactly as today.
-3. Generated `call<Name>()`:
-   - sync flavor: runs the body inline and calls `finishCall` before returning — `unifiedCall` detects inline completion via the handshake, copies the stored outputs into the stack's output array on the spot (legal: still inside the method callback, no async operation exists), frees the callback, and returns the final status synchronously. Identical observable behavior to today (P4).
-   - async flavor: dispatches the body to `SourceVariables_getThreadPool()` and returns — `unifiedCall` detects no-completion-yet and returns `UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY`, creating the pending operation. The pool job later calls `finishCall`, which stores outputs+status into the callback object and posts a zero-delay `UA_Server_addTimedCallback` trampoline; the trampoline (EventLoop thread) consults the pending-operation registry, copies outputs into the stack's output array, calls `UA_Server_setAsyncCallMethodResult`, and frees the callback.
+Therefore workers never touch the stack. The only worker-side action is pushing the completed operation block onto a compat-owned completion queue (plain mutex + vector; no other lock is ever taken while holding it). The EventLoop drains the queue at two points: in `UaServer::runThread` between `UA_Server_run_iterate` calls, and in a compat-registered repeated server callback (20 ms period) so that completions are bounded-latency even when the EventLoop sleeps in select() — the drain executes `finishDeferred` (result-memory writes + `UA_Server_setAsync*Result`) on the EventLoop thread, where it is serialized with cancellation by construction; calling the completion functions from inside the repeated callback is legal because the server locks are reentrant. Residual deviation, accepted and measured: deferred completion latency ≤ one drain period (≤20 ms) on an otherwise idle server; UASDK completes directly from the pool thread.
 
-Handshake (single-word atomic, release/acquire): `finishCall` stores results then `phase.exchange(FINISHED)`; if the previous value was `DEFERRED` it arms the trampoline. `unifiedCall` after `beginCall` does `phase.exchange(DEFERRED)`; if the previous value was `FINISHED` it consumes inline. Exactly one party completes on every path, including the race where the pool job finishes before `beginCall` returns to `unifiedCall`.
+### 3.2 Operation blocks, handshake, ownership
 
-Failure paths: `beginCall` (or argument conversion in `call<Name>`) returning bad without `finishCall` → synchronous error return, callback freed by `unifiedCall`. Generated code's exception handlers already route through `finishCall` with bad status — no change required. `setAsyncCallMethodResult` returning `BADNOTFOUND` (operation cancelled or timed out between trampoline arming and execution) → drop and free, no output writes (the registry entry was already retired by the cancel callback, so the trampoline never touches the dead output pointer).
+One primitive serves methods, reads, and writes: a heap `AsyncOperationBlock` (`shared_ptr`-owned everywhere) carrying the stack's identifying pointer (the operation key), the payload slot, and a single-word atomic phase. The payload always lives in the block — never in the registry — so a worker completing late writes only memory it co-owns.
 
-### 3.2 Source variables
+Two-phase handshake (release/acquire): the completing side stores the payload then `phase.exchange(Finished)`; if the prior value was `Deferred` it pushes the block to the completion queue. The glue side (`unifiedRead`/`unifiedWrite`/`unifiedCall`), after invoking `beginRead`/`beginWrite`/`beginCall`, does `phase.exchange(Deferred)`; if the prior value was `Finished` it consumes inline — for reads it writes the stack's `UA_DataValue` and returns the operation status while still inside the callback (no async operation exists; the async API is never touched); otherwise it registers the block in the pending registry and returns `GOODCOMPLETESASYNCHRONOUSLY`. Exactly one side completes on every path, including the race where the pool job finishes before the glue regains control.
 
-The UASDK reference semantics (`designToSourceVariablesBody.jinja`, `SourceVariables_spawnIoJob{Read,Write}`):
+Pending registry: per-server map key → `shared_ptr<block>`, mutated only on the EventLoop thread (creation in the glue, retirement in `config->asyncOperationCancelCallback`, consumption in the drain). The drain completes an entry only when both the key is present and the registered block is the same object (`it->second == block`) — pointer-identity of the compat-owned block, which the allocator cannot recycle while referenced, closes the ABA hole left by stack-side key-pointer reuse after cancellation (cancellation is routine: `asyncOperationTimeout` — stack default 120 s, session close, OPC UA CancelRequest, monitored-item deletion). A cancelled operation thus resolves to: registry entry erased; the worker still completes into the queue; the drain finds no matching identity and drops; the block frees via refcount. `BADNOTFOUND` from completion calls is impossible-by-construction yet still tolerated.
 
-- `addressSpaceRead/Write="asynchronous"` → pool job (`ThreadPool::addJob`, mutex-aware scheduling via `ThreadPoolJob::associatedMutex`).
-- `"synchronous"` → executed inline in the calling thread under `std::unique_lock` of the associated mutex.
-- Mutex selection per design attribute: `of_this_operation` / `of_this_variable` / `of_containing_object` / `of_parent_of_containing_object` / `handpicked` / `no`, resolved through device-logic lock getters at request time.
-- Device call wrapped in try/catch → `OpcUa_BadInternalError`; result is `UaDataValue(value, status, sourceTime, now)` with the device status passed through (no cached-value fallback).
-- Thread pool unavailable → `OpcUa_BadOutOfService`.
+### 3.3 Methods
 
-compat `OpcUa::BaseDataVariableType` gains a minimal deferral seam, default-off:
+`addMethodNodeAndReference` is unchanged (deferral is per-call via the return code). `unifiedCall` allocates an `AsyncMethodBlock` (an `AsyncOperationBlock` that is also the `MethodManagerCallback`) carrying the stack's `UA_Variant* output` array and arity, and invokes `receiver->beginCall` exactly as today. Generated sync-flavor methods call `finishCall` inline → consumed inline, observable behavior unchanged (P4). Async-flavor methods dispatch to `SourceVariables_getThreadPool()` and `finishCall` later runs on the pool thread → handshake → queue → drain → outputs copied (bounded by `min(stored, arity)` — the previous unconditional copy was a latent `std::out_of_range` crash for throwing methods with return values, fixed here) → `UA_Server_setAsyncCallMethodResult`.
+
+Failure paths: argument-conversion errors return bad before any dispatch (phase still Initial) → synchronous error, block freed by refcount. Generated exception handlers route through `finishCall` with bad status (empty outputs — handled by the bounded copy). The generated dispatch must check `addJob`'s status (today it is discarded — under a full pool the client would hang until `asyncOperationTimeout`): on failure the template calls `finishCall` with the pool status, which the handshake turns into a synchronous error return; this also fixes the same latent hang in the UASDK path.
+
+### 3.4 Source variables
+
+UASDK reference semantics as before (pool for `asynchronous`, inline-under-mutex for `synchronous`, six mutex modes, try/catch → `BadInternalError`, status passthrough, `BadOutOfService` on pool-down). compat seam on `OpcUa::BaseDataVariableType`, default-off so cache variables keep the exact current hot path (zero extra copies — deliberate, sampling reads are hot):
 
 ```
-class AsyncReadHandle  { void complete(const UaDataValue&); /* move-only, RAII: completes Bad if dropped */ };
-class AsyncWriteHandle { void complete(UaStatus); };
 virtual OpcUa_Boolean handlesIo() const;                 // default OpcUa_False
-virtual void beginRead (AsyncReadHandle h);              // contract: called only when handlesIo()
+virtual void beginRead (AsyncReadHandle h);
 virtual void beginWrite (const UaDataValue& v, AsyncWriteHandle h);
 ```
 
-`unifiedRead`/`unifiedWrite`: if `handlesIo()`, construct the handle (carrying the server pointer and the stack's `UA_DataValue*` — the operation identity — plus the same two-phase handshake as §3.1), invoke `beginRead`/`beginWrite`, and return `GOODCOMPLETESASYNCHRONOUSLY` only if the handle was not completed inline; else the existing synchronous path runs unchanged (cache variables: zero change, P4).
+Handles are move-only wrappers over the block; `complete()` runs the handshake; a dropped-without-complete handle completes `OpcUa_BadInternalError` (RAII). quasar `ASSourceVariable` (open62541 branch) dispatches per the design attributes: async-declared → `addJob(wrapper, description, mutex)` with `addJob` failure or null pool completing `OpcUa_BadOutOfService`; sync-declared → inline execute, taking `std::unique_lock` only when a mutex is configured (the schema default `no` must not dereference a null mutex). Mutex resolution happens at request time through a generated resolver replicating the UASDK IoJob constructor mapping, including: null device link → `OpcUa_BadInternalError` (resolution runs before the ReadFn's own null-check), `handpicked` resolving null → `OpcUa_BadInternalError`. The wrapper try/catches the device call and builds `UaDataValue(value, status, sourceTime, now)` with status passthrough (supersedes OPCUA-3385's cached-value fallback — deliberate UASDK-parity deviation, recorded in the parity report).
 
-`complete()` resolves through the handshake: inline (before `beginRead` returns to `unifiedRead`) → write the result directly into the stack's `UA_DataValue` and let `unifiedRead` return its status synchronously — this carries the `synchronous`-declared source variables with zero async machinery; deferred → store the payload in the handle and arm the zero-delay trampoline, which on the EventLoop thread checks the registry, writes the stack's `UA_DataValue`, and calls `UA_Server_setAsyncReadResult` (`UA_Server_setAsyncWriteResult` for writes).
+Two stack-truth obligations on the read path:
 
-quasar `ASSourceVariable` (open62541 branch) overrides the seam and replicates the UASDK policy exactly:
+- **Timestamp order**: compat's `UaDataValue` constructor takes `(value, status, serverTime, sourceTime)` — the reverse of the genuine UASDK `(value, status, sourceTime, serverTime)`. Code written against UASDK conventions (including the existing o6 `ASSourceVariable`) silently swaps timestamps; the sync path masked it because the stack re-stamps, the deferred path sends them verbatim. The constructor parameter order is aligned to UASDK as part of this work (a pre-existing parity bug in its own right).
+- **TimestampsToReturn policing**: the stack applies the client's `TimestampsToReturn` to the placeholder `UA_DataValue` at defer time and never re-polices after `UA_Server_setAsyncReadResult`. `finishDeferred` therefore merges rather than overwrites: it preserves the placeholder's `has{Source,Server}Timestamp` flags (and their defer-time values when the result does not supply one), so ttr=Neither/Source/Server behave exactly as the sync path and UASDK.
 
-- ctor gains per-operation synchronicity flags and `MutexFn` (`std::function<std::mutex*()>`) resolvers generated by the jinja with the same attribute mapping as the UASDK IoJob constructors (`handpicked` resolving to null → refuse the operation, mirroring the UASDK throw path).
-- `beginRead`, async-declared: `SourceVariables_getThreadPool()->addJob(wrapper, description, mutexFn())`; pool null or addJob failing → `h.complete` with `OpcUa_BadOutOfService`.
-- `beginRead`, sync-declared: inline `std::unique_lock` + execute + `h.complete` (the mutex is required for correctness, not fidelity: pool-side jobs now run concurrently with the iterate thread).
-- wrapper try/catches the existing `ReadFn`/`WriteFn` device calls → `OpcUa_BadInternalError`, and builds `UaDataValue(value, status, sourceTime, now)` with status passthrough. This supersedes OPCUA-3385's bad-or-empty-falls-back-to-cached-value behavior — a deliberate deviation toward UASDK parity, recorded in the parity report (the current fallback is itself a deviation that nodeset comparisons cannot see).
-- the generated `ReadFn`/`WriteFn` lambdas in `designToClassBody.jinja` are untouched.
+Monitored items (verified, no longer open): sampling always goes through the same `UA_CallbackValueSource` read callback via the stack's internal `read_async`, so deferral on the sampling path comes for free; each sample on an async-declared source variable is a pool job (pool sizing now gates publish health — parity-equivalent with UASDK pool usage); outstanding sampling reads are capped at `UA_MONITOREDITEM_ASYNC_MAX = 8` per item (slower-than-interval devices degrade to overflow notifications, vs UASDK's `BadOutOfService` at `maxJobs`); monitored-item deletion cancels outstanding reads — the cancel path is hot, not exceptional.
 
-### 3.3 Lifetime, cancellation, shutdown
+### 3.5 Lifetime and shutdown (against quasar's real teardown)
 
-Two synchronization domains, with a strict lock order (gate mutex → server-internal locks; the EventLoop thread never takes the gate mutex):
+quasar's actual order (verified in `BaseQuasarServer::serverRun`): running flag cleared → `SourceVariables_destroySourceVariablesThreadPool()` (joins running jobs, drops queued ones) → device unlink → `UaServer::stop()`. So by the time `stop()` runs under quasar, workers are already gone; the compat machinery must additionally survive the standalone/gtest case where compat owns the only threads.
 
-- **Registry (EventLoop-thread-only, no lock).** A map keyed by the stack's identifying pointer, holding each pending operation's payload slot. All mutations happen on the iterate thread: creation in `unifiedRead`/`unifiedWrite`/`unifiedCall` when returning `GOODCOMPLETESASYNCHRONOUSLY`, retirement in `config->asyncOperationCancelCallback` (frees the payload slot; subsequent trampoline finds nothing and no-ops), consumption in trampolines (write stack result memory, call `UA_Server_setAsync*Result`, retire). Since cancellation, consumption, and creation are all serialized on one thread, compat never writes stack-owned result memory that the stack has freed; `BADNOTFOUND` is impossible-by-construction yet still handled (drop) as defense in depth.
-- **Worker gate (`mutex` + `condition_variable` + `closed` + `inflight` count), touched only by worker threads and `UaServer::stop()`.** Deferred handles increment `inflight` at creation. A worker's `complete()`/RAII-drop stores the payload into its entry's slot and, holding the gate mutex, checks `closed`: open → `UA_Server_addTimedCallback` (zero-delay trampoline; safe to call from any thread; only enqueues, needs no running iterate); closed → decrement and notify without touching the server. Holding the gate mutex across the check+arm closes the check-then-act race against deletion; no inversion is possible because no EventLoop-side code takes the gate mutex.
-- **`UaServer::stop()` order**: quasar has already cleared the running flag (existing contract), so the iterate loop exits; join the thread → close the gate and wait for `inflight == 0` (bounded by the longest running device call, identical to UASDK practice) → free any remaining registry payloads (no concurrent access possible now) → `UA_Server_run_shutdown` → `UA_Server_delete`. Armed-but-unexecuted trampolines are dropped by the stack at delete; their payloads were registry-owned and already freed.
-- Exactly one party completes/frees on every path: the handshake winner inline, the trampoline on the EventLoop, the cancel callback for stack-cancelled operations, or `stop()`'s drain. A dropped-without-complete handle routes through the same worker-side path with `OpcUa_BadInternalError` (RAII), so a lost pool job cannot wedge a client request until `asyncOperationTimeout`.
-
-### 3.4 What explicitly does not change
-
-- Sync-flavor methods keep executing inline on the iterate thread (matches quasar's declared semantics; UASDK runs them on the SDK thread that delivered the call, also without pool dispatch).
-- Monitored-item sampling of source variables: if ⟨1.5-API⟩ supports deferral on the sampling path it comes for free; if not, sampling takes the synchronous path as today. To be verified; either outcome is recorded in the parity report.
-- No public header changes UASDK code could observe; all additions are open62541-backend-only types and virtuals with defaults.
+- Queue gate: `closed` flag + `inflight` count inside the queue mutex. `inflight` increments when the glue establishes a deferral (EventLoop thread; the queue mutex protects nothing that is ever held across stack or device calls, so no inversion) and decrements on every worker resolution — push, or drop-when-closed. `stop()` waits with a 60 s timeout and a loud ERR on expiry (a wedged device call is diagnosable, not a silent hang).
+- Once `closed`, the glue refuses new deferrals: `unifiedRead`/`unifiedWrite`/`unifiedCall` return `BADOUTOFSERVICE` (matters because `UA_Server_run_shutdown` runs full iterations that can still deliver client requests).
+- `UA_Server_run_shutdown` stays in `runThread` (today's structure). Pending repeated-callback drains may fire during shutdown iterations against the still-alive registry — legitimate completions.
+- `stop()` order: join iterate thread → close gate, wait `inflight == 0` → final queue drain (server still alive; late completions either match the registry and complete or drop) → registry clear → `UA_Server_delete` (its internal `UA_AsyncManager_clear` fires cancel callbacks at delete time — the cancel callback only touches the registry, which is empty, via `config->context`, which is freed only after) → delete the `AsyncOperations` instance → `delete m_nodeManager` last, so no compat code path can touch nodes after their deletion. Registry, gate, and queue are per-`UaServer` members reached via `config->context` (set in `start()` after `UA_ServerConfig_setMinimal`, before `UA_Server_run_startup`) — no static state, multiple in-process servers (the gtest plan) stay isolated.
 
 ## 4. quasar-side change specification
 
@@ -135,3 +122,21 @@ Code style: match surrounding code; no comments in new code.
 - 1.5 async API maturity (youngest feature of the youngest series): mitigated by latest-patch selection, the unit gate before any quasar test, and the registry/RAII guards.
 - Amalgamation under multithreading/async flags is less-trodden: verified first thing during the port; fallback is unbundled full-source vendoring (bigger diff — only if forced).
 - 1.5 behavioral deltas unrelated to async (encoding, defaults) could surface in nodeset diffs: caught by P3 comparisons.
+
+## 8. Adversarial review record
+
+Four independent reviewers (threading/races, lifetime/shutdown, UASDK fidelity, minimality/API) ran against revision 1 of this document plus the compat/quasar sources and the open62541 v1.5.4 sources. All four returned *revise*. Disposition:
+
+- Trampoline-via-`UA_Server_addTimedCallback` deadlock (serviceMutex held during callbacks; worker holds device mutex) and missing EventLoop wake (≤500 ms stalls): **replaced** by the worker-push queue + EventLoop drain + 20 ms repeated callback (§3.1).
+- Registry ABA under stack key-pointer reuse after cancel: **fixed** by block-identity comparison in the drain (§3.2).
+- Payload-slot ownership contradictions (worker writes vs EventLoop-only registry vs cancel-frees): **resolved** — payload is block-owned, registry is a liveness map, cancel only retires (§3.2).
+- inflight only decremented on the closed branch (wedged stop()); gate touched from EventLoop contrary to its own spec: **fixed** — always-decrement, queue-mutex accounting with stated lock order (§3.5).
+- stop() specified against the wrong quasar teardown; `run_shutdown` relocation contradiction; `UA_AsyncManager_clear` firing cancels at delete; nodeManager deletion ordering; multi-instance static-state hazard: **all addressed** in §3.5.
+- `UaDataValue` constructor timestamp order reversed vs UASDK (pre-existing, exposed by deferred path): **fixed in this series** (§3.4).
+- Deferred completions bypassing TimestampsToReturn policing: **fixed** — flag-preserving merge (§3.4).
+- Monitored-item sampling always defers; `UA_MONITOREDITEM_ASYNC_MAX=8`; cancel is hot-path: **folded in** (§3.4); subscription case added to the test plan.
+- Sync-declared + `addressSpaceReadUseMutex="no"` null-mutex dereference; null device link during mutex resolution; `handpicked` status pinned to `BadInternalError`: **specified** (§3.4). (The UASDK template's own `'no '` trailing-space defect at `designToSourceVariablesBody.jinja:456` is noted for a separate upstream fix.)
+- Generated async dispatch discarding `addJob` status (120 s client hang under full pool; leak): **template now checks and finishes with the pool status** (§3.3, §4).
+- Method output copy unbounded (`std::out_of_range` through the C stack for throwing methods with return values — also latent in today's `unifiedCall`): **bounded copy** (§3.3).
+- Seam-shrink suggestion (drop `handlesIo()`): **declined** — keeping the cache-variable hot path copy-free; rationale recorded in §3.4.
+- Direct worker completion for writes (no pointer dereference in `setAsyncWriteResult`): **declined** — one uniform transport outweighs the micro-optimization.

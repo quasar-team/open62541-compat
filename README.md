@@ -107,5 +107,5 @@ For questions/issues: file a ticket or write to piotr.nikiel@cern.ch
 
 CI build info | CI build status
 ------------ | -------------
-linux (travis-ci) | [![travis-ci](https://travis-ci.org/quasar-team/open62541-compat.svg?branch=master)](https://travis-ci.org/quasar-team/open62541-compat?branch=master)
-windows (appveyor) |  [![Appveyor](https://ci.appveyor.com/api/projects/status/etdf9t9wkkeb7jpi/branch/master?svg=true)](https://ci.appveyor.com/project/ben-farnham/open62541-compat/branch/master)
+linux (GitHub Actions) | [![CI](https://github.com/quasar-team/open62541-compat/actions/workflows/ci.yml/badge.svg)](https://github.com/quasar-team/open62541-compat/actions/workflows/ci.yml)
+windows (GitHub Actions) | [![Windows CI](https://github.com/quasar-team/open62541-compat/actions/workflows/windows.yml/badge.svg)](https://github.com/quasar-team/open62541-compat/actions/workflows/windows.yml)

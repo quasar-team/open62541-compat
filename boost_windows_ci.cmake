@@ -16,7 +16,7 @@
 #
 # @author Ben Farnham
 # @date 06-Dec-2019
-# The purpose of this file is to locate boost for an appveyor (windows) continuous integration build
+# The purpose of this file is to locate boost for a Windows continuous integration build (GitHub Actions)
 
 #-------
 #Boost

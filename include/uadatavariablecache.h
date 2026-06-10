@@ -79,12 +79,14 @@ public:
 	virtual OpcUa_NodeClass nodeClass() const override { return OpcUa_NodeClass_Variable; }
 	virtual UaQualifiedName browseName() const override { return m_browseName; }
 	virtual UaDataValue value(Session*) { return UaDataValue(m_value, OpcUa_Good, UaDateTime::now(), UaDateTime::now()); }
+	OpcUa_Byte accessLevel() const { return m_accessLevel; }
 
 private:
 	const UaNodeId        m_nodeId;
 	const UaQualifiedName m_browseName;
 	const UaVariant       m_value;
 	const UaNodeId        m_typeDefinitionId;
+	const OpcUa_Byte      m_accessLevel;
 };
 
 #endif /* OPEN62541_COMPAT_INCLUDE_UADATAVARIABLECACHE_H_ */

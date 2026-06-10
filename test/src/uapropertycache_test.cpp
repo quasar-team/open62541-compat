@@ -37,3 +37,14 @@ TEST(UaPropertyCacheTest, browseNameNamespaceFollowsNodeId)
 			UaString("en_US"));
 	EXPECT_EQ(std::string("ns=0|standardish"), nsZeroProperty.browseName().toFullString().toUtf8());
 }
+
+TEST(UaPropertyCacheTest, accessLevelIsStored)
+{
+	UaPropertyCache property(
+			UaString("address"),
+			UaNodeId(UaString("elmb1.address"), 2),
+			UaVariant(UaString("42")),
+			UA_ACCESSLEVELMASK_READ,
+			UaString("en_US"));
+	EXPECT_EQ(UA_ACCESSLEVELMASK_READ, property.accessLevel());
+}

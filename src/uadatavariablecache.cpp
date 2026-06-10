@@ -64,10 +64,11 @@ UaPropertyCache::UaPropertyCache (
 		const UaString  &name,
 		const UaNodeId  &nodeId,
 		const UaVariant &defaultValue,
-		OpcUa_Byte,
+		OpcUa_Byte      accessLevel,
 		const UaString&) :
 				m_nodeId(nodeId),
 				m_browseName(nodeId.namespaceIndex(), name),
 				m_value(defaultValue),
-				m_typeDefinitionId(defaultValue.type())
+				m_typeDefinitionId(defaultValue.type()),
+				m_accessLevel(accessLevel)
 {}

@@ -180,3 +180,89 @@ TEST_F(UaVariantTest, testisEqualOperatorForStringVariants)
 	EXPECT_TRUE(m_testee == UaVariant(UaString("some string value")));
 	EXPECT_FALSE(m_testee == UaVariant(UaString("DIFFERENT string value")));
 }
+
+TEST_F(UaVariantTest, testDataTypeReturnsBuiltinNodeId)
+{
+	m_testee.setInt32(42);
+	EXPECT_TRUE(m_testee.dataType() == UaNodeId(OpcUaType_Int32, 0));
+	EXPECT_TRUE(m_testee.dataType() != UaNodeId(OpcUaType_Double, 0));
+	m_testee.setString(UaString("x"));
+	EXPECT_TRUE(m_testee.dataType() == UaNodeId(OpcUaType_String, 0));
+}
+
+TEST_F(UaVariantTest, testBooleanUasdkSpellings)
+{
+	m_testee.setBoolean(OpcUa_True);
+	OpcUa_Boolean out = OpcUa_False;
+	EXPECT_EQ(OpcUa_Good, m_testee.toBoolean(out));
+	EXPECT_TRUE(out);
+	UaBooleanArray arr;
+	arr.create(2);
+	arr[0] = OpcUa_True;
+	arr[1] = OpcUa_False;
+	m_testee.setBooleanArray(arr, OpcUa_False);
+	UaBooleanArray back;
+	EXPECT_EQ(OpcUa_Good, m_testee.toBooleanArray(back));
+	EXPECT_EQ(2u, back.size());
+}
+
+TEST_F(UaVariantTest, testToByteStringFromByteStringScalar)
+{
+	OpcUa_Byte raw[3] = {1, 2, 3};
+	UaByteString bs;
+	bs.setByteString(3, raw);
+	m_testee.setByteString(bs, false);
+	UaByteString out;
+	EXPECT_EQ((OpcUa_StatusCode)OpcUa_Good, m_testee.toByteString(out).statusCode());
+	EXPECT_EQ(3, out.length());
+	EXPECT_EQ(2, out.data()[1]);
+}
+
+TEST_F(UaVariantTest, testToByteStringFromByteArray)
+{
+	UaByteArray arr;
+	arr.create(3);
+	arr[0] = 0xAA;
+	arr[1] = 0xBB;
+	arr[2] = 0xCC;
+	m_testee.setByteArray(arr, OpcUa_False);
+	UaByteString out;
+	EXPECT_EQ((OpcUa_StatusCode)OpcUa_Good, m_testee.toByteString(out).statusCode());
+	EXPECT_EQ(3, out.length());
+	EXPECT_EQ(0xBB, out.data()[1]);
+}
+
+TEST_F(UaVariantTest, testToByteStringTypeMismatchReturnsBadWithoutThrowing)
+{
+	m_testee.setInt32(7);
+	UaByteString out;
+	UaStatus status;
+	EXPECT_NO_THROW(status = m_testee.toByteString(out));
+	EXPECT_EQ((OpcUa_StatusCode)OpcUa_BadTypeMismatch, status.statusCode());
+}
+
+TEST_F(UaVariantTest, testEmptyArrayRoundTripStaysArray)
+{
+	UaInt32Array empty;
+	m_testee.setInt32Array(empty, OpcUa_False);
+	EXPECT_FALSE(m_testee.isEmpty());
+	EXPECT_TRUE(m_testee.isArray());
+	EXPECT_EQ(0, m_testee.arraySize());
+	EXPECT_TRUE(m_testee.dataType() == UaNodeId(OpcUaType_Int32, 0));
+	UaInt32Array back;
+	EXPECT_EQ((OpcUa_StatusCode)OpcUa_Good, m_testee.toInt32Array(back));
+	EXPECT_EQ(0u, back.size());
+	UaVariant copy(m_testee);
+	EXPECT_TRUE(copy.isArray());
+}
+
+TEST_F(UaVariantTest, testEmptyByteStringArrayRoundTrip)
+{
+	UaByteStringArray empty;
+	m_testee.setByteStringArray(empty, OpcUa_False);
+	EXPECT_TRUE(m_testee.isArray());
+	EXPECT_EQ(0, m_testee.arraySize());
+	UaByteStringArray back;
+	EXPECT_EQ((OpcUa_StatusCode)OpcUa_Good, m_testee.toByteStringArray(back));
+	EXPECT_EQ(0u, back.size());
+}

@@ -66,6 +66,7 @@ public:
     void copyTo( UA_NodeId* other) const;
     void copyTo( UaNodeId* other) const;
     bool operator==(const UaNodeId& other) const;
+    bool operator!=(const UaNodeId& other) const { return !(*this == other); }
 private:
     /* UaString m_stringId; */
     UA_NodeId m_impl;

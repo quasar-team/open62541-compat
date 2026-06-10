@@ -277,12 +277,14 @@ void UaVariant::set1DArray( const UA_DataType* dataType, const ArrayType& input 
 {
     if (m_impl->data != 0)
         UA_Variant_clear( m_impl );
-    const void* rawInput = 0;
-    if (input.size()>0)
-        rawInput = &input[0];
+    if (input.size() == 0)
+    {
+        UA_Variant_setArray( m_impl, UA_Array_new(0, dataType), 0, dataType );
+        return;
+    }
     if (UA_Variant_setArrayCopy(
             m_impl,
-            rawInput,
+            &input[0],
             input.size(),
             dataType) != UA_STATUSCODE_GOOD)
         throw alloc_error();
@@ -493,16 +495,25 @@ UaStatus UaVariant::toDouble( OpcUa_Double& out ) const
 
 UaStatus UaVariant::toByteString( UaByteString& out) const
 {
-	if (m_impl->type != &UA_TYPES[UA_TYPES_BYTESTRING])
-		OPEN62541_COMPAT_LOG_AND_THROW(
-				std::runtime_error,
-				"not-a-bytestring-and-conversion-not-implemented");
+	if (!m_impl || !m_impl->data)
+		return OpcUa_BadTypeMismatch;
 
-	UA_ByteString * encapsulated = static_cast<UA_ByteString*> (m_impl->data); // nasty, isn't it?
+	if (m_impl->type == &UA_TYPES[UA_TYPES_BYTESTRING] && isScalarValue())
+	{
+		UA_ByteString * encapsulated = static_cast<UA_ByteString*> (m_impl->data); // nasty, isn't it?
+		out.setByteString( encapsulated->length, encapsulated->data );
+		return OpcUa_Good;
+	}
 
-	out.setByteString( encapsulated->length, encapsulated->data );
+	if (m_impl->type == &UA_TYPES[UA_TYPES_BYTE] && !isScalarValue())
+	{
+		out.setByteString(
+				static_cast<long>(m_impl->arrayLength),
+				static_cast<OpcUa_Byte*>(m_impl->data == UA_EMPTY_ARRAY_SENTINEL ? nullptr : m_impl->data) );
+		return OpcUa_Good;
+	}
 
-	return OpcUa_Good;
+	return OpcUa_BadTypeMismatch;
 }
 
 UaString UaVariant::toString( ) const
@@ -764,7 +775,7 @@ bool UaVariant::isScalarValue() const
 {
 	if(m_impl && m_impl->data) // internal value exists and has data
 	{
-	    return m_impl->arrayLength == 0;
+	    return m_impl->arrayLength == 0 && m_impl->data > UA_EMPTY_ARRAY_SENTINEL;
 	}
 	return false;
 }

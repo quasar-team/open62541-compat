@@ -27,6 +27,17 @@
 #include <uadatavalue.h>
 #include <session.h>
 
+const OpcUa_UInt32 Ua_AccessLevel_None         = 0x0;
+const OpcUa_UInt32 Ua_AccessLevel_CurrentRead  = 0x1;
+const OpcUa_UInt32 Ua_AccessLevel_CurrentWrite = 0x2;
+const OpcUa_UInt32 Ua_AccessLevel_HistoryRead  = 0x4;
+const OpcUa_UInt32 Ua_AccessLevel_HistoryWrite = 0x8;
+
+const OpcUa_UInt32 UaVariable_Value_None                    = 0x0;
+const OpcUa_UInt32 UaVariable_Value_Cache                   = 0x1;
+const OpcUa_UInt32 UaVariable_Value_CacheIsSource           = 0x2;
+const OpcUa_UInt32 UaVariable_Value_CacheIsUpdatedOnRequest = 0x4;
+
 class UaVariable: public UaNode
 {
 public:

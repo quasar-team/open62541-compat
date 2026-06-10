@@ -64,6 +64,7 @@ void UaServer::start()
     initializeOpen62541LogIt();
     config->logging = &theLogItLogger;
     UA_ServerConfig_setMinimal(config, m_endpointPortNumber, nullptr);
+    config->allowEmptyVariables = UA_RULEHANDLING_ACCEPT;
 
     m_asyncOperations = new AsyncOperations(m_server);
     config->context = m_asyncOperations;

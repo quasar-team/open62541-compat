@@ -16,50 +16,42 @@
 
 # Authors:
 # Ben Farnham <firstNm.secondNm@cern.ch>
-message(STATUS "Using file [boost_custom_win_VS2017.cmake] toolchain file")
+# Paris Moschovakos <paris.moschovakos@cern.ch>
+
+message(STATUS "Using file [boost_custom_win.cmake] toolchain file")
 message(STATUS "Boost - include environment variable BOOST_PATH_HEADERS [$ENV{BOOST_PATH_HEADERS}] libs environment variable BOOST_PATH_LIBS [$ENV{BOOST_PATH_LIBS}]")
 
-#-------
-# Boost headers
-#-------
+# Custom boost installation on Windows (MSVC), located through two environment
+# variables. Version/toolset agnostic: libraries are matched by their tagged
+# file names (e.g. libboost_chrono-vc143-mt-x64-1_87.lib). Requires
+# -DCMAKE_BUILD_TYPE=Release|Debug on the configure line.
 if( NOT DEFINED ENV{BOOST_PATH_HEADERS} OR NOT EXISTS $ENV{BOOST_PATH_HEADERS} )
 	message(FATAL_ERROR "environment variable BOOST_PATH_HEADERS must be set to a valid path for boost header files. Current value [$ENV{BOOST_PATH_HEADERS}] rejected")
 endif()
-message(STATUS "Boost - headers will be included from [$ENV{BOOST_PATH_HEADERS}]")
 include_directories( $ENV{BOOST_PATH_HEADERS} )
- 
 
-#-------
-# Boost compiled libs
-#-------
 if( NOT DEFINED ENV{BOOST_PATH_LIBS} OR NOT EXISTS $ENV{BOOST_PATH_LIBS} )
 	message(FATAL_ERROR "environment variable BOOST_PATH_LIBS must be set to a valid path for boost compiled libraries. Current value [$ENV{BOOST_PATH_LIBS}] rejected")
 endif()
-message(STATUS "Boost - libraries will be linked from [$ENV{BOOST_PATH_LIBS}]")
 
-function( find_boost_static_library LIBRARY_IDENTIFIER LIBRARY_FILE_NAME)
-	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".lib")
-	SET(CMAKE_FIND_LIBRARY_PREFIXES "")
-
-	find_library(${LIBRARY_IDENTIFIER} NAMES ${LIBRARY_FILE_NAME} PATHS $ENV{BOOST_PATH_LIBS}  NO_DEFAULT_PATH)
-	message(STATUS "${LIBRARY_IDENTIFIER} has value [${${LIBRARY_IDENTIFIER}}]")
-	if(NOT ${LIBRARY_IDENTIFIER})
-		message(FATAL_ERROR "Failed to load boost static library ID [${LIBRARY_IDENTIFIER}] file [${LIBRARY_FILE_NAME}]")
+function( find_msvc_boost_library OUT_VAR COMPONENT )
+	if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+		file(GLOB _candidates "$ENV{BOOST_PATH_LIBS}/*boost_${COMPONENT}-*-mt-gd-x64-*.lib")
+	else()
+		file(GLOB _candidates "$ENV{BOOST_PATH_LIBS}/*boost_${COMPONENT}-*-mt-x64-*.lib")
 	endif()
-	message(STATUS "loaded boost static library [${LIBRARY_IDENTIFIER}] -> file [${${LIBRARY_IDENTIFIER}}]")
+	list(LENGTH _candidates _n)
+	if(_n EQUAL 0)
+		message(FATAL_ERROR "No MSVC boost library found for component [${COMPONENT}] under [$ENV{BOOST_PATH_LIBS}] (CMAKE_BUILD_TYPE [${CMAKE_BUILD_TYPE}])")
+	endif()
+	list(GET _candidates 0 _lib)
+	set(${OUT_VAR} ${_lib} PARENT_SCOPE)
+	message(STATUS "boost ${COMPONENT} -> [${_lib}]")
 endfunction()
 
-if(${CMAKE_BUILD_TYPE} MATCHES Debug)
-    set ( BOOST_DEBUG_LIB_MARKER "-gd" )
-endif()
+find_msvc_boost_library( libboostprogramoptions program_options )
+find_msvc_boost_library( libboostchrono chrono )
+find_msvc_boost_library( libboostdatetime date_time )
+find_msvc_boost_library( libboostthread thread )
 
-find_boost_static_library( libboostprogramoptions libboost_1_68_0_program_options-vc141-mt-x64-1_68 )
-find_boost_static_library( libboostsystem libboost_1_68_0_system-vc141-mt${BOOST_DEBUG_LIB_MARKER}-x64-1_68 )
-find_boost_static_library( libboostfilesystem libboost_1_68_0_filesystem-vc141-mt${BOOST_DEBUG_LIB_MARKER}-x64-1_68 )
-find_boost_static_library( libboostchrono libboost_1_68_0_chrono-vc141-mt${BOOST_DEBUG_LIB_MARKER}-x64-1_68 )
-find_boost_static_library( libboostdatetime libboost_1_68_0_date_time-vc141-mt${BOOST_DEBUG_LIB_MARKER}-x64-1_68 )
-find_boost_static_library( libboostthread libboost_1_68_0_thread-vc141-mt${BOOST_DEBUG_LIB_MARKER}-x64-1_68 )
-find_boost_static_library( libboostlog libboost_1_68_0_log-vc141-mt${BOOST_DEBUG_LIB_MARKER}-x64-1_68 )
-find_boost_static_library( libboostlogsetup libboost_1_68_0_log_setup-vc141-mt${BOOST_DEBUG_LIB_MARKER}-x64-1_68 )
-
-set( BOOST_LIBS ${libboostlogsetup} ${libboostlog} ${libboostsystem} ${libboostfilesystem} ${libboostthread} ${libboostprogramoptions} ${libboostchrono} ${libboostdatetime})
+set( BOOST_LIBS ${libboostthread} ${libboostprogramoptions} ${libboostchrono} ${libboostdatetime})

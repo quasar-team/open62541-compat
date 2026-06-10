@@ -213,8 +213,6 @@ UaStatus NodeManagerBase::addObjectNodeAndReference(
         UaNode* to,
         const UaNodeId& refType)
 {
-    if (parent && to)
-        parent->addReferencedTarget(to, refType);
     UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8());
     UA_ObjectAttributes objectAttributes;
     UA_ObjectAttributes_init( &objectAttributes );
@@ -250,8 +248,6 @@ UaStatus NodeManagerBase::addDataVariableNodeAndReference(
 		OpcUa::BaseDataVariableType* variable,
         const UaNodeId& refType)
 {
-    if (parent && variable)
-        parent->addReferencedTarget(variable, refType);
 	UaLocalizedText displayName( "en_US", variable->browseName().unqualifiedName().toUtf8());
     UA_DataSource dateDataSource
     {
@@ -324,8 +320,6 @@ UaStatus NodeManagerBase::addPropertyNodeAndReference(
 	UaPropertyCache* to,
     const UaNodeId& refType)
 {
-    if (parent && to)
-        parent->addReferencedTarget(to, refType);
 	UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8());
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.displayName = *displayName.impl();
@@ -357,8 +351,6 @@ UaStatus NodeManagerBase::addMethodNodeAndReference(
     UaNode* to,
     const UaNodeId& refType)
 {
-    if (parent && to)
-        parent->addReferencedTarget(to, refType);
     UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8());
     UA_MethodAttributes attr;
     UA_MethodAttributes_init(&attr);

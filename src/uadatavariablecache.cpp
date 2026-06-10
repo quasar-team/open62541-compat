@@ -18,7 +18,7 @@ UaPropertyMethodArgument::UaPropertyMethodArgument  (
 			ArgumentType   argumentType):
 			m_nodeId(nodeId),
 			m_numberArguments( numberOfArguments ),
-			m_browseName(0, "args"),
+			m_browseName(nodeId.namespaceIndex(), "args"),
 			m_impl( new UA_Argument* [ numberOfArguments] ),
 			m_argumentType(argumentType)
 {
@@ -67,7 +67,7 @@ UaPropertyCache::UaPropertyCache (
 		OpcUa_Byte,
 		const UaString&) :
 				m_nodeId(nodeId),
-				m_browseName(0, name),
+				m_browseName(nodeId.namespaceIndex(), name),
 				m_value(defaultValue),
 				m_typeDefinitionId(defaultValue.type())
 {}

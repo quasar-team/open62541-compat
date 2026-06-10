@@ -98,21 +98,46 @@ UaString UaNodeId::toString() const
     }
     else if (identifierType() == IdentifierType::OpcUa_IdentifierType_Numeric)
     {
-        std::string s = "(ns="+boost::lexical_cast<std::string>(namespaceIndex())+","+boost::lexical_cast<std::string>(identifierNumeric())+")";
-        return UaString(s.c_str());
+        return UaString(boost::lexical_cast<std::string>(identifierNumeric()).c_str());
     }
     return "identifier-type-unsupported";
 }
 
 UaString UaNodeId::toFullString() const
 {
-    if (identifierType() == IdentifierType::OpcUa_IdentifierType_String)
+    std::string s = "NS" + boost::lexical_cast<std::string>(namespaceIndex()) + "|";
+    switch (m_impl.identifierType)
     {
-        std::string s = "(ns="+boost::lexical_cast<std::string>(namespaceIndex())+","+UaString(identifierString()).toUtf8()+")";
-        return UaString(s.c_str());
+    case UA_NODEIDTYPE_NUMERIC:
+        s += "Numeric|" + boost::lexical_cast<std::string>(identifierNumeric());
+        break;
+    case UA_NODEIDTYPE_STRING:
+        s += "String|" + UaString(identifierString()).toUtf8();
+        break;
+    case UA_NODEIDTYPE_BYTESTRING:
+    {
+        s += "Opaque|0x";
+        char hex[3];
+        for (size_t i = 0; i < m_impl.identifier.byteString.length; ++i)
+        {
+            snprintf(hex, sizeof hex, "%02x", m_impl.identifier.byteString.data[i]);
+            s += hex;
+        }
+        break;
     }
-    else
-        return toString();
+    case UA_NODEIDTYPE_GUID:
+    {
+        char guid[40];
+        const UA_Guid& g = m_impl.identifier.guid;
+        snprintf(guid, sizeof guid, "Guid|%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+                g.data1, g.data2, g.data3,
+                g.data4[0], g.data4[1], g.data4[2], g.data4[3],
+                g.data4[4], g.data4[5], g.data4[6], g.data4[7]);
+        s += guid;
+        break;
+    }
+    }
+    return UaString(s.c_str());
 }
 
 void UaNodeId::copyTo( UaNodeId* other) const

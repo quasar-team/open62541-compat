@@ -48,3 +48,19 @@ TEST(UaPropertyCacheTest, accessLevelIsStored)
 			UaString("en_US"));
 	EXPECT_EQ(UA_ACCESSLEVELMASK_READ, property.accessLevel());
 }
+
+TEST(UaNodeIdFormatTest, toFullStringMatchesUasdk)
+{
+	EXPECT_EQ(std::string("NS2|String|elmb1.address"),
+			UaNodeId(UaString("elmb1.address"), 2).toFullString().toUtf8());
+	EXPECT_EQ(std::string("NS0|Numeric|85"),
+			UaNodeId(static_cast<OpcUa_UInt32>(85), 0).toFullString().toUtf8());
+}
+
+TEST(UaNodeIdFormatTest, toStringIsIdentifierOnly)
+{
+	EXPECT_EQ(std::string("elmb1.address"),
+			UaNodeId(UaString("elmb1.address"), 2).toString().toUtf8());
+	EXPECT_EQ(std::string("85"),
+			UaNodeId(static_cast<OpcUa_UInt32>(85), 0).toString().toUtf8());
+}

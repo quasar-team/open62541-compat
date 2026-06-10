@@ -1,0 +1,34 @@
+name: Windows CI
+
+on:
+  push:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-2022
+    env:
+      WINDOWS_DEPENDENCIES_DIR: C:\quasar-windows-dependencies
+      BOOST_PATH_HEADERS: C:\quasar-windows-dependencies\boost\lib\native\include
+      BOOST_PATH_LIBS: C:\quasar-windows-dependencies
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install boost (prebuilt vc141 1.67.0 via nuget, same recipe as appveyor.yml)
+        shell: cmd
+        run: nuget install boost-vc141 -Version 1.67.0 -NonInteractive -ExcludeVersion -OutputDirectory %WINDOWS_DEPENDENCIES_DIR%
+
+      - name: Configure
+        shell: cmd
+        run: cmake -B build -DSTANDALONE_BUILD=ON -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_appveyor_ci.cmake -G "Visual Studio 17 2022" -A x64
+
+      - name: Build
+        shell: cmd
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        shell: cmd
+        run: build\test\Release\open62541-compat-Test.exe

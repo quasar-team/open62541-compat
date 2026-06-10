@@ -26,6 +26,7 @@ cd $WD
 
 # deploy files
 find tmp -name open62541.h -ok cp {} include \; || exit
+sed -i.bak 's|^#define UA_ARCHITECTURE_POSIX$|/* #undef UA_ARCHITECTURE_POSIX */|' include/open62541.h && rm -f include/open62541.h.bak
 printf '\n#if defined(__cplusplus) && defined(UA_HAVE_C11_ATOMICS)\n#undef _Atomic\n#undef atomic_uintptr_t\n#endif\n' >> include/open62541.h
 find tmp -name open62541.c -ok cp {} src \; || exit
 

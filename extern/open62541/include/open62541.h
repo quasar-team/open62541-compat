@@ -41,7 +41,7 @@
  * Define one of the following. */
 
 /* #undef UA_ARCHITECTURE_WIN32 */
-#define UA_ARCHITECTURE_POSIX
+/* #undef UA_ARCHITECTURE_POSIX */
 /* #undef UA_ARCHITECTURE_ZEPHYR */
 /* #undef UA_ARCHITECTURE_LWIP */
 /* #undef UA_ARCHITECTURE_FREERTOS */

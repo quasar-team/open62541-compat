@@ -16,7 +16,7 @@
 #
 # @author Ben Farnham
 # @date 06-Dec-2019
-# The purpose of this file is to locate boost for an appveyor (windows) continuous integration build
+# The purpose of this file is to locate boost for a Windows continuous integration build (GitHub Actions)
 
 #-------
 #Boost
@@ -87,6 +87,6 @@ if(NOT TARGET libboostlogsetup)
 	set_property(TARGET libboostlogsetup PROPERTY IMPORTED_LOCATION ${BOOST_PATH_LIBS}/boost_log_setup-vc141/lib/native/libboost_log_setup-vc141-mt-x64-1_67.lib)
 endif()
 
-set( BOOST_LIBS  libboostlogsetup libboostlog libboostsystem libboostfilesystem libboostthread libboostprogramoptions libboostchrono libboostdatetime -lrt)
+set( BOOST_LIBS  libboostsystem libboostthread libboostprogramoptions libboostchrono libboostdatetime)
 message( STATUS "BOOST_LIBS - [${BOOST_LIBS}]" )
 

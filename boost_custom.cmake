@@ -16,48 +16,39 @@
 
 # Authors:
 # Ben Farnham <firstNm.secondNm@cern.ch>
-message(STATUS "Using file [boost_custom.cmake] toolchain file")
+# Paris Moschovakos <paris.moschovakos@cern.ch>
 
-message(STATUS "environment vars: BOOST_HOME [$ENV{BOOST_HOME}] UNIFIED_AUTOMATION_HOME [$ENV{UNIFIED_AUTOMATION_HOME}]")
+message(STATUS "Using file [boost_custom.cmake] toolchain file")
 message(STATUS "Boost - include environment variable BOOST_PATH_HEADERS [$ENV{BOOST_PATH_HEADERS}] libs environment variable BOOST_PATH_LIBS [$ENV{BOOST_PATH_LIBS}]")
 
-#-------
-# Boost headers
-#-------
+# Custom (self-built) boost installation, located through two environment
+# variables. Works with any boost version new enough for the components below.
 if( NOT DEFINED ENV{BOOST_PATH_HEADERS} OR NOT EXISTS $ENV{BOOST_PATH_HEADERS} )
 	message(FATAL_ERROR "environment variable BOOST_PATH_HEADERS must be set to a valid path for boost header files. Current value [$ENV{BOOST_PATH_HEADERS}] rejected")
 endif()
-message(STATUS "Boost - headers will be included from [$ENV{BOOST_PATH_HEADERS}]")
 include_directories( $ENV{BOOST_PATH_HEADERS} )
- 
 
-#-------
-# Boost compiled libs
-#-------
 if( NOT DEFINED ENV{BOOST_PATH_LIBS} OR NOT EXISTS $ENV{BOOST_PATH_LIBS} )
 	message(FATAL_ERROR "environment variable BOOST_PATH_LIBS must be set to a valid path for boost compiled libraries. Current value [$ENV{BOOST_PATH_LIBS}] rejected")
 endif()
-message(STATUS "Boost - libraries will be linked from [$ENV{BOOST_PATH_LIBS}]")
 
-function( find_boost_static_library LIBRARY_IDENTIFIER LIBRARY_FILE_NAME)
-	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-	SET(CMAKE_FIND_LIBRARY_PREFIXES "")
-
-	find_library(${LIBRARY_IDENTIFIER} NAMES ${LIBRARY_FILE_NAME} PATHS $ENV{BOOST_PATH_LIBS}  NO_DEFAULT_PATH)
-	message(STATUS "${LIBRARY_IDENTIFIER} has value [${${LIBRARY_IDENTIFIER}}]")
+function( find_custom_boost_library LIBRARY_IDENTIFIER COMPONENT REQUIRED )
+	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".so")
+	find_library(${LIBRARY_IDENTIFIER} NAMES boost_${COMPONENT} PATHS $ENV{BOOST_PATH_LIBS} NO_DEFAULT_PATH)
 	if(NOT ${LIBRARY_IDENTIFIER})
-		message(FATAL_ERROR "Failed to load boost static library ID [${LIBRARY_IDENTIFIER}] file [${LIBRARY_FILE_NAME}]")
+		if(${REQUIRED})
+			message(FATAL_ERROR "Failed to find boost library [${COMPONENT}] under [$ENV{BOOST_PATH_LIBS}]")
+		endif()
+		set(${LIBRARY_IDENTIFIER} "" PARENT_SCOPE)
+		return()
 	endif()
-	message(STATUS "loaded boost static library [${LIBRARY_IDENTIFIER}] -> file [${${LIBRARY_IDENTIFIER}}]")
+	message(STATUS "boost ${COMPONENT} -> [${${LIBRARY_IDENTIFIER}}]")
 endfunction()
 
-find_boost_static_library( libboostprogramoptions libboost_1_59_0_program_options )
-find_boost_static_library( libboostsystem libboost_1_59_0_system )
-find_boost_static_library( libboostfilesystem libboost_1_59_0_filesystem )
-find_boost_static_library( libboostchrono libboost_1_59_0_chrono )
-find_boost_static_library( libboostdatetime libboost_1_59_0_date_time) 
-find_boost_static_library( libboostthread libboost_1_59_0_thread)
-find_boost_static_library( libboostlog libboost_1_59_0_log)
-find_boost_static_library( libboostlogsetup libboost_1_59_0_log_setup)
+find_custom_boost_library( libboostprogramoptions program_options TRUE )
+find_custom_boost_library( libboostchrono chrono TRUE )
+find_custom_boost_library( libboostdatetime date_time TRUE )
+find_custom_boost_library( libboostthread thread TRUE )
+find_custom_boost_library( libboostsystem system FALSE )
 
-set( BOOST_LIBS ${libboostlogsetup} ${libboostlog} ${libboostsystem} ${libboostfilesystem} ${libboostthread} ${libboostprogramoptions} ${libboostchrono} ${libboostdatetime} -lrt)
+set( BOOST_LIBS ${libboostthread} ${libboostprogramoptions} ${libboostchrono} ${libboostdatetime} ${libboostsystem})

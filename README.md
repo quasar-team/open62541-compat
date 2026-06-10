@@ -26,68 +26,59 @@ In Quasar repo, read:
 
 Documentation/AlternativeBackends.html
 
-Quick-start guide to get an stand-alone(independent) library
+Quick-start guide to get a stand-alone (independent) library
 -----------------------------------------------------------
 1. clone the repo
 
-2. generate the makefiles / VS solution using cmake. A few options here, depending on
+2. configure with CMake. A few choices, depending on
 
    (a) do you want to build open62541-compat as a shared or static library?
 
-   (b) open62541-compat requires the boost library, do you want to use the system boost library or do you have a custom boost build?
+   (b) open62541-compat requires the boost library: system boost or a custom build?
 
-   (c) open62541-compat depends on the quasar module LogIt, should the compat module clone, build and link LogIt source directly into
-       the compat library or should the compat library consume LogIt from some external build.
-
-   Time for an example...
+   (c) open62541-compat depends on the quasar module LogIt: built-in from source (default) or consumed from an external build.
 
 ### Linux examples
-   - Build open62541-compat as a static library on linux. Use whatever the system installation of boost-devel is and build LogIt
-     directly into the compat library
+   - Static library, system boost (e.g. boost-devel), LogIt built in:
      ```
-     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install.cmake -DSTANDALONE_BUILD=ON
+     cmake -B build -DSTANDALONE_BUILD=ON
+     cmake --build build -j$(nproc)
+     ```
+     If `find_package(Boost)` needs help on your platform, add a build config file:
+     ```
+     cmake -B build -DSTANDALONE_BUILD=ON -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install.cmake
+     ```
+     Other sample config files: `boost_lcg.cmake` (LCG releases), `boost_custom.cmake` (self-built boost via the `BOOST_PATH_HEADERS`/`BOOST_PATH_LIBS` environment variables).
+
+   - **Shared** library: add `-DSTANDALONE_BUILD_SHARED=ON`.
+
+   - LogIt from an external build (here: shared, from /tmp/LogIt):
+     ```
+     cmake -B build -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -DLOGIT_BUILD_OPTION=LOGIT_AS_EXT_SHARED -DLOGIT_EXT_LIB_DIR=/tmp/LogIt/ -DLOGIT_INCLUDE_DIR=/tmp/LogIt/include/
+     cmake --build build -j$(nproc)
      ```
 
-   - Build open62541-compat as a **shared** library on linux (and boost/LogIt treated as above) - just add **STANDALONE_BUILD_SHARED**
-     ```
-     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON
-     ```
+### Windows examples (MSVC)
+   The CI-proven recipe lives in `.github/workflows/windows.yml`: prebuilt boost from nuget plus the `boost_windows_ci.cmake` config file.
 
-   - Build open62541-compat as a shared library on linux but with the LogIt library pulled in from some external build location (here LogIt is consumed as a shared library from /tmp/LogIt/). Note the **-DLOGIT** options define how LogIt is built into open62541-compat.
-     ```
-     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -DLOGIT_BUILD_OPTION=LOGIT_AS_EXT_SHARED -DLOGIT_EXT_LIB_DIR=/tmp/LogIt/ -DLOGIT_INCLUDE_DIR=/tmp/LogIt/include/
-     ```
-### Windows examples (using a mingw 'git bash' command prompt)
-   - Build open62541-compat as a static library on windows (visual studio 2017). Use a custom boost build (perhaps you built boost
-     yourself, or have several boost installations available to choose from). Build LogIt directly into the compat library.
-     ```
-     # (comment) - set environment variables to point to the custom boost headers/libs directories (required by the toolchain file)
-     export BOOST_PATH_HEADERS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/include/
-     export BOOST_PATH_LIBS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/lib/
+   For your own boost build, point the environment at it and use `boost_custom_win.cmake` (version/toolset agnostic):
+   ```
+   set BOOST_PATH_HEADERS=C:\path\to\boost\include
+   set BOOST_PATH_LIBS=C:\path\to\boost\lib64
 
-     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_custom_win_VS2017.cmake -DSTANDALONE_BUILD=ON -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release
-     ```
-     Note! Your boost build/installation may be more exotic than ours, take a look at the sample custom toolchain file (__boost_custom_win_VS2017.cmake__)
-     for inspiration, write your own and use it in your build via the build option **OPEN62541-COMPAT_BUILD_CONFIG_FILE**
-
-   - Build open62541-compat as a shared library on windows (visual studio 2017). Use a custom boost build. Use the LogIt library (here as a shared library) from some external build (as with the linux build above, the **-DLOGIT** options define how LogIt is built into open62541-compat).
-     ```
-     # (comment) - set environment variables to point to the custom boost headers/libs directories (required by the toolchain file)
-     export BOOST_PATH_HEADERS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/include/
-     export BOOST_PATH_LIBS=/c/3rdPartySoftware/boost_mapped_namespace_builder/work/MAPPED_NAMESPACE_INSTALL/lib/
-
-     cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_custom_win_VS2017.cmake -DSTANDALONE_BUILD=ON -DSTANDALONE_BUILD_SHARED=ON -G "Visual Studio 15 2017 Win64" -DCMAKE_BUILD_TYPE=Release -DLOGIT_BUILD_OPTION=LOGIT_AS_EXT_SHARED -DLOGIT_EXT_LIB_DIR=/c/workspace/OPC-UA/LogIt/Release/ -DLOGIT_INCLUDE_DIR=/c/workspace/OPC-UA/LogIt/include/
-     ```
+   cmake -B build -DSTANDALONE_BUILD=ON -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_custom_win.cmake -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+   cmake --build build --config Release
+   ```
 
 ### Unit tests
 Writing unit tests (and running unit tests) is a good habit; developers - if you're adding new features we recommend adding tests to really lock that work in place. Passing tests signify that features work now and provide an invaluable tool for future developers; to help them avoid inadvertently broken existing functionality. So, be a conscientious developer, write tests and run tests. By default (for stand-alone open62541-compat builds) unit tests are part of the build, if you need to skip them you can (but why would you?), more on skipping tests later. The open62541-compat module unit tests are based on the [googletest](https://github.com/google/googletest) framework. Note that the unit tests build to a stand-alone executable, this executable links to the stand-alone open62541-compat library as used in end-user applications - building the unit tests has ZERO effect on the actual end-user library binary that the build outputs.
 * Unit tests and their requirements (basically googletest) are in the test subdirectory.
 * New unit tests should be added to test/src (for help on writing tests see the googletest documentation, you might find inspiration in the existing tests too).
 * From a clean start, the googletest framework is built from source (cloned from [here](https://github.com/google/googletest)), so it should execute on your platform.
-* On running make for the open62541-compat module, the unit tests build to this executable: __test/open62541-compat-Test__. Note that executable is built after the open62541-compat library is built.
+* On running make for the open62541-compat module, the unit tests build to this executable: __build/test/open62541-compat-Test__. Note that executable is built after the open62541-compat library is built.
 * Run those tests by simply invoking that executable:
 ```
-./test/open62541-compat-Test
+./build/test/open62541-compat-Test
 ```
 
 #### Skipping tests
@@ -99,13 +90,12 @@ cmake -DOPEN62541-COMPAT_BUILD_CONFIG_FILE=boost_standard_install.cmake -DSTANDA
 
 ###### How do you use it in your independent UASDK server or client? ######
 
-The include directory contains UASDK-(partially)-compatible headers, and you should link with the following libs:
-* build/libopen62541-compat.a
-* open62541/build/libopen62541.a
+The include directory contains UASDK-(partially)-compatible headers, and you link with `build/libopen62541-compat.a` (the bundled open62541 stack is compiled in).
 
-For questions/issues: file a ticket or write to piotr.nikiel@cern.ch
+Maintainer: Paris Moschovakos <paris.moschovakos@cern.ch>. For questions/issues please file a GitHub ticket.
+Original author: Piotr Nikiel.
 
 CI build info | CI build status
 ------------ | -------------
-linux (travis-ci) | [![travis-ci](https://travis-ci.org/quasar-team/open62541-compat.svg?branch=master)](https://travis-ci.org/quasar-team/open62541-compat?branch=master)
-windows (appveyor) |  [![Appveyor](https://ci.appveyor.com/api/projects/status/etdf9t9wkkeb7jpi/branch/master?svg=true)](https://ci.appveyor.com/project/ben-farnham/open62541-compat/branch/master)
+linux (GitHub Actions) | [![CI](https://github.com/quasar-team/open62541-compat/actions/workflows/ci.yml/badge.svg)](https://github.com/quasar-team/open62541-compat/actions/workflows/ci.yml)
+windows (GitHub Actions) | [![Windows CI](https://github.com/quasar-team/open62541-compat/actions/workflows/windows.yml/badge.svg)](https://github.com/quasar-team/open62541-compat/actions/workflows/windows.yml)

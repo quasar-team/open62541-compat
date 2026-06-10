@@ -16,31 +16,14 @@
 
 # Authors:
 # Ben Farnham <firstNm.secondNm@cern.ch>
-cmake_minimum_required( VERSION 3.16 )
-#project( FindSystemBoost CXX )
+# Paris Moschovakos <paris.moschovakos@cern.ch>
+
 message(STATUS "Using file [boost_standard_install.cmake] toolchain file")
 
-message(STATUS "CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES [${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES}]")
-
-#
-# Warning: *Distinctly* suspect that these should require be set but otherwise
-# no boost libs are found. Possibly fixed in some later version, but not in
-# cmake v2.8's FindBoost package
-#
-set(BOOST_INCLUDEDIR "/usr/include/")
-set(BOOST_LIBRARYDIR "/usr/lib64/")
-
-set(CMAKE_FIND_LIBRARY_SUFFIXES ".so")
-set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
-
-find_package(Boost REQUIRED
-	program_options filesystem chrono date_time thread OPTIONAL_COMPONENTS system)
-
-if(NOT Boost_FOUND)
-	message(FATAL_ERROR "Failed to find system boost installation (is the boost-devel package installed on this machine?)")
-else()
-	message(STATUS "Found system boost, version [${Boost_VERSION}], include dir [${Boost_INCLUDE_DIRS}] library dir [${Boost_LIBRARY_DIRS}], libs [${Boost_LIBRARIES}]")
-endif()	
+# Standard system-wide boost installation (e.g. boost-devel on RHEL/Alma):
+# let CMake locate it, request exactly the components open62541-compat links.
+find_package(Boost REQUIRED chrono date_time thread program_options OPTIONAL_COMPONENTS system)
+message(STATUS "Found boost version [${Boost_VERSION}] include dir [${Boost_INCLUDE_DIRS}] libs [${Boost_LIBRARIES}]")
 
 include_directories( ${Boost_INCLUDE_DIRS} )
 set( BOOST_LIBS ${Boost_LIBRARIES} )

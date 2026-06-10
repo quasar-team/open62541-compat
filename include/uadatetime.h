@@ -41,10 +41,17 @@ public:
 	UaString toString() const;
 	explicit operator UA_DateTime() const {return m_dateTime;}
 
+	static UaDateTime fromTime_t(time_t epochSeconds)
+	{ return UaDateTime(static_cast<UA_DateTime>(epochSeconds) * UA_DATETIME_SEC + UA_DATETIME_UNIX_EPOCH); }
+	time_t toTime_t() const
+	{ return static_cast<time_t>((m_dateTime - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC); }
+
 private:
 
 
 	UA_DateTime m_dateTime; // (64bit signed int ) num of 100 nanosec intervals since windows epoch (1601-01-01T00:00:00)
 };
+
+typedef UA_DateTime OpcUa_DateTime;
 
 #endif // __UADATETIME_H_

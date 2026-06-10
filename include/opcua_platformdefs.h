@@ -20,6 +20,8 @@
 
 
 #include <stdint.h>
+#include <map>
+#include <string>
 
 typedef bool     OpcUa_Boolean;
 typedef uint8_t  OpcUa_Byte;

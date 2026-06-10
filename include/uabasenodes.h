@@ -23,6 +23,19 @@
 #define OPEN62541_COMPAT_INCLUDE_UABASENODES_H_
 
 #include <uanode.h>
+#include <statuscode.h>
+#include <uadatavalue.h>
+#include <session.h>
+
+class UaVariable: public UaNode
+{
+public:
+    virtual UaDataValue value(Session* session) = 0;
+    virtual UaStatus setValue(
+            Session *session,
+            const UaDataValue& dataValue,
+            OpcUa_Boolean checkAccessLevel = OpcUa_True ) = 0;
+};
 
 class UaObject: public UaNode
 {

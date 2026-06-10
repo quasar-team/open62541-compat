@@ -78,7 +78,7 @@ UaString::~UaString ()
 
 UaString UaString::operator+(const UaString& other)
 {
-    std::string concatenated = this->toUtf8() + other.toUtf8();
+    std::string concatenated = std::string(this->toUtf8()) + other.toUtf8();
     return UaString( concatenated.c_str() );
 }
 
@@ -108,9 +108,10 @@ const UaString& UaString::operator=(const UA_String& other)
     return *this;
 }
 
-std::string UaString::toUtf8() const
+const char* UaString::toUtf8() const
 {
-  return std::string( reinterpret_cast<const char*>(m_impl->data), m_impl->length );
+  m_utf8.assign( reinterpret_cast<const char*>(m_impl->data), m_impl->length );
+  return m_utf8.c_str();
 }
 
 /** Note(Piotr): this is not real detachment.
@@ -122,7 +123,7 @@ void UaString::detach(UaString* out)
     *out = *this;
 }
 
-bool UaString::operator==(const UaString& other)
+bool UaString::operator==(const UaString& other) const
 {
     return UA_String_equal(this->m_impl, other.m_impl);
 }

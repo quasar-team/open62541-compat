@@ -53,6 +53,15 @@ public:
 
     void addReferencedTarget( UaNode* targetNode, UaNodeId referenceTypeId ) { m_referenceTargets.push_back( ReferencedTarget(targetNode, referenceTypeId));  }
     const std::list<ReferencedTarget>* referencedTargets() const { return &m_referenceTargets; }
+
+    virtual UaNode* getUaReferenceLists() const { return const_cast<UaNode*>(this); }
+    UaNode* getTargetNodeByBrowseName( const UaQualifiedName& browseName ) const
+    {
+        for (const ReferencedTarget& candidate : m_referenceTargets)
+            if (candidate.target && candidate.target->browseName() == browseName)
+                return candidate.target;
+        return nullptr;
+    }
 private:    
     std::list<ReferencedTarget> m_referenceTargets;
 

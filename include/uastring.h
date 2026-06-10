@@ -52,9 +52,10 @@ public:
     ~UaString ();
  
     UaString operator+(const UaString& other);
-    bool operator==(const UaString& other);
+    bool operator==(const UaString& other) const;
+    bool operator!=(const UaString& other) const { return !(*this == other); }
 
-    std::string toUtf8() const;
+    const char* toUtf8() const;
 
     const UA_String * impl() const{ return m_impl; }
 
@@ -67,6 +68,7 @@ public:
 
 private:
     UA_String * m_impl;
+    mutable std::string m_utf8;
 };
 
 #endif // __UASTRING_H_

@@ -15,8 +15,17 @@
 class UaDataValue
 {
   public:
+    UaDataValue();
     UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode, const UaDateTime& sourceTime, const UaDateTime& serverTime );
     UaDataValue( const UaDataValue& other );
+
+    void setValue( UaVariant& value, OpcUa_Boolean detachValue, OpcUa_Boolean updateTimeStamps = OpcUa_False );
+    void setDataValue( UaVariant& value, OpcUa_Boolean detachValue, OpcUa_StatusCode statusCode, const UaDateTime& sourceTimestamp, const UaDateTime& serverTimestamp );
+    void setStatusCode( OpcUa_StatusCode statusCode );
+    void setSourceTimestamp( const UaDateTime& sourceTimestamp );
+    void setServerTimestamp( const UaDateTime& serverTimestamp );
+    UaDateTime sourceTimestamp() const { return UaDateTime(m_impl->sourceTimestamp); }
+    UaDateTime serverTimestamp() const { return UaDateTime(m_impl->serverTimestamp); }
     void operator=(const UaDataValue& other );
     bool operator==(const UaDataValue &other) const;
     bool operator!=(const UaDataValue &other) const;

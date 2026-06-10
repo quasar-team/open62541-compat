@@ -324,6 +324,7 @@ UaStatus NodeManagerBase::addPropertyNodeAndReference(
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.displayName = *displayName.impl();
     attr.dataType = to->typeDefinitionId().impl();
+    attr.accessLevel = to->accessLevel();
     UaVariant(*to->value(nullptr).value()).copyTo(&attr.value);
 
     LOG(Log::TRC) << "to=" << to->nodeId().toFullString().toUtf8() << " reftype=" << refType.toFullString().toUtf8();

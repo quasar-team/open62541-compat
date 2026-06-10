@@ -28,6 +28,7 @@
 #include <statuscode.h>
 #include <uadatetime.h>
 #include <uabytestring.h>
+#include <uanodeid.h>
 #include <other.h>
 #include <simple_arrays.h>
 
@@ -75,9 +76,11 @@ class UaVariant
 
   ~UaVariant();
   OpcUaType type() const;
-    
+  UaNodeId dataType() const { return UaNodeId(static_cast<OpcUa_UInt32>(type()), 0); }
+
   // setters
   void setBool( OpcUa_Boolean value );
+  void setBoolean( OpcUa_Boolean value ) { setBool(value); }
   void setByte( OpcUa_Byte value );
   void setSByte( OpcUa_SByte value );
   void setInt16( OpcUa_Int16 value );
@@ -95,6 +98,7 @@ class UaVariant
   void setByteString( const UaByteString& value, bool detach);
 
   void setBoolArray( UaBooleanArray& val, OpcUa_Boolean bDetach = OpcUa_False);
+  void setBooleanArray( UaBooleanArray& val, OpcUa_Boolean bDetach = OpcUa_False) { setBoolArray(val, bDetach); }
   void setSByteArray( UaSByteArray& val, OpcUa_Boolean bDetach = OpcUa_False);
   void setByteArray( UaByteArray& val, OpcUa_Boolean bDetach = OpcUa_False );
   void setInt16Array( UaInt16Array& val, OpcUa_Boolean bDetach = OpcUa_False);
@@ -115,6 +119,7 @@ class UaVariant
 
   // getters
   UaStatus toBool( OpcUa_Boolean& value) const;
+  OpcUa_StatusCode toBoolean( OpcUa_Boolean& value) const { return toBool(value); }
   UaStatus toInt16( OpcUa_Int16& value) const;
   UaStatus toUInt16( OpcUa_UInt16& value) const;
   UaStatus toInt32( OpcUa_Int32& value ) const;
@@ -131,6 +136,7 @@ class UaVariant
   UaString toFullString() const;
 
   OpcUa_StatusCode toBoolArray( UaBooleanArray& out ) const;
+  OpcUa_StatusCode toBooleanArray( UaBooleanArray& out ) const { return toBoolArray(out); }
   OpcUa_StatusCode toSByteArray( UaSByteArray& out ) const;
   OpcUa_StatusCode toByteArray( UaByteArray& out ) const;
   OpcUa_StatusCode toInt16Array( UaInt16Array& out ) const;

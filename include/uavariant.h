@@ -55,6 +55,7 @@ enum OpcUaType
   };
 
 typedef OpcUaType OpcUa_BuiltInType;
+typedef OpcUaType _OpcUa_BuiltInType;
 
 class UaVariant
 {

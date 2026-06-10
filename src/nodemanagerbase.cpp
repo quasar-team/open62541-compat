@@ -20,11 +20,13 @@
  */
 
 #include <algorithm>
+#include <memory>
 #include <stdexcept>
 
 #include <nodemanagerbase.h>
 #include <opcua_basedatavariabletype.h>
 #include <uadatavariablecache.h>
+#include <async_operations.h>
 #include <open62541.h>
 
 static UaLocalizedText emptyDescription( "en_US", "" );
@@ -62,7 +64,7 @@ UaNode* NodeManagerBase::getNode( const UaNodeId& nodeId ) const
 }
 
 static UA_StatusCode unifiedRead(
-    UA_Server *,
+    UA_Server *server,
     const UA_NodeId *,
     void *,
     const UA_NodeId *,
@@ -77,6 +79,20 @@ static UA_StatusCode unifiedRead(
     // we expect that the handle points to an object of subclass of BaseDataVariableType -- cause it's how we add then
     OpcUa::BaseDataVariableType *variable = static_cast<OpcUa::BaseDataVariableType*>(nodeContext);
 
+    AsyncOperations* operations = AsyncOperations::fromServer(server);
+    if (variable->handlesIo() && operations && operations->deferralActive())
+    {
+        std::shared_ptr<AsyncReadBlock> block = std::make_shared<AsyncReadBlock>(operations, dataValue);
+        variable->beginRead(AsyncReadHandle(block));
+        if (block->phase().exchange(AsyncOperationBlock::Deferred) == AsyncOperationBlock::Finished)
+        {
+            block->finishInline();
+            return UA_STATUSCODE_GOOD;
+        }
+        operations->establishDeferral(block);
+        return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+    }
+
     UaDataValue aCopy( variable->value(0) ); // internally cloned so we can do anything with this object
     UA_DataValue_copy( aCopy.impl(), dataValue );
 
@@ -84,7 +100,7 @@ static UA_StatusCode unifiedRead(
 }
 
 static UA_StatusCode unifiedWrite(
-    UA_Server *,
+    UA_Server *server,
     const UA_NodeId *,
     void *,
     const UA_NodeId *,
@@ -106,45 +122,27 @@ static UA_StatusCode unifiedWrite(
     // we expect that the handle points to an object of subclass of BaseDataVariableType
     OpcUa::BaseDataVariableType *variable = static_cast<OpcUa::BaseDataVariableType*>(nodeContext);
     UaVariant variant ( dataValue->value );
+
+    AsyncOperations* writeOperations = AsyncOperations::fromServer(server);
+    if (variable->handlesIo() && writeOperations && writeOperations->deferralActive())
+    {
+        std::shared_ptr<AsyncWriteBlock> block = std::make_shared<AsyncWriteBlock>(writeOperations, dataValue);
+        variable->beginWrite(
+            UaDataValue( variant, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ),
+            AsyncWriteHandle(block));
+        if (block->phase().exchange(AsyncOperationBlock::Deferred) == AsyncOperationBlock::Finished)
+            return block->result();
+        writeOperations->establishDeferral(block);
+        return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+    }
+
     UaStatus status = variable->setValue( /*anything non zero*/(Session*)-1, UaDataValue( variant, OpcUa_Good, UaDateTime::now(), UaDateTime::now() ), OpcUa_True );
     return status;
 }
 
-class SynchronousMethodCallback: public MethodManagerCallback
-{
-public:
-    virtual ~SynchronousMethodCallback () {}
-
-    virtual UaStatus 	finishCall (
-        OpcUa_UInt32,
-        UaStatusCodeArray &,
-        UaDiagnosticInfos &,
-        UaVariantArray &outputArguments,
-        UaStatus &statusCode) override
-    {
-        // TODO: store the answer
-        this->m_resultStatus = statusCode;
-        m_outputs = outputArguments;
-        return OpcUa_Good;
-    }
-
-    UaStatus getStatusCode () const {
-        return m_resultStatus;
-    }
-    UaVariantArray& outputs() {
-        return m_outputs;
-    }
-
-private:
-    UaStatus m_resultStatus;
-    UaVariantArray m_outputs;
-
-};
-
-
 //! IMPORTANT: in adding methods we pass nodeContext but where is this routed to in the end? To methodContext or objectContext?
 UA_StatusCode unifiedCall(
-    UA_Server *,
+    UA_Server *server,
     const UA_NodeId *,
     void *,
     const UA_NodeId *,
@@ -161,6 +159,10 @@ UA_StatusCode unifiedCall(
     MethodHandleUaNode *handle = static_cast<MethodHandleUaNode*> (methodContext);
     OpcUa::BaseObjectType *receiver = static_cast<OpcUa::BaseObjectType*> ( handle->pUaObject() );
 
+    AsyncOperations* operations = AsyncOperations::fromServer(server);
+    if (!operations || operations->isClosed())
+        return UA_STATUSCODE_BADOUTOFSERVICE;
+
     ServiceContext sc;
     UaVariantArray inputArgs;
 
@@ -170,27 +172,29 @@ UA_StatusCode unifiedCall(
         inputArgs[i] = UaVariant( input[i] );
     }
 
-    SynchronousMethodCallback synchronousCallback;
+    std::shared_ptr<AsyncMethodBlock> block = std::make_shared<AsyncMethodBlock>(operations, output, outputSize);
+    block->attachSelf(block);
 
     UaStatus status =
         receiver->beginCall(
-            &synchronousCallback  /* callback */,
+            block.get()  /* callback */,
             sc /* fake service context */,
             0 /* fake callback handle */,
             handle /* fake method handle */,
             inputArgs
         );
 
-    if (status.isNotGood())
-        return status; // beginning failed ...
-
-    for (size_t i=0; i<outputSize; ++i)
+    if (block->phase().exchange(AsyncOperationBlock::Deferred) == AsyncOperationBlock::Finished)
     {
-        const UA_Variant* from = synchronousCallback.outputs()[i].impl();
-        UA_Variant_copy(from, output+i);
+        block->finishInline();
+        return block->result();
     }
 
-    return synchronousCallback.getStatusCode();
+    if (status.isNotGood())
+        return status; // beginning failed before any dispatch ...
+
+    operations->establishDeferral(block);
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
 

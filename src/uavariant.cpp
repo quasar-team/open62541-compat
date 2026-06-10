@@ -591,39 +591,39 @@ template<typename TTargetNumericType>
 {
 	try
 	{
-		switch(m_impl->type->typeIndex)
+		switch(m_impl->type->typeKind)
 		{
-			case UA_TYPES_BOOLEAN:
+			case UA_DATATYPEKIND_BOOLEAN:
 				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Boolean*>(m_impl->data)) );
 				return OpcUa_Good;
-			case UA_TYPES_BYTE:
+			case UA_DATATYPEKIND_BYTE:
 				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Byte*>(m_impl->data)) );
 				return OpcUa_Good;
-			case UA_TYPES_SBYTE:
+			case UA_DATATYPEKIND_SBYTE:
 				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_SByte*>(m_impl->data)) );
 				return OpcUa_Good;
-			case UA_TYPES_INT16:
+			case UA_DATATYPEKIND_INT16:
 				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Int16*>(m_impl->data)) );
 				return OpcUa_Good;
-			case UA_TYPES_UINT16:
+			case UA_DATATYPEKIND_UINT16:
 				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_UInt16*>(m_impl->data)) );
 				return OpcUa_Good;
-			case UA_TYPES_INT32:
+			case UA_DATATYPEKIND_INT32:
 				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Int32*>(m_impl->data)) );
 				return OpcUa_Good;
-			case UA_TYPES_UINT32:
+			case UA_DATATYPEKIND_UINT32:
 				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_UInt32*>(m_impl->data)) );
 				return OpcUa_Good;
-			case UA_TYPES_INT64:
+			case UA_DATATYPEKIND_INT64:
 				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Int64*>(m_impl->data)) );
 				return OpcUa_Good;
-			case UA_TYPES_UINT64:
+			case UA_DATATYPEKIND_UINT64:
 				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_UInt64*>(m_impl->data)) );
 				return OpcUa_Good;
-			case UA_TYPES_FLOAT:
+			case UA_DATATYPEKIND_FLOAT:
 				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Float*>(m_impl->data)) );
 				return OpcUa_Good;
-			case UA_TYPES_DOUBLE:
+			case UA_DATATYPEKIND_DOUBLE:
 				*out = boost::numeric_cast<TTargetNumericType>( *(static_cast<OpcUa_Double*>(m_impl->data)) );
 				return OpcUa_Good;
 			default:
@@ -645,19 +645,19 @@ template<typename TTargetNumericType>
 
 bool UaVariant::isNumericType( const UA_DataType& dataType ) const
 {
-	switch(dataType.typeIndex)
+	switch(dataType.typeKind)
 	{
-	case UA_TYPES_BOOLEAN:
-	case UA_TYPES_SBYTE:
-	case UA_TYPES_BYTE:
-	case UA_TYPES_INT16:
-	case UA_TYPES_UINT16:
-	case UA_TYPES_INT32:
-	case UA_TYPES_UINT32:
-	case UA_TYPES_INT64:
-	case UA_TYPES_UINT64:
-	case UA_TYPES_FLOAT:
-	case UA_TYPES_DOUBLE:
+	case UA_DATATYPEKIND_BOOLEAN:
+	case UA_DATATYPEKIND_SBYTE:
+	case UA_DATATYPEKIND_BYTE:
+	case UA_DATATYPEKIND_INT16:
+	case UA_DATATYPEKIND_UINT16:
+	case UA_DATATYPEKIND_INT32:
+	case UA_DATATYPEKIND_UINT32:
+	case UA_DATATYPEKIND_INT64:
+	case UA_DATATYPEKIND_UINT64:
+	case UA_DATATYPEKIND_FLOAT:
+	case UA_DATATYPEKIND_DOUBLE:
 		return true;
 	default:
 		return false;

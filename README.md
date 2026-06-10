@@ -8,7 +8,8 @@ Versions
 
 | Branch/Version | open62541 version included | LogIt version | Years active | Description |
 | -------------- | ----------------- | ------------- | --- | ----------- |
-| 1.4.x          | 1.2.x             | v0.1.1        | 2021- | Stable, widely used. |
+| 1.5.x          | 1.5.x             | v1.0.0        | 2026- | Deferred (asynchronous) read/write/call: source variables and async methods execute on the quasar thread pool, UASDK-style. |
+| 1.4.x          | 1.2.x             | v0.1.1        | 2021-2026 | Stable, widely used. |
 | 1.3.x          | 1.1.x             | v0.1.1        | 2020-2021 |Old-stable.          |
 | 1.2.x          | 1.0.x             | v0.1.1        | 2019-2020 | Historic. Uses open62541 1.0. |
 | 1.1            | 0.3(-rc2)         | v0.1.1        | 2018-2019 | Historic. Uses open62541 0.3. |

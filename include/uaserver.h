@@ -31,6 +31,8 @@
 struct UA_Server;
 struct UA_ServerConfig;
 
+class AsyncOperations;
+
 class UaServer
 {
 public:
@@ -53,6 +55,7 @@ public:
 private:
     UA_Server *m_server;
     NodeManagerBase* m_nodeManager;
+    AsyncOperations* m_asyncOperations;
     std::thread m_open62541_server_thread;
 
     volatile OpcUa_Boolean* m_runningFlag;

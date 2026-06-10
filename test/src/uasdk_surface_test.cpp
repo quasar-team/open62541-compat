@@ -127,3 +127,37 @@ TEST(UasdkSurfaceTest, uaVariableDowncastAndSetValue)
 	UaVariant(*asVariable->value(nullptr).value()).toUInt32(out);
 	EXPECT_EQ(123u, out);
 }
+
+#include <uathread.h>
+#include <uasemaphore.h>
+#include <uaobjecttypes.h>
+#include <srvtrace.h>
+
+namespace
+{
+class CountingThread: public UaThread
+{
+public:
+	std::atomic_int counter{0};
+protected:
+	void run() override { ++counter; }
+};
+}
+
+TEST(UasdkSurfaceTest, threadRunsAndJoins)
+{
+	CountingThread t;
+	t.start();
+	EXPECT_TRUE(t.wait());
+	EXPECT_EQ(1, t.counter);
+	EXPECT_TRUE(t.finished());
+}
+
+TEST(UasdkSurfaceTest, semaphoreWaitPostAndTimeout)
+{
+	UaSemaphore sem(0, 1);
+	EXPECT_EQ((OpcUa_StatusCode)OpcUa_BadTimeout, sem.timedWait(20));
+	EXPECT_EQ((OpcUa_StatusCode)OpcUa_Good, sem.post(1));
+	EXPECT_EQ((OpcUa_StatusCode)OpcUa_Good, sem.wait());
+	EXPECT_EQ((OpcUa_StatusCode)OpcUa_BadTimeout, sem.timedWait(20));
+}

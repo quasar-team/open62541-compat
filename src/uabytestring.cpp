@@ -26,7 +26,7 @@ UaByteString::UaByteString( const UA_ByteString& other):
 {
     UaStatus status = UA_ByteString_copy(&other, m_impl);
     if (!status.isGood())
-    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "UA_ByteString_copy failed: " + status.toString().toUtf8());
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, std::string("UA_ByteString_copy failed: ") + status.toString().toUtf8());
 }
 
 UaByteString::UaByteString( const int length, const OpcUa_Byte* data):
@@ -93,7 +93,7 @@ void UaByteString::copyTo(UaByteString* other) const
     other->release();
     UaStatus status = UA_ByteString_copy(m_impl, other->m_impl);
     if (!status.isGood())
-    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "UA_ByteString_copy failed with: " + status.toString().toUtf8());
+    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, std::string("UA_ByteString_copy failed with: ") + status.toString().toUtf8());
 }
 
 void UaByteString::release()

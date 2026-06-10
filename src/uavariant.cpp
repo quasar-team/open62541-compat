@@ -161,6 +161,32 @@ UaVariant::~UaVariant()
     m_impl = 0;
 }
 
+OpcUa_StatusCode UaVariant::changeType( OpcUaType targetType, OpcUa_Boolean toArray )
+{
+    if (toArray != OpcUa_False)
+        return OpcUa_BadNotSupported;
+    if (type() == targetType)
+        return OpcUa_Good;
+    switch (targetType)
+    {
+    case OpcUaType_Boolean: { OpcUa_Boolean v; UaStatus s = toBool(v);   if (!s.isGood()) return s.statusCode(); setBool(v);   break; }
+    case OpcUaType_SByte:   { OpcUa_SByte v;   UaStatus s = toSByte(v);  if (!s.isGood()) return s.statusCode(); setSByte(v);  break; }
+    case OpcUaType_Byte:    { OpcUa_Byte v;    UaStatus s = toByte(v);   if (!s.isGood()) return s.statusCode(); setByte(v);   break; }
+    case OpcUaType_Int16:   { OpcUa_Int16 v;   UaStatus s = toInt16(v);  if (!s.isGood()) return s.statusCode(); setInt16(v);  break; }
+    case OpcUaType_UInt16:  { OpcUa_UInt16 v;  UaStatus s = toUInt16(v); if (!s.isGood()) return s.statusCode(); setUInt16(v); break; }
+    case OpcUaType_Int32:   { OpcUa_Int32 v;   UaStatus s = toInt32(v);  if (!s.isGood()) return s.statusCode(); setInt32(v);  break; }
+    case OpcUaType_UInt32:  { OpcUa_UInt32 v;  UaStatus s = toUInt32(v); if (!s.isGood()) return s.statusCode(); setUInt32(v); break; }
+    case OpcUaType_Int64:   { OpcUa_Int64 v;   UaStatus s = toInt64(v);  if (!s.isGood()) return s.statusCode(); setInt64(v);  break; }
+    case OpcUaType_UInt64:  { OpcUa_UInt64 v;  UaStatus s = toUInt64(v); if (!s.isGood()) return s.statusCode(); setUInt64(v); break; }
+    case OpcUaType_Float:   { OpcUa_Float v;   UaStatus s = toFloat(v);  if (!s.isGood()) return s.statusCode(); setFloat(v);  break; }
+    case OpcUaType_Double:  { OpcUa_Double v;  UaStatus s = toDouble(v); if (!s.isGood()) return s.statusCode(); setDouble(v); break; }
+    case OpcUaType_String:  { setString(toString()); break; }
+    default:
+        return OpcUa_BadNotSupported;
+    }
+    return OpcUa_Good;
+}
+
 OpcUaType UaVariant::type() const
 {
     if (!m_impl->data)
@@ -402,7 +428,7 @@ void UaVariant::set1DArrayComplexTypes(
     {
         UaStatus status = copyFunction( input[i].impl(), &array[i] );
         if (!status.isGood())
-            OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "copy function failed: "+status.toString().toUtf8());
+            OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, std::string("copy function failed: ")+status.toString().toUtf8());
     }
     UA_Variant_setArray( m_impl, array, input.size(), dataType);
 }

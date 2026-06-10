@@ -77,7 +77,7 @@ void UaServer::start()
     m_asyncOperations->setServing();
     UA_StatusCode status = UA_Server_run_startup(m_server);
     if (status != UA_STATUSCODE_GOOD)
-        throw std::runtime_error("UA_Server_run_startup returned not-good, server can't start. Error was:"+
+        throw std::runtime_error(std::string("UA_Server_run_startup returned not-good, server can't start. Error was:")+
                 UaStatus(status).toString().toUtf8());
     else
         LOG(Log::INF) <<

@@ -48,7 +48,11 @@ class UaQualifiedName
 {
   public:
     UaQualifiedName(int ns, const UaString& name);
+    UaQualifiedName(const UaString& name, OpcUa_UInt16 nameSpaceIdx);
     UA_QualifiedName impl() const { return m_impl; }
+    OpcUa_UInt16 namespaceIndex() const { return m_impl.namespaceIndex; }
+    bool operator==(const UaQualifiedName& other) const
+    { return m_impl.namespaceIndex == other.m_impl.namespaceIndex && m_unqualifiedName == other.m_unqualifiedName; }
     UaString unqualifiedName() const { return m_unqualifiedName; }
     UaString toString() const;
     UaString toFullString() const;

@@ -33,6 +33,13 @@ UaQualifiedName::UaQualifiedName(int ns, const UaString& name):
     m_impl.namespaceIndex = ns;
 }
 
+UaQualifiedName::UaQualifiedName(const UaString& name, OpcUa_UInt16 nameSpaceIdx):
+    m_unqualifiedName( name )
+{
+    m_impl.name = *m_unqualifiedName.impl();
+    m_impl.namespaceIndex = nameSpaceIdx;
+}
+
 UaString  UaQualifiedName::toString() const
 {
     return UaString(m_impl.name);

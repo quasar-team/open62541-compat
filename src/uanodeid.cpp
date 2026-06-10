@@ -112,7 +112,8 @@ UaString UaNodeId::toFullString() const
         s += "Numeric|" + boost::lexical_cast<std::string>(identifierNumeric());
         break;
     case UA_NODEIDTYPE_STRING:
-        s += "String|" + UaString(identifierString()).toUtf8();
+        s += "String|";
+        s += UaString(identifierString()).toUtf8();
         break;
     case UA_NODEIDTYPE_BYTESTRING:
     {

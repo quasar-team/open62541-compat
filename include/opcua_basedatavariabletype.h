@@ -33,7 +33,7 @@
 namespace OpcUa
 {
 
-class BaseDataVariableType: public UaNode
+class BaseDataVariableType: public UaVariable
 {
 public:
     BaseDataVariableType(

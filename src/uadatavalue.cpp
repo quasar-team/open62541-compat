@@ -42,6 +42,70 @@ UaDataValue::UaDataValue( const UaVariant& variant, OpcUa_StatusCode statusCode,
 
 }
 
+UaDataValue::UaDataValue()
+{
+    m_impl = UA_DataValue_new ();
+    if (!m_impl)
+    	OPEN62541_COMPAT_LOG_AND_THROW(
+    			std::runtime_error,
+				"UA_DataValue_new returned null ptr" );
+}
+
+void UaDataValue::setValue( UaVariant& value, OpcUa_Boolean detachValue, OpcUa_Boolean updateTimeStamps )
+{
+    std::lock_guard<std::mutex> lock(m_lock);
+    UA_Variant_clear( &m_impl->value );
+    UA_Variant_copy( value.impl(), &m_impl->value );
+    m_impl->hasValue = 1;
+    if (detachValue != OpcUa_False)
+        value.clear();
+    if (updateTimeStamps != OpcUa_False)
+    {
+        UA_DateTime now = UA_DateTime_now();
+        m_impl->sourceTimestamp = now;
+        m_impl->hasSourceTimestamp = UA_TRUE;
+        m_impl->serverTimestamp = now;
+        m_impl->hasServerTimestamp = UA_TRUE;
+    }
+}
+
+void UaDataValue::setDataValue( UaVariant& value, OpcUa_Boolean detachValue, OpcUa_StatusCode statusCode, const UaDateTime& sourceTimestamp, const UaDateTime& serverTimestamp )
+{
+    std::lock_guard<std::mutex> lock(m_lock);
+    UA_Variant_clear( &m_impl->value );
+    UA_Variant_copy( value.impl(), &m_impl->value );
+    m_impl->hasValue = 1;
+    if (detachValue != OpcUa_False)
+        value.clear();
+    m_impl->status = statusCode;
+    m_impl->hasStatus = 1;
+    m_impl->sourceTimestamp = static_cast<UA_DateTime>(sourceTimestamp);
+    m_impl->hasSourceTimestamp = UA_TRUE;
+    m_impl->serverTimestamp = static_cast<UA_DateTime>(serverTimestamp);
+    m_impl->hasServerTimestamp = UA_TRUE;
+}
+
+void UaDataValue::setStatusCode( OpcUa_StatusCode statusCode )
+{
+    std::lock_guard<std::mutex> lock(m_lock);
+    m_impl->status = statusCode;
+    m_impl->hasStatus = 1;
+}
+
+void UaDataValue::setSourceTimestamp( const UaDateTime& sourceTimestamp )
+{
+    std::lock_guard<std::mutex> lock(m_lock);
+    m_impl->sourceTimestamp = static_cast<UA_DateTime>(sourceTimestamp);
+    m_impl->hasSourceTimestamp = UA_TRUE;
+}
+
+void UaDataValue::setServerTimestamp( const UaDateTime& serverTimestamp )
+{
+    std::lock_guard<std::mutex> lock(m_lock);
+    m_impl->serverTimestamp = static_cast<UA_DateTime>(serverTimestamp);
+    m_impl->hasServerTimestamp = UA_TRUE;
+}
+
 UaDataValue::UaDataValue( const UaDataValue& other )
 {
     m_impl = UA_DataValue_new ();

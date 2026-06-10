@@ -213,7 +213,7 @@ UaStatus NodeManagerBase::addObjectNodeAndReference(
         UaNode* to,
         const UaNodeId& refType)
 {
-    UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
+    UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8());
     UA_ObjectAttributes objectAttributes;
     UA_ObjectAttributes_init( &objectAttributes );
     objectAttributes.description = *emptyDescription.impl();
@@ -248,7 +248,7 @@ UaStatus NodeManagerBase::addDataVariableNodeAndReference(
 		OpcUa::BaseDataVariableType* variable,
         const UaNodeId& refType)
 {
-	UaLocalizedText displayName( "en_US", variable->browseName().unqualifiedName().toUtf8().c_str());
+	UaLocalizedText displayName( "en_US", variable->browseName().unqualifiedName().toUtf8());
     UA_DataSource dateDataSource
     {
         unifiedRead,
@@ -312,7 +312,7 @@ UaStatus NodeManagerBase::addVariableNodeAndReference(
     else
     	OPEN62541_COMPAT_LOG_AND_THROW(
     			std::logic_error,
-				"Can't add this variable: no obvious handler in existing open62541 interface, do not know what to do! Requested variable address is " + to->nodeId().toString().toUtf8());
+				std::string("Can't add this variable: no obvious handler in existing open62541 interface, do not know what to do! Requested variable address is ") + to->nodeId().toString().toUtf8());
 }
 
 UaStatus NodeManagerBase::addPropertyNodeAndReference(
@@ -320,7 +320,7 @@ UaStatus NodeManagerBase::addPropertyNodeAndReference(
 	UaPropertyCache* to,
     const UaNodeId& refType)
 {
-	UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
+	UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8());
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.displayName = *displayName.impl();
     attr.dataType = to->typeDefinitionId().impl();
@@ -342,7 +342,7 @@ UaStatus NodeManagerBase::addPropertyNodeAndReference(
 	if (!s.isGood())
 		OPEN62541_COMPAT_LOG_AND_THROW(
 				std::runtime_error,
-				"failed to add property " + to->nodeId().toString().toUtf8() + " because: " + s.toString().toUtf8());
+				std::string("failed to add property ") + to->nodeId().toString().toUtf8() + " because: " + s.toString().toUtf8());
 	return s;
 }
 
@@ -351,7 +351,7 @@ UaStatus NodeManagerBase::addMethodNodeAndReference(
     UaNode* to,
     const UaNodeId& refType)
 {
-    UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
+    UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8());
     UA_MethodAttributes attr;
     UA_MethodAttributes_init(&attr);
     attr.executable = true;
@@ -439,7 +439,7 @@ UaStatus NodeManagerBase::addNodeAndReference(
     UaNode* to,
     const UaNodeId& refType)
 {
-    UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8().c_str());
+    UaLocalizedText displayName( "en_US", to->browseName().unqualifiedName().toUtf8());
     UaLocalizedText dummyDescription( "en_US", "DummyDescription" );
     switch( to->nodeClass() )
     {

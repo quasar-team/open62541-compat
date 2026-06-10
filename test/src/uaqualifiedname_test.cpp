@@ -13,11 +13,11 @@
 TEST(UaQualifiedNameTest, testToString)
 {
     UaQualifiedName testee(2, "a.b.c");
-    EXPECT_EQ("a.b.c", testee.toString().toUtf8());
+    EXPECT_STREQ("a.b.c", testee.toString().toUtf8());
 }
 
 TEST(UaQualifiedNameTest, testToFullString)
 {
     UaQualifiedName testee(2, "a.b.c");
-    EXPECT_EQ("ns=2|a.b.c", testee.toFullString().toUtf8());
+    EXPECT_STREQ("ns=2|a.b.c", testee.toFullString().toUtf8());
 }

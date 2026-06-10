@@ -54,6 +54,9 @@ enum OpcUaType
     // support for remaining types, i.e. nodeid or statuscode also still missing
   };
 
+typedef OpcUaType OpcUa_BuiltInType;
+typedef OpcUaType _OpcUa_BuiltInType;
+
 class UaVariant
 {
  public:
@@ -76,6 +79,7 @@ class UaVariant
 
   ~UaVariant();
   OpcUaType type() const;
+  OpcUa_StatusCode changeType( OpcUaType targetType, OpcUa_Boolean toArray );
   UaNodeId dataType() const { return UaNodeId(static_cast<OpcUa_UInt32>(type()), 0); }
 
   // setters

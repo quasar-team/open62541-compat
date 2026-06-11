@@ -93,7 +93,12 @@ namespace UaClient
 
 enum ServerStatus
 {
-
+    Disconnected,
+    Connected,
+    ConnectionWarningWatchdogTimeout,
+    ConnectionErrorApiReconnect,
+    ServerShutdown,
+    NewSessionCreated
 };
 
 }
@@ -134,6 +139,8 @@ public:
             const CallIn &          callRequest,
             CallOut &               callResponse
         );
+
+    UaClient::ServerStatus serverStatus() const;
 
     UaStatus disconnect(
             ServiceSettings &       serviceSettings,

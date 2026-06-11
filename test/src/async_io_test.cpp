@@ -190,3 +190,18 @@ TEST(AsyncIoTest, inlineCompletionStaysSynchronous)
     ServiceSettings settings;
     session.disconnect(settings, OpcUa_True);
 }
+
+TEST(AsyncIoTest, serverStatusReflectsConnectionState)
+{
+    TestServerFixture fixture;
+
+    UaClientSdk::UaSession session;
+    EXPECT_EQ(UaClientSdk::UaClient::Disconnected, session.serverStatus());
+    UaClientSdk::SessionConnectInfo info;
+    UaClientSdk::SessionSecurityInfo security;
+    ASSERT_TRUE(session.connect("opc.tcp://127.0.0.1:4841", info, security, nullptr).isGood());
+    EXPECT_EQ(UaClientSdk::UaClient::Connected, session.serverStatus());
+    ServiceSettings settings;
+    session.disconnect(settings, OpcUa_True);
+    EXPECT_EQ(UaClientSdk::UaClient::Disconnected, session.serverStatus());
+}

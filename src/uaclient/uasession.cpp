@@ -132,6 +132,21 @@ UaStatus UaSession::connect(
  * TODO: serviceSettings,
  * TODO: deleteSubscriptions
  */
+UaClient::ServerStatus UaSession::serverStatus() const
+{
+    if (!m_client)
+        return UaClient::Disconnected;
+    UA_SecureChannelState channelState;
+    UA_SessionState sessionState;
+    UA_StatusCode connectStatus;
+    UA_Client_getState(m_client, &channelState, &sessionState, &connectStatus);
+    if (connectStatus != UA_STATUSCODE_GOOD)
+        return UaClient::ConnectionErrorApiReconnect;
+    if (sessionState == UA_SESSIONSTATE_ACTIVATED)
+        return UaClient::Connected;
+    return UaClient::Disconnected;
+}
+
 UaStatus UaSession::disconnect(
         ServiceSettings &,
         OpcUa_Boolean

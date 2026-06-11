@@ -18,6 +18,201 @@
             </b></td>
         </tr>
         <tr>
+          <td valign="top">1.5.7<br>
+            <font size="-2">(11-Jun-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3418">OPCUA-3418</a>]
+                - quasar-embedded Windows builds fail to link since the open62541 1.5 series (unresolved __imp_GetAdaptersAddresses) </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">MSVC pragma makes the amalgamation link iphlpapi by itself </td>
+        </tr>
+        <tr>
+          <td valign="top">1.5.6<br>
+            <font size="-2">(11-Jun-2026)</font><br>
+          </td>
+          <td valign="top">(-)
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">LogIt pinned to the v1.0.x maintenance branch (CMake &ge; 3.16 floor, install-interface fixes, warning-clean headers) </td>
+        </tr>
+        <tr>
+          <td valign="top">1.5.5<br>
+            <font size="-2">(11-Jun-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3413">OPCUA-3413</a>]
+                - UaSession::serverStatus() and populated UaClient::ServerStatus enum missing </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">(-) </td>
+        </tr>
+        <tr>
+          <td valign="top">1.5.4<br>
+            <font size="-2">(10-Jun-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3410">OPCUA-3410</a>]
+                - UASDK API surface package required by OpcUaHvSys (UaDataValue setters, UaVariable, reference lists) </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3411">OPCUA-3411</a>]
+                - missing UASDK utility headers (uathread.h, uasemaphore.h, uaobjecttypes.h, srvtrace.h) </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">(-) </td>
+        </tr>
+        <tr>
+          <td valign="top">1.5.3<br>
+            <font size="-2">(10-Jun-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3408">OPCUA-3408</a>]
+                - UaNodeId::toFullString() format differs from UASDK (NS%d|%s|%s) </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">(-) </td>
+        </tr>
+        <tr>
+          <td valign="top">1.5.2<br>
+            <font size="-2">(10-Jun-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3406">OPCUA-3406</a>]
+                - UaPropertyCache/UaPropertyMethodArgument hardcode browse-name namespace 0 </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3407">OPCUA-3407</a>]
+                - UaPropertyCache accessLevel ignored - property nodes expose StatusWrite/TimestampWrite </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">(-) </td>
+        </tr>
+        <tr>
+          <td valign="top">1.5.1<br>
+            <font size="-2">(10-Jun-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3400">OPCUA-3400</a>]
+                - no opcua_p_types.h platform-types forwarding header </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3401">OPCUA-3401</a>]
+                - UaVariant::dataType() not implemented </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3402">OPCUA-3402</a>]
+                - UaNodeId lacks operator!= </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3403">OPCUA-3403</a>]
+                - UaVariant lacks UA-SDK toBoolean()/setBoolean() spellings </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3404">OPCUA-3404</a>]
+                - UaVariant ByteString semantics diverge from UA-SDK </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3405">OPCUA-3405</a>]
+                - empty 1-D arrays read back as null variant </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">UA-SDK fidelity batch, verified against UASDK 1.6.5 </td>
+        </tr>
+        <tr>
+          <td valign="top">1.5.0<br>
+            <font size="-2">(10-Jun-2026)</font><br>
+          </td>
+          <td valign="top">            Task <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3392">OPCUA-3392</a>]
+                - open62541 source variables: async executes synchronously and lock modes are not applied </li>
+            </ul>
+            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3317">OPCUA-3317</a>]
+                - Fix o6_methods CI test failure on nodeset comparison </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3399">OPCUA-3399</a>]
+                - missing OpcUa_BadDeviceFailure, OpcUa_BadRequestTooLarge and OpcUa_BadTimeout status-code aliases </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">open62541 bundle 1.2.2 &rarr; 1.5.4; deferred (async) read/write/call layer (doc/AsyncParityDesign.md); Windows build restored (UA_ARCHITECTURE baking fix, MSVC CI) </td>
+        </tr>
+        <tr>
+          <td valign="top">1.4.7<br>
+            <font size="-2">(09-Jun-2026)</font><br>
+          </td>
+          <td valign="top">            Improvement <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3386">OPCUA-3386</a>]
+                - method InputArguments/OutputArguments properties get the quasar-requested node ids </li>
+            </ul>
+          </td>
+          <td valign="top">1.2.2<br>
+            (bundled) </td>
+          <td valign="top">(-) </td>
+        </tr>
+        <tr>
+          <td valign="top">1.4.6<br>
+            <font size="-2">(09-Jun-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3384">OPCUA-3384</a>]
+                - amalgamation -Werror breaks clang 21 builds </li>
+            </ul>
+          </td>
+          <td valign="top">1.2.2<br>
+            (bundled) </td>
+          <td valign="top">(-) </td>
+        </tr>
+        <tr>
+          <td valign="top">1.4.5<br>
+            <font size="-2">(09-Jun-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3334">OPCUA-3334</a>]
+                - Issue compiling NSW config code in tdaq-13-00-00 </li>
+            </ul>
+            Improvement <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3381">OPCUA-3381</a>]
+                - fix gcc16 strict-flag warnings + complete uasession client API </li>
+            </ul>
+          </td>
+          <td valign="top">1.2.2<br>
+            (bundled) </td>
+          <td valign="top">(-) </td>
+        </tr>
+        <tr>
+          <td valign="top">1.4.4<br>
+            <font size="-2">(19-Jul-2024)</font><br>
+          </td>
+          <td valign="top">            New Feature <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2603">OPCUA-2603</a>]
+                - Profit from open6 client's advanced configuration for connectivity check </li>
+            </ul>
+            Task <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-2883">OPCUA-2883</a>]
+                - Simplify memory-order based mutex for UaDataValue into a std::mutex </li>
+            </ul>
+          </td>
+          <td valign="top">1.2.2<br>
+            (bundled) </td>
+          <td valign="top">(-) </td>
+        </tr>
+        <tr>
           <td valign="top">1.4.3<br>
             <font size="-2">(22-Nov-2022)</font><br>
           </td>

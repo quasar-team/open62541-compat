@@ -24,7 +24,7 @@
 
 
 function ( fetch_LogIt )
-  SET (LOGIT_VERSION "v1.0.0")
+  SET (LOGIT_VERSION "v1.0.x")
   message(STATUS "fetching LogIt from github. *NOTE* fetching version [${LOGIT_VERSION}]")
   Open62541CompatFetchContent_Declare(
     LogIt

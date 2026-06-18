@@ -17,7 +17,7 @@ Under the open62541 backend, all three glue callbacks (`unifiedRead`, `unifiedWr
 
 ## 2. Enabler: open62541 1.5
 
-The bundled open62541 v1.2.2 cannot defer responses: its async-operation enum contains only `UA_ASYNCOPERATIONTYPE_CALL` with `READ`/`WRITE` as commented-out placeholders (`extern/open62541/include/open62541.h:26543`), and the amalgamation was produced without async support (`prepare_open62541.sh`). open62541 1.5 supports deferring read, write, and call: the operation callback returns `UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY` and the result is posted later — explicitly from a worker thread — via `UA_Server_setAsyncReadResult` / `UA_Server_setAsyncWriteResult` / the call-result equivalent, with `asyncOperationTimeout` and `maxAsyncOperationQueueSize` config and operation-cancellation notification. Verified against the v1.5.4 sources (full API map in the engineering log):
+The bundled open62541 v1.2.2 cannot defer responses: its async-operation enum contains only `UA_ASYNCOPERATIONTYPE_CALL` with `READ`/`WRITE` as commented-out placeholders (`extern/open62541/include/open62541.h:26543`), and the amalgamation was produced without async support (`prepare_open62541.sh`). open62541 1.5 supports deferring read, write, and call: the operation callback returns `UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY` and the result is posted later — explicitly from a worker thread — via `UA_Server_setAsyncReadResult` / `UA_Server_setAsyncWriteResult` / the call-result equivalent, with `asyncOperationTimeout` and `maxAsyncOperationQueueSize` config and operation-cancellation notification. Verified against the v1.5.4 sources:
 
 - The 1.2-era queue model (`UA_Server_setMethodNodeAsync` + worker pull + `UA_Server_setAsyncOperationResult`) is removed. Async is per-invocation: the operation callback returns `UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY`; the pending operation is created by the stack *upon that return*.
 - Completion (all `UA_THREADSAFE`): `UA_Server_setAsyncCallMethodResult(server, UA_Variant *output, UA_StatusCode)` keyed by the method callback's output array pointer; `UA_Server_setAsyncReadResult(server, UA_DataValue *result)` keyed by the read callback's value pointer; `UA_Server_setAsyncWriteResult(server, const UA_DataValue *value, UA_StatusCode)`. All return `BADNOTFOUND` when no pending operation matches (cancelled / timed out / not yet created).
@@ -123,7 +123,7 @@ Code style: match surrounding code; no comments in new code.
 
 ## 8. Adversarial review record
 
-Four independent reviewers (threading/races, lifetime/shutdown, UASDK fidelity, minimality/API) ran against revision 1 of this document plus the compat/quasar sources and the open62541 v1.5.4 sources. All four returned *revise*. Disposition:
+Revision 1 of this document was reviewed along four axes — threading/races, lifetime/shutdown, UASDK fidelity, minimality/API — against the compat/quasar sources and the open62541 v1.5.4 sources. Each axis surfaced revisions. Disposition:
 
 - Trampoline-via-`UA_Server_addTimedCallback` deadlock (serviceMutex held during callbacks; worker holds device mutex) and missing EventLoop wake (≤500 ms stalls): **replaced** by the worker-push queue + EventLoop drain + 20 ms repeated callback (§3.1).
 - Registry ABA under stack key-pointer reuse after cancel: **fixed** by block-identity comparison in the drain (§3.2).

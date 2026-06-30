@@ -21,6 +21,7 @@ project(open62541-compat LANGUAGES C CXX)
 cmake_minimum_required(VERSION 3.16)
 cmake_policy(SET CMP0012 NEW)
 cmake_policy(SET CMP0057 NEW) # enables IN_LIST operator
+cmake_policy(SET CMP0167 NEW) # find_package(Boost) uses boost install's BoostConfig.cmake directly (rather than loading FindBoost.cmake)
 
 include (cmake/Open62541CompatFetchContent.cmake)
 option(PULL_OPEN62541 "Pull open62541 from their github instead of using the bundled one (not recommended!)" OFF)
@@ -149,7 +150,6 @@ else()
 
   if( NOT DEFINED BOOST_LIBS)
     # try to resolve using find_package
-    set(Boost_NO_BOOST_CMAKE ON)
     find_package(Boost REQUIRED chrono date_time thread program_options OPTIONAL_COMPONENTS system)
     if(NOT Boost_FOUND)
       message(FATAL_ERROR "Failed to find boost installation. Install it (dev packages), if necessary make sure that BOOST_ROOT is exported, or use a dedicated build config file (some of which are attached to open62541-compat repository, e.g. boost_standard_install")

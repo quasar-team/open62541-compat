@@ -18,6 +18,25 @@
             </b></td>
         </tr>
         <tr>
+          <td valign="top">1.5.9<br>
+            <font size="-2">(03-Jul-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3454">OPCUA-3454</a>]
+                - windows unit test failure (UaDateTime::fromString) </li>
+            </ul>
+            Improvement <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3455">OPCUA-3455</a>]
+                - SKIP_EXAMPLES option for standalone builds </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">UaDateTime::fromString delegates to open62541's UA_DateTime_parse instead of a handmade boost parser. Standalone builds can skip the example clients (SKIP_EXAMPLES, default OFF). </td>
+        </tr>
+        <tr>
           <td valign="top">1.5.8<br>
             <font size="-2">(03-Jul-2026)</font><br>
           </td>

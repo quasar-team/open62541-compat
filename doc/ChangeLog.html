@@ -18,6 +18,24 @@
             </b></td>
         </tr>
         <tr>
+          <td valign="top">1.5.8<br>
+            <font size="-2">(03-Jul-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3442">OPCUA-3442</a>]
+                - stand alone find boost build failure (cmake v4.3.2 + windows server 2025) </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3443">OPCUA-3443</a>]
+                - googletest version too old for cmake 4.3 </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3444">OPCUA-3444</a>]
+                - windows build fail (gcc/clang flags reaching MSVC) </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">Boost is discovered via find_package CONFIG mode: Boost &ge; 1.70 is found automatically; older installations pass a build config file instead (e.g. boost_custom_win.cmake, boost_standard_install.cmake). googletest bumped to v1.17.0 (CMake 4). Compiler-family-specific flags no longer reach MSVC. </td>
+        </tr>
+        <tr>
           <td valign="top">1.5.7<br>
             <font size="-2">(11-Jun-2026)</font><br>
           </td>

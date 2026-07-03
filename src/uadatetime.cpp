@@ -59,46 +59,17 @@ void UaDateTime::addMilliSecs(int msecs)
 UaDateTime UaDateTime::fromString(const UaString& dateTimeString)
 {
         const std::string stdDateTimeString(dateTimeString.toUtf8());
-        std::istringstream ss(stdDateTimeString);
 
-        const static std::string timeFormatString("%Y-%m-%dT%H:%M:%S%ZP");
-        static std::locale timeFormatLocale(ss.getloc(), new boost::posix_time::time_input_facet(timeFormatString)); // Not a leak: std::locale deletes fa    cet
-        ss.imbue(timeFormatLocale);
+        UA_DateTime dateTime;
+        UA_StatusCode isParseOk = UA_DateTime_parse(&dateTime, *dateTimeString.toOpcUaString());
 
-        try
-        {
-                static const boost::posix_time::ptime unixEpoch(boost::gregorian::date(1970, 1, 1));
-
-                if(unixEpoch.is_not_a_date_time())
-                {
-                        OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "Failed to calculate unix epoch, cannot parse any dates from strings.");
-                }
-
-                boost::posix_time::ptime dateTime;
-                ss >> dateTime;
-
-                if(dateTime.is_not_a_date_time())
-                {
-                        std::ostringstream err;
-                        err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"]";
-                        OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, err.str());
-                }
-
-                const UA_DateTime open62541DateTime = UA_DATETIME_UNIX_EPOCH + ((dateTime - unixEpoch).total_seconds() * UA_DATETIME_SEC);
-                return UaDateTime(open62541DateTime);
-        }
-        catch(const std::runtime_error& e)
+        if(isParseOk != UA_STATUSCODE_GOOD)
         {
                 std::ostringstream err;
-                err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"], error: "<<e.what();
+                err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format [YYYY-MM-DDTHH:MM:SSZ], error code ["<<isParseOk<<"]";
                 OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, err.str());
         }
-        catch(...)
-        {
-                std::ostringstream err;
-                err << "Failed to convert string ["<<stdDateTimeString<<"] to a date, valid format ["<<timeFormatString<<"], unknown error";
-                OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, err.str());
-        }
+        return UaDateTime(dateTime);
 }
 
 /**

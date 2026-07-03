@@ -156,8 +156,7 @@ else()
 
   if( NOT DEFINED BOOST_LIBS)
     # try to resolve using find_package
-    set(Boost_NO_BOOST_CMAKE ON)
-    find_package(Boost REQUIRED chrono date_time thread program_options OPTIONAL_COMPONENTS system)
+    find_package(Boost CONFIG REQUIRED chrono date_time thread program_options OPTIONAL_COMPONENTS system)
     if(NOT Boost_FOUND)
       message(FATAL_ERROR "Failed to find boost installation. Install it (dev packages), if necessary make sure that BOOST_ROOT is exported, or use a dedicated build config file (some of which are attached to open62541-compat repository, e.g. boost_standard_install")
     else()

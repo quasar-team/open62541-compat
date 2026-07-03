@@ -28,6 +28,7 @@ option(PULL_OPEN62541 "Pull open62541 from their github instead of using the bun
 option(STANDALONE_BUILD "Build it as a stand-alone library instead of for Quasar" OFF )
 option(STANDALONE_BUILD_SHARED "When building in stand-alone, build shared library rather than static library" OFF)
 option(SKIP_TESTS "do not build the tests (not advised)" OFF)
+option(SKIP_EXAMPLES "do not build the example clients" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
 # "OPEN62541_VERSION" will be used only if you use PULL_OPEN62541
 SET (OPEN62541_VERSION "v1.0" CACHE STRING "Which open62541 commit/tag/branch to take")
@@ -202,7 +203,9 @@ else()
     message( STATUS "explicitly requested not to build unit tests!" )
   endif()
 
-  add_subdirectory(examples)
+  if( NOT SKIP_EXAMPLES )
+    add_subdirectory(examples)
+  endif()
 
 endif()
 

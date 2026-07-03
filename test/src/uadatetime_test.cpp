@@ -65,3 +65,28 @@ TEST(UaDatetimeTest, testSecsTo)
 	later.addMilliSecs(500);
 	EXPECT_EQ(5, earlier.secsTo(later));
 }
+
+TEST(UaDatetimeTest, testFromString)
+{
+	try
+	{
+		UaDateTime testee = UaDateTime::fromString(UaString("not a date string"));
+		FAIL() << "invalid string should throw";
+	}
+	catch (const std::exception&)
+	{} // expected
+
+	EXPECT_EQ(0, static_cast<UA_DateTime>( UaDateTime::fromString(UaString("1601-01-01T00:00:00Z")) )) << "OPC-UA epoch should be windows epoch";
+	EXPECT_EQ(UA_DATETIME_SEC, static_cast<UA_DateTime>( UaDateTime::fromString(UaString("1601-01-01T00:00:01Z")) )) << "expect 1s after epoch";
+
+	const UA_DateTimeStruct datetimeStruct = UA_DateTime_toStruct(static_cast<UA_DateTime>(UaDateTime::fromString("2026-07-02T17:55:00.123456789Z")));
+	EXPECT_EQ(2026, datetimeStruct.year);
+	EXPECT_EQ(7, datetimeStruct.month);
+	EXPECT_EQ(2, datetimeStruct.day);
+	EXPECT_EQ(17, datetimeStruct.hour);
+	EXPECT_EQ(55, datetimeStruct.min);
+	EXPECT_EQ(0, datetimeStruct.sec);
+	EXPECT_EQ(123, datetimeStruct.milliSec);
+	EXPECT_EQ(456, datetimeStruct.microSec);
+	EXPECT_TRUE(datetimeStruct.nanoSec == 700 || datetimeStruct.nanoSec == 800) << "789ns should be converted to OPC 100ns granularity; 700 or 800ns acceptable";
+}

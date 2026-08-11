@@ -128,7 +128,7 @@ UaString UaNodeId::toFullString() const
     }
     case UA_NODEIDTYPE_GUID:
     {
-        char guid[40];
+        char guid[42];
         const UA_Guid& g = m_impl.identifier.guid;
         snprintf(guid, sizeof guid, "Guid|%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
                 g.data1, g.data2, g.data3,

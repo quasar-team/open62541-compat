@@ -31,8 +31,7 @@ public:
 
     void create(std::size_t n)
     {
-        m_data.clear();
-        m_data.insert( m_data.begin(), n, T());
+        m_data.assign(n, T());
     }
 
     void resize(std::size_t n)

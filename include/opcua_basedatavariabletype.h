@@ -58,11 +58,11 @@ public:
     virtual UaNodeId typeDefinitionId() const override { return m_typeDefinitionId; }
     virtual void setDataType( const UaNodeId& typeref ) { m_typeDefinitionId = typeref; }
     virtual void setValueRank (OpcUa_Int32 valueRank) { m_valueRank = valueRank; }
-    virtual void setArrayDimensions( const UaUInt32Array &arrayDimensions ) {m_arrayDimensions = arrayDimensions;}
+    virtual void setArrayDimensions( const UaUInt32Array &arrayDimensions );
     virtual OpcUa_NodeClass nodeClass() const override { return OpcUa_NodeClass_Variable; }
     virtual UaNodeId nodeId() const override { return m_nodeId; }
     virtual OpcUa_Int32 valueRank() const { return m_valueRank; }
-    virtual void arrayDimensions(UaUInt32Array &    arrayDimensions )   const { arrayDimensions = m_arrayDimensions;}
+    virtual void arrayDimensions( UaUInt32Array &arrayDimensions ) const;
     const UA_DataValue* valueImpl() const { return m_currentValue.impl(); }
 
     virtual OpcUa_Boolean handlesIo() const { return OpcUa_False; }

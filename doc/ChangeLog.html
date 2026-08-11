@@ -18,6 +18,20 @@
             </b></td>
         </tr>
         <tr>
+          <td valign="top">1.5.11<br>
+            <font size="-2">(11-Aug-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://github.com/quasar-team/quasar/issues/399">quasar #399</a>]
+                - spurious -Warray-bounds building generated address space classes (gcc 13/14) </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">gcc 13 and 14 at -O2/-O3 warned inside the inlined array dimensions copy after speculative devirtualization. UaCompatArray::create now uses std::vector::assign and the BaseDataVariableType array dimension accessors moved out of line. </td>
+        </tr>
+        <tr>
           <td valign="top">1.5.10<br>
             <font size="-2">(11-Aug-2026)</font><br>
           </td>

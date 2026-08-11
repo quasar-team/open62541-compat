@@ -66,5 +66,15 @@ UaDataValue BaseDataVariableType::value(Session*)
     return m_currentValue.clone();
 }
 
+void BaseDataVariableType::setArrayDimensions( const UaUInt32Array& arrayDimensions )
+{
+    m_arrayDimensions = arrayDimensions;
+}
+
+void BaseDataVariableType::arrayDimensions( UaUInt32Array& arrayDimensions ) const
+{
+    arrayDimensions = m_arrayDimensions;
+}
+
 }
 

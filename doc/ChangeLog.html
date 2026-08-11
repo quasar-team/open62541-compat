@@ -18,6 +18,20 @@
             </b></td>
         </tr>
         <tr>
+          <td valign="top">1.5.10<br>
+            <font size="-2">(11-Aug-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://github.com/quasar-team/open62541-compat/issues/123">GitHub #123</a>]
+                - Guid identifier truncated in UaNodeId::toFullString </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">UaNodeId::toFullString sized the Guid buffer two bytes short, cutting the last two characters of the identifier. The buffer now fits the full 36-character Guid. </td>
+        </tr>
+        <tr>
           <td valign="top">1.5.9<br>
             <font size="-2">(03-Jul-2026)</font><br>
           </td>

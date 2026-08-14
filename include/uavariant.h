@@ -57,6 +57,10 @@ enum OpcUaType
 typedef OpcUaType OpcUa_BuiltInType;
 typedef OpcUaType _OpcUa_BuiltInType;
 
+#define OpcUa_VariantArrayType_Scalar 0x00
+#define OpcUa_VariantArrayType_Array  0x01
+#define OpcUa_VariantArrayType_Matrix 0x02
+
 class UaVariant
 {
  public:
@@ -117,6 +121,25 @@ class UaVariant
   void setByteStringArray( UaByteStringArray& val, OpcUa_Boolean bDetach = OpcUa_False );
   void setVariantArray( UaVariantArray& val, OpcUa_Boolean bDetach = OpcUa_False );
 
+  OpcUa_StatusCode setBoolMatrix( UaBooleanArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach = OpcUa_False );
+  OpcUa_StatusCode setBooleanMatrix( UaBooleanArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach = OpcUa_False ) { return setBoolMatrix(val, dimensions, bDetach); }
+  OpcUa_StatusCode setSByteMatrix( UaSByteArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach = OpcUa_False );
+  OpcUa_StatusCode setByteMatrix( UaByteArray& val, const UaInt32Array& dimensions );
+  OpcUa_StatusCode setInt16Matrix( UaInt16Array& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach = OpcUa_False );
+  OpcUa_StatusCode setUInt16Matrix( UaUInt16Array& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach = OpcUa_False );
+  OpcUa_StatusCode setInt32Matrix( UaInt32Array& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach = OpcUa_False );
+  OpcUa_StatusCode setUInt32Matrix( UaUInt32Array& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach = OpcUa_False );
+  OpcUa_StatusCode setInt64Matrix( UaInt64Array& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach = OpcUa_False );
+  OpcUa_StatusCode setUInt64Matrix( UaUInt64Array& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach = OpcUa_False );
+  OpcUa_StatusCode setFloatMatrix( UaFloatArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach = OpcUa_False );
+  OpcUa_StatusCode setDoubleMatrix( UaDoubleArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach = OpcUa_False );
+  OpcUa_StatusCode setStringMatrix( UaStringArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach );
+  OpcUa_StatusCode setStringMatrix( const UaStringArray& val, const UaInt32Array& dimensions );
+  OpcUa_StatusCode setByteStringMatrix( UaByteStringArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach );
+  OpcUa_StatusCode setByteStringMatrix( const UaByteStringArray& val, const UaInt32Array& dimensions );
+  OpcUa_StatusCode setVariantMatrix( UaVariantArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach );
+  OpcUa_StatusCode setVariantMatrix( const UaVariantArray& val, const UaInt32Array& dimensions );
+
   void clear ();
   
 
@@ -155,6 +178,22 @@ class UaVariant
   OpcUa_StatusCode toByteStringArray( UaByteStringArray& out) const;
   OpcUa_StatusCode toVariantArray( UaVariantArray& out) const;
 
+  OpcUa_StatusCode toBoolMatrix( UaBooleanArray& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toBooleanMatrix( UaBooleanArray& val, UaInt32Array& dimensions ) const { return toBoolMatrix(val, dimensions); }
+  OpcUa_StatusCode toSByteMatrix( UaSByteArray& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toByteMatrix( UaByteArray& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toInt16Matrix( UaInt16Array& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toUInt16Matrix( UaUInt16Array& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toInt32Matrix( UaInt32Array& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toUInt32Matrix( UaUInt32Array& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toInt64Matrix( UaInt64Array& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toUInt64Matrix( UaUInt64Array& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toFloatMatrix( UaFloatArray& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toDoubleMatrix( UaDoubleArray& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toStringMatrix( UaStringArray& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toByteStringMatrix( UaByteStringArray& val, UaInt32Array& dimensions ) const;
+  OpcUa_StatusCode toVariantMatrix( UaVariantArray& val, UaInt32Array& dimensions ) const;
+
   // copy-To has a signature with UaVariant however it should be the stack type. This is best effort compat we can get at the moment. (pnikiel)
   UaStatus copyTo ( UaVariant* to ) const { *to = UaVariant( *m_impl ); return OpcUa_Good; }
   UaStatus copyTo ( UA_Variant* to) const;
@@ -162,9 +201,13 @@ class UaVariant
   const UA_Variant* impl() const { return m_impl; }
 
   void arrayDimensions( UaUInt32Array &arrayDimensions ) const;
+  OpcUa_Byte arrayType () const;
   OpcUa_Boolean isArray  () const;
-  /* For 1D arrays it should return the actual size. For higher dimensions it should return total number of elements. */
+  /* For 1D arrays it returns the actual size, otherwise -1. For matrices use noOfMatrixElements(). */
   OpcUa_Int32 arraySize () const;
+  OpcUa_Boolean isMatrix () const;
+  OpcUa_Int32 noOfMatrixElements () const;
+  OpcUa_Int32 dimensionSize () const;
 
   OpcUa_Boolean isEmpty () const;
 
@@ -184,6 +227,22 @@ class UaVariant
           const UA_DataType* dataType,
           const ArrayType& input,
           UA_StatusCode(*copyFunction)(const StackType* from, StackType* to));
+
+  template<typename ArrayType>
+  OpcUa_StatusCode setMatrix( const UA_DataType* dataType, const ArrayType& input, const UaInt32Array& dimensions );
+
+  template<typename StackType, typename ArrayType>
+  OpcUa_StatusCode setMatrixComplexTypes(
+          const UA_DataType* dataType,
+          const ArrayType& input,
+          UA_StatusCode(*copyFunction)(const StackType* from, StackType* to),
+          const UaInt32Array& dimensions );
+
+  template<typename T, typename U>
+  OpcUa_StatusCode toMatrix( const UA_DataType* dataType, U& out, UaInt32Array& dimensions ) const;
+
+  OpcUa_StatusCode validateMatrixDimensions( OpcUa_UInt32 arrayLength, const UaInt32Array& dimensions ) const;
+  void applyMatrixDimensions( const UaInt32Array& dimensions );
 
   //! Will convert stored value to a simple type, if possible
   template<typename T>

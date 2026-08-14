@@ -202,7 +202,7 @@ OpcUaType UaVariant::type() const
 
 void UaVariant::reuseOrRealloc( const UA_DataType* dataType, void* newValue )
 {
-    if ((m_impl->data != 0) && (m_impl->type == dataType))
+    if ((m_impl->data != 0) && (m_impl->type == dataType) && (m_impl->arrayDimensionsSize == 0))
     {
         /* No reason to realloc - the data of the same type will fit for sure! */
         // Piotr: not sure if this is safe for const-size data types like String

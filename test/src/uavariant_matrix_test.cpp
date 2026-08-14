@@ -363,3 +363,42 @@ TEST_F(UaVariantTest, testNullMatrixDimensionsRejected)
     EXPECT_TRUE(m_testee.isEmpty());
     EXPECT_FALSE(m_testee.isMatrix());
 }
+
+TEST_F(UaVariantTest, testScalarSetOverMatrixReplacesValue)
+{
+    UaInt32Array values = makeInt32Array({1, 2, 3, 4, 5, 6});
+    UaInt32Array dimensions = makeInt32Array({2, 3});
+    ASSERT_EQ(OpcUa_Good, m_testee.setInt32Matrix(values, dimensions));
+
+    m_testee.setInt32(42);
+
+    EXPECT_FALSE(m_testee.isMatrix());
+    EXPECT_FALSE(m_testee.isArray());
+    EXPECT_EQ(OpcUa_VariantArrayType_Scalar, m_testee.arrayType());
+    EXPECT_EQ(-1, m_testee.dimensionSize());
+    OpcUa_Int32 scalarOut = 0;
+    EXPECT_EQ(OpcUa_Good, m_testee.toInt32(scalarOut));
+    EXPECT_EQ(42, scalarOut);
+}
+
+TEST_F(UaVariantTest, testMatrixOverMatrixReset)
+{
+    UaInt32Array values = makeInt32Array({1, 2, 3, 4, 5, 6});
+    UaInt32Array dimensions23 = makeInt32Array({2, 3});
+    ASSERT_EQ(OpcUa_Good, m_testee.setInt32Matrix(values, dimensions23));
+
+    UaInt32Array smallerValues = makeInt32Array({7, 8, 9, 10});
+    UaInt32Array dimensions22 = makeInt32Array({2, 2});
+    ASSERT_EQ(OpcUa_Good, m_testee.setInt32Matrix(smallerValues, dimensions22));
+
+    EXPECT_TRUE(m_testee.isMatrix());
+    EXPECT_EQ(4, m_testee.noOfMatrixElements());
+    UaInt32Array valuesOut;
+    UaInt32Array dimensionsOut;
+    ASSERT_EQ(OpcUa_Good, m_testee.toInt32Matrix(valuesOut, dimensionsOut));
+    ASSERT_EQ(4u, valuesOut.size());
+    EXPECT_EQ(10, valuesOut[3]);
+    ASSERT_EQ(2u, dimensionsOut.size());
+    EXPECT_EQ(2, dimensionsOut[0]);
+    EXPECT_EQ(2, dimensionsOut[1]);
+}

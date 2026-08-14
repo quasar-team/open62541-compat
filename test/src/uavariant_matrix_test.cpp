@@ -446,3 +446,12 @@ TEST_F(UaVariantTest, testToMatrixInconsistentDimensionsRejected)
     EXPECT_EQ(OpcUa_BadInvalidArgument, fromRaw.toInt32Matrix(valuesOut, dimensionsOut));
     EXPECT_EQ(-1, fromRaw.noOfMatrixElements());
 }
+
+TEST_F(UaVariantTest, testEmptyVariantMatrixAccessors)
+{
+    EXPECT_TRUE(m_testee.isEmpty());
+    EXPECT_FALSE(m_testee.isMatrix());
+    EXPECT_EQ(OpcUa_VariantArrayType_Scalar, m_testee.arrayType());
+    EXPECT_EQ(-1, m_testee.dimensionSize());
+    EXPECT_EQ(-1, m_testee.noOfMatrixElements());
+}

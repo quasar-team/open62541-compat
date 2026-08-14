@@ -1075,7 +1075,7 @@ OpcUa_Byte UaVariant::arrayType () const
 {
     if (this->isMatrix())
         return OpcUa_VariantArrayType_Matrix;
-    if (this->isArray())
+    if (this->isArray() && !this->isEmpty())
         return OpcUa_VariantArrayType_Array;
     return OpcUa_VariantArrayType_Scalar;
 }
@@ -1114,7 +1114,7 @@ OpcUa_Int32 UaVariant::dimensionSize () const
 {
     if (this->isMatrix())
         return static_cast<OpcUa_Int32>( m_impl->arrayDimensionsSize );
-    if (this->isArray())
+    if (this->isArray() && !this->isEmpty())
         return 1;
     return -1;
 }

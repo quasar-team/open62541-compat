@@ -20,6 +20,8 @@
 #include "uadatavalue.h"
 #include "uadatetime.h"
 
+#include <open62541.h>
+
 #include <stdexcept>
 
 namespace
@@ -419,4 +421,28 @@ TEST_F(UaVariantTest, testMatrixSelfAssignment)
     ASSERT_EQ(6u, valuesOut.size());
     EXPECT_EQ(15, valuesOut[5]);
     ASSERT_EQ(2u, dimensionsOut.size());
+}
+
+TEST_F(UaVariantTest, testToMatrixInconsistentDimensionsRejected)
+{
+    UA_Variant raw;
+    UA_Variant_init(&raw);
+    UA_Int32* data = static_cast<UA_Int32*>(UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]));
+    ASSERT_NE(nullptr, data);
+    data[0] = 1;
+    data[1] = 2;
+    UA_Variant_setArray(&raw, data, 2, &UA_TYPES[UA_TYPES_INT32]);
+    raw.arrayDimensions = static_cast<UA_UInt32*>(UA_Array_new(2, &UA_TYPES[UA_TYPES_UINT32]));
+    ASSERT_NE(nullptr, raw.arrayDimensions);
+    raw.arrayDimensionsSize = 2;
+    raw.arrayDimensions[0] = 2;
+    raw.arrayDimensions[1] = 3;
+
+    UaVariant fromRaw(raw);
+    UA_Variant_clear(&raw);
+
+    UaInt32Array valuesOut;
+    UaInt32Array dimensionsOut;
+    EXPECT_EQ(OpcUa_BadInvalidArgument, fromRaw.toInt32Matrix(valuesOut, dimensionsOut));
+    EXPECT_EQ(-1, fromRaw.noOfMatrixElements());
 }

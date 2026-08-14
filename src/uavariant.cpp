@@ -946,6 +946,11 @@ OpcUa_StatusCode UaVariant::toMatrix( const UA_DataType* dataType, U& out, UaInt
 {
     if (!isMatrix() || m_impl->type != dataType)
         return OpcUa_BadTypeMismatch;
+    OpcUa_Int64 expectedElements = 1;
+    for (size_t i=0; i<m_impl->arrayDimensionsSize; ++i)
+        expectedElements *= static_cast<OpcUa_Int64>( m_impl->arrayDimensions[i] );
+    if (expectedElements != static_cast<OpcUa_Int64>( m_impl->arrayLength ))
+        return OpcUa_BadInvalidArgument;
     size_t numberOfElements = m_impl->arrayLength;
     out.create( numberOfElements );
     if (numberOfElements > 0)
@@ -1097,10 +1102,12 @@ OpcUa_Int32 UaVariant::noOfMatrixElements () const
 {
     if (!this->isMatrix())
         return -1;
-    OpcUa_Int32 numberOfElements = 1;
+    OpcUa_Int64 numberOfElements = 1;
     for (size_t i=0; i<m_impl->arrayDimensionsSize; ++i)
-        numberOfElements *= static_cast<OpcUa_Int32>( m_impl->arrayDimensions[i] );
-    return numberOfElements;
+        numberOfElements *= static_cast<OpcUa_Int64>( m_impl->arrayDimensions[i] );
+    if (numberOfElements != static_cast<OpcUa_Int64>( m_impl->arrayLength ))
+        return -1;
+    return static_cast<OpcUa_Int32>( numberOfElements );
 }
 
 OpcUa_Int32 UaVariant::dimensionSize () const

@@ -220,6 +220,7 @@ UaStatus UaSession::read(
                     << boost::lexical_cast<std::string>(nodesToRead.size())
                     << " and returned size "
                     << boost::lexical_cast<std::string>(readResponse.resultsSize);
+            values.create(0);
             return OpcUa_Bad;
         }
         values.create(readResponse.resultsSize);
@@ -289,6 +290,15 @@ UaStatus UaSession::write(
 
     if (UaStatus(writeResponse.responseHeader.serviceResult).isGood())
     {
+        if (writeResponse.resultsSize != nodesToWrite.size())
+        {
+            LOG(Log::ERR) << "after call to open62541: mismatch between requested size "
+                    << boost::lexical_cast<std::string>(nodesToWrite.size())
+                    << " and returned size "
+                    << boost::lexical_cast<std::string>(writeResponse.resultsSize);
+            results.create(0);
+            return OpcUa_Bad;
+        }
         results.create( writeResponse.resultsSize );
         for (size_t i=0; i<writeResponse.resultsSize; ++i)
         {

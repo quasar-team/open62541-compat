@@ -118,6 +118,8 @@ UaVariant::UaVariant( const UaByteString& v)
 
 void UaVariant::operator= (const UaVariant &other)
 {
+	if (this == &other)
+		return;
 	destroyOpen62541Variant(m_impl);
     m_impl = createAndCheckOpen62541Variant();
     

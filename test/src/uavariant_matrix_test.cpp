@@ -402,3 +402,21 @@ TEST_F(UaVariantTest, testMatrixOverMatrixReset)
     EXPECT_EQ(2, dimensionsOut[0]);
     EXPECT_EQ(2, dimensionsOut[1]);
 }
+
+TEST_F(UaVariantTest, testMatrixSelfAssignment)
+{
+    UaInt32Array values = makeInt32Array({10, 11, 12, 13, 14, 15});
+    UaInt32Array dimensions = makeInt32Array({2, 3});
+    ASSERT_EQ(OpcUa_Good, m_testee.setInt32Matrix(values, dimensions));
+
+    UaVariant& alias = m_testee;
+    m_testee = alias;
+
+    EXPECT_TRUE(m_testee.isMatrix());
+    UaInt32Array valuesOut;
+    UaInt32Array dimensionsOut;
+    ASSERT_EQ(OpcUa_Good, m_testee.toInt32Matrix(valuesOut, dimensionsOut));
+    ASSERT_EQ(6u, valuesOut.size());
+    EXPECT_EQ(15, valuesOut[5]);
+    ASSERT_EQ(2u, dimensionsOut.size());
+}

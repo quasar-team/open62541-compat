@@ -18,6 +18,20 @@
             </b></td>
         </tr>
         <tr>
+          <td valign="top">1.5.12<br>
+            <font size="-2">(14-Aug-2026)</font><br>
+          </td>
+          <td valign="top">            Improvement <br>
+            <ul>
+              <li>[<a href="https://github.com/quasar-team/open62541-compat/issues/126">GitHub #126</a>]
+                - UaSession::read and UaSession::write support multi-node batches </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.4<br>
+            (bundled) </td>
+          <td valign="top">The single-node-only guards (std::runtime_error on any other count) are removed from both calls; any node count including zero goes to the server in one request, with per-node statuses index-aligned to the input. One behaviour change: read() now sizes the output itself, values.create(resultsSize) on good service status and values.create(0) on bad, so the former std::runtime_error on a values array not pre-sized to nodesToRead.size() is gone and pre-sizing is no longer needed. diagnosticInfos and serviceSettings remain TODO. </td>
+        </tr>
+        <tr>
           <td valign="top">1.5.11<br>
             <font size="-2">(11-Aug-2026)</font><br>
           </td>

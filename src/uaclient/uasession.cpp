@@ -188,37 +188,24 @@ UaStatus UaSession::read(
             UaDiagnosticInfos & )
 {
     std::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
-    if (nodesToRead.size() != 1)
-    {
 
-    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error,
-    			"UaSession::read(): So far only single reads are supported, but you requested a read of "
-                +boost::lexical_cast<std::string>(nodesToRead.size())+" items. FIXME!");
-        // FIXME:implement this
-    }
-
-    LOG(Log::TRC) << "UaSession::read( nodesToRead=[" << nodesToRead[0].NodeId.toString().toUtf8() << "] )";
-
-    if (nodesToRead.size() != values.size())
-    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error,
-    			"Size of provided value holders (is "
-                +boost::lexical_cast<std::string>(values.size())
-                +" must match size of provided nodesToRead (is "
-                +boost::lexical_cast<std::string>(nodesToRead.size()));
+    LOG(Log::TRC) << "UaSession::read( nodesToRead.size()=[" << nodesToRead.size() << "] )";
 
     UA_ReadRequest readRequest;
     UA_ReadRequest_init(&readRequest);
-    ManagedUaArray<UA_ReadValueId> readValueIds (1, &UA_TYPES[UA_TYPES_READVALUEID]);
+    ManagedUaArray<UA_ReadValueId> readValueIds (nodesToRead.size(), &UA_TYPES[UA_TYPES_READVALUEID]);
     readRequest.nodesToRead = readValueIds;
-    readRequest.nodesToReadSize = 1;
+    readRequest.nodesToReadSize = nodesToRead.size();
     // The following should be safe because enum values are defined with open62541 defines
     readRequest.timestampsToReturn = (UA_TimestampsToReturn)timeStamps;
     readRequest.maxAge = maxAge;
 
-    UA_NodeId_init(&readRequest.nodesToRead[0].nodeId);
-    nodesToRead[0].NodeId.copyTo( &readRequest.nodesToRead[0].nodeId );
-
-    readRequest.nodesToRead[0].attributeId = nodesToRead[0].AttributeId;
+    for (size_t i = 0; i<nodesToRead.size(); ++i)
+    {
+        UA_NodeId_init( &readRequest.nodesToRead[i].nodeId );
+        nodesToRead[i].NodeId.copyTo( &readRequest.nodesToRead[i].nodeId );
+        readRequest.nodesToRead[i].attributeId = nodesToRead[i].AttributeId;
+    }
 
     UA_ReadResponse readResponse = UA_Client_Service_read(m_client, readRequest);
     ManagedUaArray<UA_DataValue> readResponseResults( readResponse.resultsSize, &UA_TYPES[UA_TYPES_DATAVALUE], readResponse.results);
@@ -230,11 +217,12 @@ UaStatus UaSession::read(
         if (readResponse.resultsSize != nodesToRead.size())
         {
             LOG(Log::ERR) << "after call to open62541: mismatch between requested size "
-                    << boost::lexical_cast<std::string>(readRequest.nodesToReadSize)
+                    << boost::lexical_cast<std::string>(nodesToRead.size())
                     << " and returned size "
                     << boost::lexical_cast<std::string>(readResponse.resultsSize);
             return OpcUa_Bad;
         }
+        values.create(readResponse.resultsSize);
         for (size_t i=0; i<nodesToRead.size(); ++i)
         {
             if (readResponse.results[i].hasValue)
@@ -261,6 +249,8 @@ UaStatus UaSession::read(
             }
         }
     }
+    else
+        values.create(0);
 
 
     return serviceStatus;
@@ -274,13 +264,6 @@ UaStatus UaSession::write(
         UaDiagnosticInfos & )
 {
     std::lock_guard<decltype(m_accessMutex)> lock (m_accessMutex);
-    if (nodesToWrite.size() != 1)
-    {
-    	OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error,
-    			"UaSession::write(): So far only single writes are supported, but you requested a write of "
-                +boost::lexical_cast<std::string>(nodesToWrite.size())+" items. FIXME!");
-        // FIXME:implement this
-    }
 
     UA_WriteRequest writeRequest;
     UA_WriteRequest_init( &writeRequest);

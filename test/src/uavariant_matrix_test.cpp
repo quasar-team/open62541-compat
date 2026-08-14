@@ -348,3 +348,18 @@ TEST_F(UaVariantTest, testMatrixClear)
     EXPECT_TRUE(m_testee.isMatrix());
     EXPECT_EQ(4, m_testee.noOfMatrixElements());
 }
+
+TEST_F(UaVariantTest, testNullMatrixDimensionsRejected)
+{
+    UaInt32Array empty;
+    empty.create(0);
+
+    UaInt32Array nullDimensions = makeInt32Array({-1, -1});
+    EXPECT_EQ(OpcUa_BadInvalidArgument, m_testee.setInt32Matrix(empty, nullDimensions));
+
+    UaInt32Array zeroDimensions = makeInt32Array({0, 0});
+    EXPECT_EQ(OpcUa_BadInvalidArgument, m_testee.setInt32Matrix(empty, zeroDimensions));
+
+    EXPECT_TRUE(m_testee.isEmpty());
+    EXPECT_FALSE(m_testee.isMatrix());
+}

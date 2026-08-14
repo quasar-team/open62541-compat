@@ -462,15 +462,6 @@ OpcUa_StatusCode UaVariant::validateMatrixDimensions( OpcUa_UInt32 arrayLength, 
 {
     if (dimensions.size() == 0)
         return arrayLength == 0 ? OpcUa_Good : OpcUa_BadInvalidArgument;
-    if (dimensions[0] == -1 || dimensions[0] == 0)
-    {
-        for (size_t i=1; i<dimensions.size(); ++i)
-        {
-            if (dimensions[i] != dimensions[0])
-                return OpcUa_BadInvalidArgument;
-        }
-        return arrayLength == 0 ? OpcUa_Good : OpcUa_BadInvalidArgument;
-    }
     OpcUa_Int64 numberOfElements = 1;
     for (size_t i=0; i<dimensions.size(); ++i)
     {

@@ -118,6 +118,8 @@ UaVariant::UaVariant( const UaByteString& v)
 
 void UaVariant::operator= (const UaVariant &other)
 {
+	if (this == &other)
+		return;
 	destroyOpen62541Variant(m_impl);
     m_impl = createAndCheckOpen62541Variant();
     
@@ -202,7 +204,7 @@ OpcUaType UaVariant::type() const
 
 void UaVariant::reuseOrRealloc( const UA_DataType* dataType, void* newValue )
 {
-    if ((m_impl->data != 0) && (m_impl->type == dataType))
+    if ((m_impl->data != 0) && (m_impl->type == dataType) && (m_impl->arrayDimensionsSize == 0))
     {
         /* No reason to realloc - the data of the same type will fit for sure! */
         // Piotr: not sure if this is safe for const-size data types like String
@@ -456,6 +458,159 @@ void UaVariant::setVariantArray(
 {
     if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
     this->set1DArrayComplexTypes(&UA_TYPES[UA_TYPES_VARIANT], input, &UA_Variant_copy);
+}
+
+OpcUa_StatusCode UaVariant::validateMatrixDimensions( OpcUa_UInt32 arrayLength, const UaInt32Array& dimensions ) const
+{
+    if (dimensions.size() == 0)
+        return arrayLength == 0 ? OpcUa_Good : OpcUa_BadInvalidArgument;
+    OpcUa_Int64 numberOfElements = 1;
+    for (size_t i=0; i<dimensions.size(); ++i)
+    {
+        if (dimensions[i] < 1)
+            return OpcUa_BadInvalidArgument;
+        numberOfElements *= dimensions[i];
+        if (numberOfElements >= 0x80000000LL)
+            return OpcUa_BadInvalidArgument;
+    }
+    return numberOfElements == static_cast<OpcUa_Int64>(arrayLength) ? OpcUa_Good : OpcUa_BadInvalidArgument;
+}
+
+void UaVariant::applyMatrixDimensions( const UaInt32Array& dimensions )
+{
+    if (dimensions.size() == 0)
+        return;
+    UA_UInt32* newDimensions = static_cast<UA_UInt32*>( UA_Array_new( dimensions.size(), &UA_TYPES[UA_TYPES_UINT32] ) );
+    if (!newDimensions)
+        throw alloc_error();
+    for (size_t i=0; i<dimensions.size(); ++i)
+        newDimensions[i] = static_cast<UA_UInt32>( dimensions[i] );
+    m_impl->arrayDimensions = newDimensions;
+    m_impl->arrayDimensionsSize = dimensions.size();
+}
+
+template<typename ArrayType>
+OpcUa_StatusCode UaVariant::setMatrix( const UA_DataType* dataType, const ArrayType& input, const UaInt32Array& dimensions )
+{
+    OpcUa_StatusCode validationResult = validateMatrixDimensions( static_cast<OpcUa_UInt32>(input.size()), dimensions );
+    if (validationResult != OpcUa_Good)
+        return validationResult;
+    set1DArray( dataType, input );
+    applyMatrixDimensions( dimensions );
+    return OpcUa_Good;
+}
+
+template<typename StackType, typename ArrayType>
+OpcUa_StatusCode UaVariant::setMatrixComplexTypes(
+        const UA_DataType* dataType,
+        const ArrayType& input,
+        UA_StatusCode(*copyFunction)(const StackType* from, StackType* to),
+        const UaInt32Array& dimensions )
+{
+    OpcUa_StatusCode validationResult = validateMatrixDimensions( static_cast<OpcUa_UInt32>(input.size()), dimensions );
+    if (validationResult != OpcUa_Good)
+        return validationResult;
+    set1DArrayComplexTypes( dataType, input, copyFunction );
+    applyMatrixDimensions( dimensions );
+    return OpcUa_Good;
+}
+
+OpcUa_StatusCode UaVariant::setBoolMatrix( UaBooleanArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrix( &UA_TYPES[UA_TYPES_BOOLEAN], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setSByteMatrix( UaSByteArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrix( &UA_TYPES[UA_TYPES_SBYTE], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setByteMatrix( UaByteArray& val, const UaInt32Array& dimensions )
+{
+    return setMatrix( &UA_TYPES[UA_TYPES_BYTE], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setInt16Matrix( UaInt16Array& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrix( &UA_TYPES[UA_TYPES_INT16], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setUInt16Matrix( UaUInt16Array& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrix( &UA_TYPES[UA_TYPES_UINT16], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setInt32Matrix( UaInt32Array& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrix( &UA_TYPES[UA_TYPES_INT32], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setUInt32Matrix( UaUInt32Array& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrix( &UA_TYPES[UA_TYPES_UINT32], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setInt64Matrix( UaInt64Array& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrix( &UA_TYPES[UA_TYPES_INT64], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setUInt64Matrix( UaUInt64Array& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrix( &UA_TYPES[UA_TYPES_UINT64], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setFloatMatrix( UaFloatArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrix( &UA_TYPES[UA_TYPES_FLOAT], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setDoubleMatrix( UaDoubleArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrix( &UA_TYPES[UA_TYPES_DOUBLE], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setStringMatrix( UaStringArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrixComplexTypes( &UA_TYPES[UA_TYPES_STRING], val, &UA_String_copy, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setStringMatrix( const UaStringArray& val, const UaInt32Array& dimensions )
+{
+    return setMatrixComplexTypes( &UA_TYPES[UA_TYPES_STRING], val, &UA_String_copy, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setByteStringMatrix( UaByteStringArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrixComplexTypes( &UA_TYPES[UA_TYPES_BYTESTRING], val, &UA_ByteString_copy, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setByteStringMatrix( const UaByteStringArray& val, const UaInt32Array& dimensions )
+{
+    return setMatrixComplexTypes( &UA_TYPES[UA_TYPES_BYTESTRING], val, &UA_ByteString_copy, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setVariantMatrix( UaVariantArray& val, const UaInt32Array& dimensions, OpcUa_Boolean bDetach )
+{
+    if (bDetach) OPEN62541_COMPAT_LOG_AND_THROW(std::runtime_error, "value detachment not yet implemented");
+    return setMatrixComplexTypes( &UA_TYPES[UA_TYPES_VARIANT], val, &UA_Variant_copy, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::setVariantMatrix( const UaVariantArray& val, const UaInt32Array& dimensions )
+{
+    return setMatrixComplexTypes( &UA_TYPES[UA_TYPES_VARIANT], val, &UA_Variant_copy, dimensions );
 }
 
 void UaVariant::clear ()
@@ -786,6 +941,99 @@ OpcUa_StatusCode UaVariant::toVariantArray( UaVariantArray& out) const
     return this->toArray<UA_Variant, UaVariantArray>( &UA_TYPES[UA_TYPES_VARIANT], out );
 }
 
+template<typename T, typename U>
+OpcUa_StatusCode UaVariant::toMatrix( const UA_DataType* dataType, U& out, UaInt32Array& dimensions ) const
+{
+    if (!isMatrix() || m_impl->type != dataType)
+        return OpcUa_BadTypeMismatch;
+    OpcUa_Int64 expectedElements = 1;
+    for (size_t i=0; i<m_impl->arrayDimensionsSize; ++i)
+        expectedElements *= static_cast<OpcUa_Int64>( m_impl->arrayDimensions[i] );
+    if (expectedElements != static_cast<OpcUa_Int64>( m_impl->arrayLength ))
+        return OpcUa_BadInvalidArgument;
+    size_t numberOfElements = m_impl->arrayLength;
+    out.create( numberOfElements );
+    if (numberOfElements > 0)
+    {
+        T* input = static_cast<T*> (m_impl->data);
+        std::copy( input, input+numberOfElements, out.begin() );
+    }
+    dimensions.create( m_impl->arrayDimensionsSize );
+    for (size_t i=0; i<m_impl->arrayDimensionsSize; ++i)
+        dimensions[i] = static_cast<OpcUa_Int32>( m_impl->arrayDimensions[i] );
+    return OpcUa_Good;
+}
+
+OpcUa_StatusCode UaVariant::toBoolMatrix( UaBooleanArray& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<OpcUa_Boolean, UaBooleanArray>( &UA_TYPES[UA_TYPES_BOOLEAN], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toSByteMatrix( UaSByteArray& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<OpcUa_SByte, UaSByteArray>( &UA_TYPES[UA_TYPES_SBYTE], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toByteMatrix( UaByteArray& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<OpcUa_Byte, UaByteArray>( &UA_TYPES[UA_TYPES_BYTE], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toInt16Matrix( UaInt16Array& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<OpcUa_Int16, UaInt16Array>( &UA_TYPES[UA_TYPES_INT16], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toUInt16Matrix( UaUInt16Array& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<OpcUa_UInt16, UaUInt16Array>( &UA_TYPES[UA_TYPES_UINT16], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toInt32Matrix( UaInt32Array& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<OpcUa_Int32, UaInt32Array>( &UA_TYPES[UA_TYPES_INT32], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toUInt32Matrix( UaUInt32Array& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<OpcUa_UInt32, UaUInt32Array>( &UA_TYPES[UA_TYPES_UINT32], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toInt64Matrix( UaInt64Array& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<OpcUa_Int64, UaInt64Array>( &UA_TYPES[UA_TYPES_INT64], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toUInt64Matrix( UaUInt64Array& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<OpcUa_UInt64, UaUInt64Array>( &UA_TYPES[UA_TYPES_UINT64], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toFloatMatrix( UaFloatArray& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<OpcUa_Float, UaFloatArray>( &UA_TYPES[UA_TYPES_FLOAT], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toDoubleMatrix( UaDoubleArray& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<OpcUa_Double, UaDoubleArray>( &UA_TYPES[UA_TYPES_DOUBLE], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toStringMatrix( UaStringArray& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<UA_String, UaStringArray>( &UA_TYPES[UA_TYPES_STRING], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toByteStringMatrix( UaByteStringArray& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<UA_ByteString, UaByteStringArray>( &UA_TYPES[UA_TYPES_BYTESTRING], val, dimensions );
+}
+
+OpcUa_StatusCode UaVariant::toVariantMatrix( UaVariantArray& val, UaInt32Array& dimensions ) const
+{
+    return this->toMatrix<UA_Variant, UaVariantArray>( &UA_TYPES[UA_TYPES_VARIANT], val, dimensions );
+}
+
 UaStatus UaVariant::copyTo ( UA_Variant* to) const
 {
     return UA_Variant_copy(m_impl, to);
@@ -808,18 +1056,33 @@ bool UaVariant::isScalarValue() const
 
 void UaVariant::arrayDimensions( UaUInt32Array &arrayDimensions ) const
 {
-    if (isScalarValue())
+    if (isMatrix())
+    {
+        arrayDimensions.create( m_impl->arrayDimensionsSize );
+        for (size_t i=0; i<m_impl->arrayDimensionsSize; ++i)
+            arrayDimensions[i] = m_impl->arrayDimensions[i];
+    }
+    else if (isScalarValue())
         arrayDimensions.create(0);
     else
     {
-        arrayDimensions.create( 1 ); // handling only 1-dim arrays
+        arrayDimensions.create( 1 );
         arrayDimensions[0] = m_impl->arrayLength;
     }
 }
 
+OpcUa_Byte UaVariant::arrayType () const
+{
+    if (this->isMatrix())
+        return OpcUa_VariantArrayType_Matrix;
+    if (this->isArray() && !this->isEmpty())
+        return OpcUa_VariantArrayType_Array;
+    return OpcUa_VariantArrayType_Scalar;
+}
+
 OpcUa_Boolean UaVariant::isArray () const
 {
-    return !this->isScalarValue();
+    return !this->isScalarValue() && !this->isMatrix();
 }
 
 OpcUa_Int32 UaVariant::arraySize () const
@@ -828,6 +1091,32 @@ OpcUa_Int32 UaVariant::arraySize () const
 		return -1;
 	else
 		return m_impl->arrayLength;
+}
+
+OpcUa_Boolean UaVariant::isMatrix () const
+{
+    return m_impl && m_impl->data && !this->isScalarValue() && m_impl->arrayDimensionsSize > 0;
+}
+
+OpcUa_Int32 UaVariant::noOfMatrixElements () const
+{
+    if (!this->isMatrix())
+        return -1;
+    OpcUa_Int64 numberOfElements = 1;
+    for (size_t i=0; i<m_impl->arrayDimensionsSize; ++i)
+        numberOfElements *= static_cast<OpcUa_Int64>( m_impl->arrayDimensions[i] );
+    if (numberOfElements != static_cast<OpcUa_Int64>( m_impl->arrayLength ))
+        return -1;
+    return static_cast<OpcUa_Int32>( numberOfElements );
+}
+
+OpcUa_Int32 UaVariant::dimensionSize () const
+{
+    if (this->isMatrix())
+        return static_cast<OpcUa_Int32>( m_impl->arrayDimensionsSize );
+    if (this->isArray() && !this->isEmpty())
+        return 1;
+    return -1;
 }
 
 OpcUa_Boolean UaVariant::isEmpty () const

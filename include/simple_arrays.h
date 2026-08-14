@@ -47,6 +47,7 @@ struct AvoidStdVectorBoolSpecializationProblem
 };
 
 typedef UaCompatArray<AvoidStdVectorBoolSpecializationProblem>  UaBooleanArray;
+typedef UaBooleanArray UaBoolArray;
 typedef UaCompatArray<OpcUa_SByte>   UaSByteArray;
 typedef UaCompatArray<OpcUa_Int16>   UaInt16Array;
 typedef UaCompatArray<OpcUa_UInt16>  UaUInt16Array;

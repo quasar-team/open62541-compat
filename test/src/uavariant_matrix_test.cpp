@@ -455,3 +455,19 @@ TEST_F(UaVariantTest, testEmptyVariantMatrixAccessors)
     EXPECT_EQ(-1, m_testee.dimensionSize());
     EXPECT_EQ(-1, m_testee.noOfMatrixElements());
 }
+
+TEST_F(UaVariantTest, testUaBoolArrayAlias)
+{
+    UaBoolArray values;
+    values.create(2);
+    values[0] = true;
+    UaInt32Array dimensions = makeInt32Array({2, 1});
+    EXPECT_EQ(OpcUa_Good, m_testee.setBoolMatrix(values, dimensions));
+
+    UaBoolArray valuesOut;
+    UaInt32Array dimensionsOut;
+    ASSERT_EQ(OpcUa_Good, m_testee.toBoolMatrix(valuesOut, dimensionsOut));
+    ASSERT_EQ(2u, valuesOut.size());
+    EXPECT_TRUE(valuesOut[0]);
+    EXPECT_FALSE(valuesOut[1]);
+}

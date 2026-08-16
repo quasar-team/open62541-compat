@@ -3,6 +3,14 @@ Adapts open62541 API to UA Toolkit API for usage in (1)Quasar-based projects, (2
 
 For bugs or suggestions please file a GitHub ticket.
 
+Releases and downloads
+----------------------
+GitHub is the canonical source of open62541-compat. Every version is a git tag
+with release notes at https://github.com/quasar-team/open62541-compat/releases.
+Consume it from here, by tag: quasar's enable_module does this for you, and
+standalone users clone the tag directly. Downstream package rebuilds found in
+lab-specific repositories derive from these tags and may lag behind them.
+
 Versions
 --------
 

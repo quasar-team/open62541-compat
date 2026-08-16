@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-TAG=v1.5.4
+TAG=v1.5.6
 
 cd "$(dirname "$0")"
 WORK=${TMPDIR:-/tmp}/open62541-compat-amalgamation

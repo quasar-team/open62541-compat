@@ -1,6 +1,6 @@
 /* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES
  * visit http://open62541.org/ for information about this software
- * Git-Revision: v1.5.4
+ * Git-Revision: v1.5.6
  */
 
 /*
@@ -30,15 +30,21 @@
  * ----------------- */
 #define UA_OPEN62541_VER_MAJOR 1
 #define UA_OPEN62541_VER_MINOR 5
-#define UA_OPEN62541_VER_PATCH 4
+#define UA_OPEN62541_VER_PATCH 6
 #define UA_OPEN62541_VER_LABEL "" /* Release candidate label, etc. */
-#define UA_OPEN62541_VER_COMMIT "v1.5.4"
-#define UA_OPEN62541_VERSION "v1.5.4"
+#define UA_OPEN62541_VER_COMMIT "v1.5.6"
+#define UA_OPEN62541_VERSION "v1.5.6"
 
 /**
  * Architecture
  * ------------
- * Define one of the following. */
+ * Definitions to enable architecture-specific includes and features. */
+
+/* Define UA_ARCH_HEADER externally to include architecture-specific
+ * definitions before the defaults below are set. */
+#if defined(UA_ARCH_HEADER)
+#include UA_ARCH_HEADER
+#endif
 
 /* #undef UA_ARCHITECTURE_WIN32 */
 /* #undef UA_ARCHITECTURE_POSIX */
@@ -109,6 +115,7 @@
 /* #undef UA_ENABLE_QUERY */
 /* #undef UA_ENABLE_MALLOC_SINGLETON */
 #define UA_ENABLE_DISCOVERY_SEMAPHORE
+/* #undef UA_NAMESPACE_ZERO_MINIMAL */
 #define UA_GENERATED_NAMESPACE_ZERO
 /* #undef UA_GENERATED_NAMESPACE_ZERO_FULL */
 /* #undef UA_ENABLE_PUBSUB_SKS */
@@ -346,8 +353,8 @@ UA_atomic_load(void **addr) {
  * pointers can be switched out at runtime. Use-cases for this are testing of
  * constrained memory conditions and arena-based custom memory management.
  *
- * If the flag is undefined, then ``UA_malloc`` etc. are set to the default
- * malloc, as defined in ``/arch/<architecture>/ua_architecture.h``.
+ * If the flag is undefined and ``UA_malloc`` has not been defined by the
+ * architecture header, then ``UA_malloc`` etc. use the standard allocator.
  */
 
 #ifdef UA_ENABLE_MALLOC_SINGLETON
@@ -359,7 +366,7 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_free(ptr) UA_freeSingleton(ptr)
 # define UA_calloc(num, size) UA_callocSingleton(num, size)
 # define UA_realloc(ptr, size) UA_reallocSingleton(ptr, size)
-#else
+#elif !defined(UA_malloc)
 # include <stdlib.h>
 # define UA_free free
 # define UA_malloc malloc
@@ -41544,6 +41551,44 @@ struct UA_SecurityPolicy {
     void (*clear)(UA_SecurityPolicy *policy);
 };
 
+/* True if the SecurityPolicy requires the OPC UA Part 6 v1.05.07
+ * SecureChannelEnhancements behavior (see the conformance unit "Security
+ * SecureChannelEnhancements True"). The changed behavior is implemented in the
+ * core library, not in the SecurityPolicy itself. Detected from the policy URI
+ * so it does not depend on a struct member - this keeps the SecurityPolicy
+ * layout stable across the 1.5 release family. */
+UA_EXPORT UA_Boolean
+UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy);
+
+/* True if the SecurityPolicy uses the legacy SequenceNumber handling (the OPC
+ * UA reference stack's LegacySequenceNumbers = true): the channel SequenceNumber
+ * starts at 1 and rolls over with the "< 1024" rule. This is the case for None
+ * and the RSA policies (Basic*, Aes*_RsaOaep/RsaPss). The ECC policies use the
+ * non-legacy scheme (start at 0, wrap UA_UINT32_MAX -> 0). Detected from the
+ * policy URI so it does not depend on a struct member - this keeps the
+ * SecurityPolicy layout stable across the 1.5 release family. A NULL policy is
+ * treated as legacy. */
+UA_EXPORT UA_Boolean
+UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy);
+
+/* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
+ * leaf, DER) with the hash of the policy's elliptic curve - SHA-256 for the
+ * nistP256 curve, SHA-384 for nistP384. Used to build the channel-bound
+ * CreateSession / ActivateSession SignatureData.
+ *
+ * This is NOT the OPN-header Certificate thumbprint: that thumbprint uses the
+ * SecurityPolicy's CertificateThumbprintAlgorithm (SHA-1 by default) and is
+ * produced by makeCertThumbprint. The digest here is selected from the policy
+ * URI's curve; the implementation is provided by the crypto backend.
+ *
+ * @param policy The policy whose curve selects the hash algorithm.
+ * @param certificate The certificate to hash (DER; leaf is used).
+ * @param hash Output buffer; allocated by the callee. */
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
+                                  const UA_ByteString *certificate,
+                                  UA_ByteString *hash);
+
 /**
  * PubSub SecurityPolicy
  * ---------------------
@@ -42150,9 +42195,12 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  *    (default 64kB).
  *
  * 0:send-bufsize [uint32]
- *    Size of the statically allocated buffer for sending messages. This then
- *    becomes an upper bound for the message size. If undefined a fresh buffer
- *    is allocated for every `allocNetworkBuffer` (default: no buffer).
+ *    Size of the statically allocated buffer for sending messages. The buffer
+ *    is reused for every `allocNetworkBuffer` to avoid a heap allocation per
+ *    message; a message larger than the buffer falls back to a fresh
+ *    allocation. A dedicated send buffer is used (never the recv buffer), so
+ *    sending while received data is still being processed is safe. If
+ *    undefined, the send buffer defaults to the recv-bufsize.
  *
  * **Open Connection Parameters:**
  *
@@ -42206,9 +42254,12 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *    (default 64kB).
  *
  * 0:send-bufsize [uint32]
- *    Size of the statically allocated buffer for sending messages. This then
- *    becomes an upper bound for the message size. If undefined a fresh buffer
- *    is allocated for every `allocNetworkBuffer` (default: no buffer).
+ *    Size of the statically allocated buffer for sending messages. The buffer
+ *    is reused for every `allocNetworkBuffer` to avoid a heap allocation per
+ *    message; a message larger than the buffer falls back to a fresh
+ *    allocation. A dedicated send buffer is used (never the recv buffer), so
+ *    sending while received data is still being processed is safe. If
+ *    undefined, the send buffer defaults to the recv-bufsize.
  *
  * **Open Connection Parameters:**
  *
@@ -42281,9 +42332,12 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
  *    (default 64kB).
  *
  * 0:send-bufsize [uint32]
- *    Size of the statically allocated buffer for sending messages. This then
- *    becomes an upper bound for the message size. If undefined a fresh buffer
- *    is allocated for every `allocNetworkBuffer` (default: no buffer).
+ *    Size of the statically allocated buffer for sending messages. The buffer
+ *    is reused for every `allocNetworkBuffer` to avoid a heap allocation per
+ *    message; a message larger than the buffer falls back to a fresh
+ *    allocation. A dedicated send buffer is used (never the recv buffer), so
+ *    sending while received data is still being processed is safe. If
+ *    undefined, the send buffer defaults to the recv-bufsize.
  *
  * **Open Connection Parameters:**
  *
@@ -42505,9 +42559,12 @@ UA_EventLoop_new_LWIP(const UA_Logger *logger, UA_EventLoopConfiguration *config
  *    (default 64kB).
  *
  * 0:send-bufsize [uint32]
- *    Size of the statically allocated buffer for sending messages. This then
- *    becomes an upper bound for the message size. If undefined a fresh buffer
- *    is allocated for every `allocNetworkBuffer` (default: no buffer).
+ *    Size of the statically allocated buffer for sending messages. The buffer
+ *    is reused for every `allocNetworkBuffer` to avoid a heap allocation per
+ *    message; a message larger than the buffer falls back to a fresh
+ *    allocation. A dedicated send buffer is used (never the recv buffer), so
+ *    sending while received data is still being processed is safe. If
+ *    undefined, the send buffer defaults to the recv-bufsize.
  *
  * **Open Connection Parameters:**
  *
@@ -42561,9 +42618,12 @@ UA_ConnectionManager_new_LWIP_TCP(const UA_String eventSourceName);
  *    (default 64kB).
  *
  * 0:send-bufsize [uint32]
- *    Size of the statically allocated buffer for sending messages. This then
- *    becomes an upper bound for the message size. If undefined a fresh buffer
- *    is allocated for every `allocNetworkBuffer` (default: no buffer).
+ *    Size of the statically allocated buffer for sending messages. The buffer
+ *    is reused for every `allocNetworkBuffer` to avoid a heap allocation per
+ *    message; a message larger than the buffer falls back to a fresh
+ *    allocation. A dedicated send buffer is used (never the recv buffer), so
+ *    sending while received data is still being processed is safe. If
+ *    undefined, the send buffer defaults to the recv-bufsize.
  *
  * **Open Connection Parameters:**
  *
@@ -44495,7 +44555,13 @@ UA_Client_MonitoredItems_deleteSingle(UA_Client *client,
 
 /**
  * The "ClientHandle" is part of the MonitoredItem configuration. The handle is
- * set internally and not exposed to the user. */
+ * set internally and not exposed to the user. A modification uses a new
+ * ClientHandle. Until the first notification with that handle arrives, queued
+ * notifications with the old handle are processed with the old settings.
+ *
+ * If the same MonitoredItem is modified again before a notification with the
+ * pending handle arrives, the newer modification supersedes the pending one.
+ * Notifications with the superseded handle are ignored. */
 
 UA_ModifyMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
 UA_Client_MonitoredItems_modify(UA_Client *client,
@@ -44504,7 +44570,7 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
 typedef void
 (*UA_ClientAsyncModifyMonitoredItemsCallback)(
     UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_DeleteMonitoredItemsResponse *response);
+    UA_ModifyMonitoredItemsResponse *response);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_MonitoredItems_modify_async(UA_Client *client,
@@ -45073,49 +45139,49 @@ _UA_BEGIN_DECLS
  * The figure below shows how the PubSub components are related.
  * The PubSub Tutorials have more examples about the API usage::
  *
- *  +--------+
- *  | Server |
- *  +--------+
- *    |  |
- *    |  |  +------------------------+
- *    |  +--> PubSubPublishedDataSet <----------+
- *    |     +------------------------+          |
- *    |       |                                 |
- *    |       |    +--------------+             |
- *    |       +----> DataSetField |             |
- *    |            +--------------+             |
- *    |                                         |
- *    |     +------------------+                |
- *    +-----> PubSubConnection |                |
- *          +------------------+                |
- *            |  |                              |
- *            |  |    +-------------+           |
- *            |  +----> WriterGroup |           |
- *            |       +-------------+           |
- *            |         |                       |
- *            |         |    +---------------+  |
- *            |         +----> DataSetWriter <--+
- *            |              +---------------+
- *            |
- *            |       +-------------+
- *            +-------> ReaderGroup |
- *                    +-------------+
- *                      |
- *                      |    +---------------+
- *                      +----> DataSetReader |
- *                           +---------------+
- *                             |
- *                             |    +-------------------+
- *                             +----> SubscribedDataSet |
- *                                  +-------------------+
- *                                    |
- *                                    |    +-------------------------+
- *                                    +----> TargetVariablesDataType |
- *                                    |    +-------------------------+
- *                                    |
- *                                    |    +---------------------------------+
- *                                    +----> SubscribedDataSetMirrorDataType |
- *                                         +---------------------------------+
+ *  ┌────────┐
+ *  │ Server │
+ *  └────────┘
+ *    │  │
+ *    │  │  ┌────────────────────────┐
+ *    │  └─>│ PubSubPublishedDataSet │<─────────┐
+ *    │     └────────────────────────┘          │
+ *    │       │                                 │
+ *    │       │    ┌──────────────┐             │
+ *    │       └───>│ DataSetField │             │
+ *    │            └──────────────┘             │
+ *    │                                         │
+ *    │     ┌──────────────────┐                │
+ *    └────>│ PubSubConnection │                │
+ *          └──────────────────┘                │
+ *            │  │                              │
+ *            │  │    ┌─────────────┐           │
+ *            │  └───>│ WriterGroup │           │
+ *            │       └─────────────┘           │
+ *            │         │                       │
+ *            │         │    ┌───────────────┐  │
+ *            │         └───>│ DataSetWriter │<─┘
+ *            │              └───────────────┘
+ *            │
+ *            │    ┌─────────────┐
+ *            └───>│ ReaderGroup │
+ *                 └─────────────┘
+ *                   │
+ *                   │    ┌───────────────┐
+ *                   └───>│ DataSetReader │
+ *                        └───────────────┘
+ *                          │
+ *                          │    ┌───────────────────┐
+ *                          └───>│ SubscribedDataSet │
+ *                               └───────────────────┘
+ *                                 │
+ *                                 │    ┌─────────────────────────┐
+ *                                 ├───>│ TargetVariablesDataType │
+ *                                 │    └─────────────────────────┘
+ *                                 │
+ *                                 │    ┌─────────────────────────────────┐
+ *                                 └───>│ SubscribedDataSetMirrorDataType │
+ *                                      └─────────────────────────────────┘
  *
  * PubSub Information Model Representation
  * ---------------------------------------
@@ -45313,7 +45379,7 @@ typedef struct {
 
 /**
  * PubSub Custom State Machine
- * -----------------
+ * ---------------------------
  * All PubSubComponents (Connection, Reader, ReaderGroup, ...) have a two
  * configuration items in common: A void context-pointer and a callback to
  * override the default state machine with a custom implementation.
@@ -49584,7 +49650,7 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
                                 const UA_Logger *logger,
                                 const UA_KeyValueMap *params);
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__) || defined(__OpenBSD__)
 /*
  * Initialises and configures a certificate group with a filestore backend.
  *
@@ -49727,13 +49793,20 @@ UA_ConnectionConfig UA_ConnectionConfig_default;
  * endpoint with the security policy ``SecurityPolicy#None`` to the server.
  * If the port is set to 0, it will be dynamically assigned.
  * A server certificate may be supplied but is optional.
- * Additionally you can define a custom buffer size for send and receive buffer.
+ *
+ * Note: only ``recvBufferSize`` is used; it is stored in ``config->tcpBufSize``
+ * and drives both ``connConfig.recvBufferSize`` and ``connConfig.sendBufferSize``.
+ * ``sendBufferSize`` is kept in the signature for compatibility but ignored.
+ * A value of 0 lets the underlying ConnectionManager choose its default
+ * (architecture-dependent, see the recv-bufsize/send-bufsize CM parameters).
  *
  * @param portNumber The port number for the tcp network layer
  * @param certificate Optional certificate for the server endpoint. Can be
  *        ``NULL``.
- * @param sendBufferSize The size in bytes for the network send buffer
- * @param recvBufferSize The size in bytes for the network receive buffer
+ * @param sendBufferSize Ignored (kept for compatibility); pass the same value
+ *        as ``recvBufferSize``.
+ * @param recvBufferSize The size in bytes for the network send AND receive
+ *        buffer (0 = architecture-dependent default).
  *
  */
 UA_EXPORT UA_StatusCode
@@ -49925,6 +49998,10 @@ UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(UA_ServerConfig *config,
 /* Adds the security policy ``SecurityPolicy#EccNistP256`` to the server. A
  * server certificate may be supplied but is optional.
  *
+ * Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * ``EccNistP256_AesGcm`` / ``EccNistP256_ChaChaPoly``. No longer part of the
+ * default policy set; call this function to add it explicitly.
+ *
  * Certificate verification should be configured before calling this
  * function. See PKI plugin.
  *
@@ -49937,16 +50014,45 @@ UA_ServerConfig_addSecurityPolicyEccNistP256(UA_ServerConfig *config,
                                                      const UA_ByteString *certificate,
                                                      const UA_ByteString *privateKey);
 
+/* Adds the security policy ``SecurityPolicy#EccNistP256_AesGcm`` to the
+ * server. A server certificate may be supplied but is optional.
+ *
+ * Certificate verification should be configured before calling this
+ * function. See PKI plugin.
+ *
+ * @param config The configuration to manipulate
+ * @param certificate The server certificate.
+ * @param privateKey The private key that corresponds to the certificate.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP256AesGcm(UA_ServerConfig *config,
+                                                    const UA_ByteString *certificate,
+                                                    const UA_ByteString *privateKey);
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP256ChaChaPoly(UA_ServerConfig *config,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey);
+
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * ``EccNistP384_AesGcm`` / ``EccNistP384_ChaChaPoly``. No longer part of the
+ * default policy set; call this function to add it explicitly. */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyEccNistP384(UA_ServerConfig *config,
                                              const UA_ByteString *certificate,
                                              const UA_ByteString *privateKey);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * ``EccBrainpoolP256r1_AesGcm`` / ``EccBrainpoolP256r1_ChaChaPoly``. No longer
+ * part of the default policy set; call this function to add it explicitly. */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1(UA_ServerConfig *config,
                                                     const UA_ByteString *certificate,
                                                     const UA_ByteString *privateKey);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * ``EccBrainpoolP384r1_AesGcm`` / ``EccBrainpoolP384r1_ChaChaPoly``. No longer
+ * part of the default policy set; call this function to add it explicitly. */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1(UA_ServerConfig *config,
                                                     const UA_ByteString *certificate,
@@ -50130,6 +50236,8 @@ UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *policy,
                                      const UA_ByteString localPrivateKey,
                                      const UA_Logger *logger);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * UA_SecurityPolicy_EccNistP256AesGcm / EccNistP256ChaChaPoly. */
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *policy,
                             const UA_ApplicationType applicationType,
@@ -50138,12 +50246,30 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *policy,
                             const UA_Logger *logger);
 
 UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccNistP256AesGcm(UA_SecurityPolicy *policy,
+                                    const UA_ApplicationType applicationType,
+                                    const UA_ByteString localCertificate,
+                                    const UA_ByteString localPrivateKey,
+                                    const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccNistP256ChaChaPoly(UA_SecurityPolicy *policy,
+                                        const UA_ApplicationType applicationType,
+                                        const UA_ByteString localCertificate,
+                                        const UA_ByteString localPrivateKey,
+                                        const UA_Logger *logger);
+
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * UA_SecurityPolicy_EccNistP384AesGcm / EccNistP384ChaChaPoly. */
+UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *policy,
                               const UA_ApplicationType applicationType,
                               const UA_ByteString localCertificate,
                               const UA_ByteString localPrivateKey,
                               const UA_Logger *logger);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * UA_SecurityPolicy_EccBrainpoolP256r1AesGcm / EccBrainpoolP256r1ChaChaPoly. */
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccBrainpoolP256r1(UA_SecurityPolicy *policy,
                                      const UA_ApplicationType applicationType,
@@ -50151,6 +50277,8 @@ UA_SecurityPolicy_EccBrainpoolP256r1(UA_SecurityPolicy *policy,
                                      const UA_ByteString localPrivateKey,
                                      const UA_Logger *logger);
 
+/* Deprecated (OPC UA Part 7): superseded by the AEAD policies
+ * UA_SecurityPolicy_EccBrainpoolP384r1AesGcm / EccBrainpoolP384r1ChaChaPoly. */
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *policy,
                                      const UA_ApplicationType applicationType,

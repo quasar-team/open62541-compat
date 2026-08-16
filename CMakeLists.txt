@@ -31,12 +31,18 @@ option(SKIP_TESTS "do not build the tests (not advised)" OFF)
 option(SKIP_EXAMPLES "do not build the example clients" OFF)
 message(STATUS "STANDALONE_BUILD [${STANDALONE_BUILD}] STANDALONE_BUILD_SHARED [${STANDALONE_BUILD_SHARED}]")
 # "OPEN62541_VERSION" will be used only if you use PULL_OPEN62541
-SET (OPEN62541_VERSION "v1.0" CACHE STRING "Which open62541 commit/tag/branch to take")
+file(STRINGS ${PROJECT_SOURCE_DIR}/extern/open62541/include/open62541.h OPEN62541_BUNDLED_VERSION REGEX "^#define UA_OPEN62541_VERSION " LIMIT_COUNT 1)
+string(REGEX REPLACE ".*\"(.*)\".*" "\\1" OPEN62541_BUNDLED_VERSION "${OPEN62541_BUNDLED_VERSION}")
+message(STATUS "bundled open62541 [${OPEN62541_BUNDLED_VERSION}]")
+SET (OPEN62541_VERSION "${OPEN62541_BUNDLED_VERSION}" CACHE STRING "Which open62541 commit/tag/branch to take")
 option (UA_ENABLE_AMALGAMATION "Whether open62541 should amalgamate" ON )
 option (UA_ENABLE_METHODCALLS  "Whether open62541 should have methods enabled" ON )
 option (SERVERCONFIG_LOADER    "Whether we should support ServerConfig.xml loading, resembling UA-SDK" OFF )
 
 if(${PULL_OPEN62541})
+        if(NOT UA_ENABLE_AMALGAMATION)
+          message(FATAL_ERROR "open62541-compat includes the amalgamated open62541.h: PULL_OPEN62541=ON needs UA_ENABLE_AMALGAMATION=ON (OPCUA-3471)")
+        endif()
         function ( fetch_open62541 )
           message(STATUS "fetching open62541 from github. *NOTE* fetching tag [${OPEN62541_VERSION}]")
           Open62541CompatFetchContent_Declare(
@@ -210,7 +216,7 @@ else()
 endif()
 
 if(${PULL_OPEN62541})  # this is not default
-  add_dependencies( open62541-compat open62541 )
+  add_dependencies( open62541-compat open62541 open62541-amalgamation )
 endif(${PULL_OPEN62541})
 
 install(TARGETS open62541-compat DESTINATION lib)

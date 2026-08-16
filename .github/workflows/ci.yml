@@ -12,6 +12,10 @@ jobs:
     strategy:
       matrix:
         container: [almalinux:9, almalinux:10]
+        pull: [OFF]
+        include:
+          - container: almalinux:9
+            pull: ON
     container: ${{ matrix.container }}
 
     steps:
@@ -19,12 +23,15 @@ jobs:
 
       - name: Install dependencies
         run: >
-          dnf install -y cmake gcc-c++ make git
+          dnf install -y cmake gcc-c++ make git python3
           boost-devel boost-system boost-chrono boost-date-time
           boost-thread boost-program-options boost-filesystem
 
+      - name: Check bundled open62541
+        run: extern/open62541/check_open62541.sh
+
       - name: Configure
-        run: cmake -B build -DSTANDALONE_BUILD=ON -DCMAKE_CXX_FLAGS=-Wno-error=maybe-uninitialized
+        run: cmake -B build -DSTANDALONE_BUILD=ON -DPULL_OPEN62541=${{ matrix.pull }} -DCMAKE_CXX_FLAGS=-Wno-error=maybe-uninitialized
 
       - name: Build
         run: cmake --build build -j$(nproc)

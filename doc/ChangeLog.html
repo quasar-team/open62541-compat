@@ -18,6 +18,27 @@
             </b></td>
         </tr>
         <tr>
+          <td valign="top">1.5.13<br>
+            <font size="-2">(18-Aug-2026)</font><br>
+          </td>
+          <td valign="top">            Bug <br>
+            <ul>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3463">OPCUA-3463</a>]
+                - bundled open62541 v1.5.4 is in the CISA ICSA-26-211-08 affected range; bump to v1.5.6 </li>
+              <li>[<a href="https://its.cern.ch/jira/browse/OPCUA-3471">OPCUA-3471</a>]
+                - PULL_OPEN62541=ON builds fail (linux+windows): amalgamation target never built for open62541 &ge; 1.5, UA_ENABLE_AMALGAMATION=OFF unsupported </li>
+            </ul>
+            Improvement <br>
+            <ul>
+              <li>[<a href="https://github.com/quasar-team/open62541-compat/pull/123">GitHub #123</a>]
+                - -Wdangling-else around LOG in async_operations.cpp under quasar's -Wall </li>
+            </ul>
+          </td>
+          <td valign="top">1.5.6<br>
+            (bundled) </td>
+          <td valign="top">open62541 bundle 1.5.4 &rarr; 1.5.6 (<a href="https://github.com/open62541/open62541/releases/tag/v1.5.6">upstream notes</a>). Live in this no-encryption build: Variant arrayDimensions overflow (<a href="https://nvd.nist.gov/vuln/detail/CVE-2026-65423">CVE-2026-65423</a>, <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-63559">CVE-2026-63559</a>, <a href="https://github.com/open62541/open62541/pull/8235">PR 8235</a>), TransferSubscriptions use-after-free (<a href="https://nvd.nist.gov/vuln/detail/CVE-2026-63035">CVE-2026-63035</a>, <a href="https://github.com/open62541/open62541/pull/8238">PR 8238</a>), SecureChannel chunk exhaustion (<a href="https://github.com/open62541/open62541/pull/8142">PR 8142</a>: message/chunk limits now default to 512 MB / 16384 where compat left them unbounded). PubSub signature underflow (<a href="https://nvd.nist.gov/vuln/detail/CVE-2026-63362">CVE-2026-63362</a>, <a href="https://github.com/open62541/open62541/pull/8236">PR 8236</a>) is inert here: signing needs encryption, which the bundle does not build. Feature flags identical to the 1.5.4 bundle; no compat API change. New upstream defaults reaching servers: 512 outstanding PublishRequests per session, transfer of detached subscriptions denied, DataSource MonitoredItems with samplingInterval 0 now sampled cyclically (50 ms), writes carrying status Good or a null source timestamp accepted on nodes without STATUSWRITE/TIMESTAMPWRITE. prepare_open62541.sh is unattended and self-checking (post-edits, feature-flag set, version stamps; check_open62541.sh also runs in CI). PULL_OPEN62541=ON now builds the upstream amalgamation target, refuses UA_ENABLE_AMALGAMATION=OFF at configure time, defaults OPEN62541_VERSION to the bundled tag and is exercised in CI. </td>
+        </tr>
+        <tr>
           <td valign="top">1.5.12<br>
             <font size="-2">(14-Aug-2026)</font><br>
           </td>

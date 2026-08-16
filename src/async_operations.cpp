@@ -65,14 +65,18 @@ void AsyncReadBlock::finishDeferred(UA_Server* server)
     fillTarget(true);
     UA_StatusCode s = UA_Server_setAsyncReadResult(server, m_target);
     if (s != UA_STATUSCODE_GOOD)
+    {
         LOG(Log::WRN) << "UA_Server_setAsyncReadResult returned: " << UaStatus(s).toString().toUtf8();
+    }
 }
 
 void AsyncWriteBlock::finishDeferred(UA_Server* server)
 {
     UA_StatusCode s = UA_Server_setAsyncWriteResult(server, m_target, (UA_StatusCode)m_result.statusCode());
     if (s != UA_STATUSCODE_GOOD)
+    {
         LOG(Log::WRN) << "UA_Server_setAsyncWriteResult returned: " << UaStatus(s).toString().toUtf8();
+    }
 }
 
 UaStatus AsyncMethodBlock::finishCall(
@@ -110,7 +114,9 @@ void AsyncMethodBlock::finishDeferred(UA_Server* server)
     copyOutputs();
     UA_StatusCode s = UA_Server_setAsyncCallMethodResult(server, m_outputArray, (UA_StatusCode)m_result.statusCode());
     if (s != UA_STATUSCODE_GOOD)
+    {
         LOG(Log::WRN) << "UA_Server_setAsyncCallMethodResult returned: " << UaStatus(s).toString().toUtf8();
+    }
 }
 
 AsyncOperations::AsyncOperations(UA_Server* server):
@@ -179,7 +185,9 @@ void AsyncOperations::drain(UA_Server* server)
 void AsyncOperations::cancel(const void* key)
 {
     if (m_pending.erase(key) > 0)
+    {
         LOG(Log::INF) << "Asynchronous operation cancelled by the stack (timeout, session close or cancel request)";
+    }
 }
 
 void AsyncOperations::shutdown()
@@ -187,7 +195,9 @@ void AsyncOperations::shutdown()
     std::unique_lock<std::mutex> lock(m_queueMutex);
     m_closed = true;
     if (!m_queueCv.wait_for(lock, std::chrono::seconds(60), [this]{ return m_inflight == 0; }))
+    {
         LOG(Log::ERR) << "Timed out waiting for in-flight asynchronous operations to resolve; continuing shutdown";
+    }
 }
 
 void AsyncOperations::clearRegistry()

@@ -1,6 +1,6 @@
 /* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES
  * visit http://open62541.org/ for information about this software
- * Git-Revision: v1.5.4
+ * Git-Revision: v1.5.6
  */
 
 /*
@@ -1871,6 +1871,25 @@ typedef struct UA_SecureChannel UA_SecureChannel;
 
 _UA_BEGIN_DECLS
 
+/* True for the ECC SecurityPolicy family, including the AEAD variants
+ * (ECC_nistP256_AesGcm/ChaChaPoly, ECC_curve25519/448). Use this instead of
+ * spelling out the policyType enum pair at each call site. */
+static UA_INLINE UA_Boolean
+UA_SecurityPolicy_isEcc(const UA_SecurityPolicy *policy) {
+    return policy != NULL &&
+        (policy->policyType == UA_SECURITYPOLICYTYPE_ECC ||
+         policy->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD);
+}
+
+/* True for AEAD SecurityPolicies (AES-GCM / ChaCha20-Poly1305). These derive a
+ * combined encryption key + IV (no separate signing key) and authenticate via
+ * the cipher tag; the SecureChannel and EccEncryptedSecret code use this to
+ * switch on the AEAD message layout. */
+static UA_INLINE UA_Boolean
+UA_SecurityPolicy_isAead(const UA_SecurityPolicy *policy) {
+    return policy != NULL && policy->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD;
+}
+
 /* Forward-Declaration so the SecureChannel can point to a singly-linked list of
  * Sessions. This is only used in the server, not in the client. */
 struct UA_Session;
@@ -1973,6 +1992,38 @@ struct UA_SecureChannel {
     UA_SecurityPolicy *securityPolicy;
     void *channelContext; /* For interaction with the security policy */
 
+    /* Properties derived from the SecurityPolicy URI, cached when the policy is
+     * set (it is fixed for the channel's lifetime). This avoids re-evaluating
+     * UA_SecurityPolicy_isEnhancedSecurity / _useLegacySequenceNumbers (which
+     * scan the policy URI) on the per-chunk send and receive paths. */
+    UA_Boolean enhancedSecurity;      /* UA_SecurityPolicy_isEnhancedSecurity */
+    UA_Boolean legacySequenceNumbers; /* UA_SecurityPolicy_useLegacySequenceNumbers */
+
+    /* OPC UA Part 6 v1.05.07 §6.7.5 "ChannelThumbprint" for
+     * SecurityPolicies with secureChannelEnhancements = true.
+     * The first OPN request signature is appended to the data signed by
+     * the OPN response (and vice versa). Set on send, consumed on
+     * receive, then cleared. Never used on OPN renewals. */
+    UA_ByteString firstRequestSignature;
+
+    /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" IKM chaining
+     * accumulator for SecurityPolicies with secureChannelEnhancements =
+     * true. The IKM is the size of the policy's shared secret (e.g. 32
+     * bytes for P-256). On each renewal, the policy's generateKey
+     * wrapper XORs the new shared secret with this value and writes the
+     * result back. The SecureChannel passes this value as a prefix of
+     * the `secret` ByteString to the policy's generateKey, where the
+     * policy strips and updates it. Zero-length on the first OPN. */
+    UA_ByteString currentIKM;
+
+    /* OPC UA Part 6 v1.05.07 ChannelThumbprint: the (verified) signature
+     * of the first OpenSecureChannel *response*. Captured once on the
+     * first OPN (client: on response verify; server: on response sign)
+     * and preserved across renewals. Used to bind the CreateSession /
+     * ActivateSession SignatureData to this SecureChannel. Only set for
+     * SecurityPolicies with secureChannelEnhancements = true. */
+    UA_ByteString channelThumbprint;
+
     /* Asymmetric encryption info */
     UA_ByteString remoteCertificate;
     UA_Byte remoteCertificateThumbprint[20]; /* The thumbprint of the remote certificate */
@@ -2054,10 +2105,50 @@ UA_StatusCode
 UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel);
 
 UA_StatusCode
-UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel);
+UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel);
 
 UA_StatusCode
-generateRemoteKeys(const UA_SecureChannel *channel);
+generateRemoteKeys(UA_SecureChannel *channel);
+
+/* OPC UA Part 6 v1.05.07 (secureChannelEnhancements): build the
+ * channel-bound CreateSession ServerSignature data
+ *   channelThumbprint | clientNonce | H(serverChannelCert) |
+ *   H(clientChannelCert) | serverNonce
+ * Both the server (sign) and client (verify) call this with the same
+ * logical values. `out` is allocated by the callee. */
+UA_StatusCode
+UA_SecureChannel_buildCreateSessionSignatureData(
+    const UA_SecureChannel *channel, const UA_ByteString *clientNonce,
+    const UA_ByteString *serverNonce, const UA_ByteString *serverChannelCert,
+    const UA_ByteString *clientChannelCert, UA_ByteString *out);
+
+/* OPC UA Part 6 v1.05.07: build the channel-bound ActivateSession
+ * ClientSignature data
+ *   channelThumbprint | serverNonce | H(serverAppCert) |
+ *   H(serverChannelCert) | H(clientChannelCert) | clientNonce
+ * `out` is allocated by the callee. */
+UA_StatusCode
+UA_SecureChannel_buildActivateSessionSignatureData(
+    const UA_SecureChannel *channel, const UA_ByteString *serverNonce,
+    const UA_ByteString *clientNonce, const UA_ByteString *serverAppCert,
+    const UA_ByteString *serverChannelCert, const UA_ByteString *clientChannelCert,
+    UA_ByteString *out);
+
+/* OPC UA Part 6 v1.05.07: build the channel-bound ActivateSession
+ * user-token (X.509) signature data
+ *   channelThumbprint | serverNonce | H(serverAppCert) | H(serverChannelCert) |
+ *   H(clientAppCert) | H(clientChannelCert) | clientNonce
+ * This is the ClientSignature layout with an extra H(clientAppCert) - the
+ * CLIENT's APPLICATION instance certificate - inserted before
+ * H(clientChannelCert). NOTE: the user/X509-token certificate does NOT appear
+ * in the signed data (it is conveyed and validated separately); the signature
+ * only proves possession of the user key over the channel-bound data. */
+UA_StatusCode
+UA_SecureChannel_buildUserTokenSignatureData(
+    const UA_SecureChannel *channel, const UA_ByteString *serverNonce,
+    const UA_ByteString *clientNonce, const UA_ByteString *serverAppCert,
+    const UA_ByteString *serverChannelCert, const UA_ByteString *clientAppCert,
+    const UA_ByteString *clientChannelCert, UA_ByteString *out);
 
 /**
  * Sending Messages
@@ -2164,7 +2255,7 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
  * The offset argument points to the start of the encrypted content (beginning
  * with the SequenceHeader).*/
 UA_StatusCode
-decryptAndVerifyChunk(const UA_SecureChannel *channel,
+decryptAndVerifyChunk(UA_SecureChannel *channel,
                       const UA_SecurityPolicySignatureAlgorithm *signatureAlgorithm,
                       const UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm,
                       UA_MessageType messageType, UA_ByteString *chunk, size_t offset);
@@ -2177,6 +2268,13 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
                    const UA_Byte *buf_end, size_t totalLength,
                    size_t securityHeaderLength, UA_UInt32 requestId,
                    size_t *const finalLength);
+
+/* Advance and return the next SequenceNumber to put into an outgoing chunk
+ * (asymmetric OPN and symmetric MSG/CLO alike). Part 6 §6.7.2.4: the legacy
+ * policies start at 1 and roll over to 1; the v1.05.07 enhanced/ECC policies
+ * (LegacySequenceNumbers = false) start at 0 and roll over to 0. */
+UA_UInt32
+UA_SecureChannel_nextSequenceNumber(UA_SecureChannel *channel);
 
 void
 setBufPos(UA_MessageContext *mc);
@@ -2734,9 +2832,11 @@ _UA_BEGIN_DECLS
 struct ContinuationPoint;
 typedef struct ContinuationPoint ContinuationPoint;
 
-/* Returns the next entry in the linked list */
-ContinuationPoint *
-ContinuationPoint_clear(ContinuationPoint *cp);
+typedef TAILQ_HEAD(ContinuationPointQueue, ContinuationPoint)
+    ContinuationPointQueue;
+
+void
+ContinuationPointQueue_clear(ContinuationPointQueue *queue);
 
 struct UA_Subscription;
 typedef struct UA_Subscription UA_Subscription;
@@ -2772,6 +2872,11 @@ struct UA_Session {
 
     UA_ByteString serverNonce;
 
+    /* The clientNonce from the CreateSession request. Retained for the
+     * v1.05.07 channel-bound ActivateSession ClientSignature verification
+     * (secureChannelEnhancements). */
+    UA_ByteString clientNonce;
+
     UA_ApplicationDescription clientDescription;
     UA_ByteString clientCertificate; /* Must be the same as for the
                                       * SecureChannel. If the SecureChannel is
@@ -2786,8 +2891,8 @@ struct UA_Session {
     UA_UInt32 maxRequestMessageSize;
     UA_UInt32 maxResponseMessageSize;
 
-    UA_UInt16         availableContinuationPoints;
-    ContinuationPoint *continuationPoints;
+    size_t continuationPointsSize;
+    ContinuationPointQueue continuationPoints;
 
     /* Localization information */
     size_t localeIdsSize;
@@ -3276,7 +3381,7 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
 
 typedef struct {
     UA_Server *server;
-    UA_Session *session;
+    UA_Session *session; /* may be NULL if no session is attached. */
     UA_EventDescription ed; /* shallow copy */
     UA_EventFilter filter;  /* shallow copy */
 
@@ -3675,6 +3780,7 @@ _UA_END_DECLS
  *
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
  *    Copyright 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  * based on
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
@@ -3691,6 +3797,22 @@ _UA_BEGIN_DECLS
 struct UA_AsyncResponse;
 typedef struct UA_AsyncResponse UA_AsyncResponse;
 
+/* Synchronous and asynchronous operations go through the same initial control
+ * flow. Only inside the read/write/call callback can the return code
+ * UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY be used to signal asynchronous
+ * processing.
+ *
+ * Also multiple operations come in at the same time from the same request. We
+ * do all of this with as little overhead as possible for the case that all
+ * operations are synchonous:
+ *
+ * The results-array for the response message is allocated "too long". After
+ * every regular entry follows enough space for another array of
+ * UA_AsyncOperation. This is used for ad-hoc asynchronous processing. Otherwise
+ * the additional bytes at the end are simply ignored. */
+
+/* REQUEST -> received over the network
+ * DIRECT -> local C API call */
 typedef enum {
     UA_ASYNCOPERATIONTYPE_CALL_REQUEST  = 0,
     UA_ASYNCOPERATIONTYPE_READ_REQUEST  = 1,
@@ -4412,8 +4534,7 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server,
 /* If the channel is non-NULL, then only compatible endpoints are returned.
  * Depending on ECC/RSA for the SecurityPolicy of the existing channel. */
 UA_StatusCode
-setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
-                         const UA_String endpointUrl,
+setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
                          UA_EndpointDescription **arr, size_t *arrSize);
 
@@ -4580,6 +4701,13 @@ struct BrowseOpts {
 void
 Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result);
+
+/* External data either from a datasource callback or with a _beforeRead
+ * callback where fresh values get switched in on demand. Variables with an
+ * external data source require monitoring with a sampling interval. As we
+ * cannot just hook into the write service to get all changes. */
+UA_Boolean
+VariableNode_externalDataSource(const UA_VariableNode *vn);
 
 /************/
 /* AddNodes */
@@ -4789,7 +4917,8 @@ typedef struct UA_Client_NotificationsAckNumber {
 typedef struct UA_Client_MonitoredItem {
     ZIP_ENTRY(UA_Client_MonitoredItem) zipfields;
     UA_UInt32 monitoredItemId;
-    UA_UInt32 clientHandle;
+    UA_MonitoringParameters parameters;
+    UA_MonitoringParameters pendingParameters;
     void *context;
     UA_Client_DeleteMonitoredItemCallback deleteCallback;
     union {
@@ -4797,8 +4926,7 @@ typedef struct UA_Client_MonitoredItem {
         UA_Client_EventNotificationCallback eventCallback;
     } handler;
     UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
-
-    UA_KeyValueMap eventFields; /* Cached names */
+    UA_KeyValueMap eventFields; /* Lazily cached names for the active filter */
 } UA_Client_MonitoredItem;
 
 ZIP_HEAD(MonitorItemsTree, UA_Client_MonitoredItem);
@@ -4829,6 +4957,12 @@ __Client_Subscriptions_backgroundPublish(UA_Client *client);
 
 void
 __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
+
+/* Exposed for unit tests and fuzzing of notification ordering */
+void
+__Client_Subscriptions_processPublishResponse(UA_Client *client,
+                                              UA_PublishRequest *request,
+                                              UA_PublishResponse *response);
 
 /**********/
 /* Client */
@@ -4994,6 +5128,7 @@ UA_StatusCode connectInternal(UA_Client *client, UA_Boolean async);
 UA_StatusCode connectSecureChannel(UA_Client *client, const char *endpointUrl);
 UA_Boolean isFullyConnected(UA_Client *client);
 void connectSync(UA_Client *client);
+void setConnectStatus(UA_Client *client, UA_StatusCode status);
 void notifyClientState(UA_Client *client);
 void processRHEMessage(UA_Client *client, const UA_ByteString *chunk);
 void processERRResponse(UA_Client *client, const UA_ByteString *chunk);
@@ -5532,7 +5667,7 @@ UA_StatusCode
 UA_NetworkMessage_decodeFooters(PubSubDecodeCtx *ctx,
                                 UA_NetworkMessage *dst);
 
-void
+UA_StatusCode
 UA_NetworkMessage_makeSyntheticPayloadHeader(const UA_NetworkMessage_EncodingOptions *eo,
                                              UA_NetworkMessage *dst);
 
@@ -6316,6 +6451,14 @@ typeContainsString(const UA_DataType *type, size_t depth) {
 }
 
 #endif /* UA_ENABLE_PUBSUB */
+
+/* Free a partially-constructed component without re-asking the lifecycle
+ * callback. Used by create() on abort paths; the existing remove/delete
+ * defers free via deleteFlag for components with EventLoop channels. */
+void
+UA_PubSubComponent_freeWithoutLifecycleCallback(UA_PubSubManager *psm,
+                                                void *component,
+                                                UA_PubSubComponentType type);
 
 _UA_END_DECLS
 
@@ -7199,6 +7342,7 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
             *(void**)(uintptr_t)&m2->memberName = mName;
 #endif
         }
+        t2->membersSize = t1->membersSize;
     }
 
  errout:
@@ -7309,17 +7453,20 @@ UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2) {
 }
 
 static UA_StatusCode
-String_copy(UA_String const *src, UA_String *dst, const UA_DataType *_) {
+String_copy(const void *src, void *dst, const UA_DataType *_) {
+    const UA_String *srcS = (const UA_String*)src;
+    UA_String *dstS = (UA_String *)dst;
     UA_StatusCode res =
-        UA_Array_copy(src->data, src->length, (void**)&dst->data,
+        UA_Array_copy(srcS->data, srcS->length, (void**)&dstS->data,
                       &UA_TYPES[UA_TYPES_BYTE]);
     if(res == UA_STATUSCODE_GOOD)
-        dst->length = src->length;
+        dstS->length = srcS->length;
     return res;
 }
 
 static void
-String_clear(UA_String *s, const UA_DataType *_) {
+String_clear(void *p, const UA_DataType *_) {
+    UA_String *s = (UA_String*)p;
     UA_Array_delete(s->data, s->length, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
@@ -7414,15 +7561,17 @@ UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars) {
 }
 
 static UA_StatusCode
-QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst,
-                   const UA_DataType *_) {
-    dst->namespaceIndex = src->namespaceIndex;
-    return String_copy(&src->name, &dst->name, NULL);
+QualifiedName_copy(const void *src, void *dst, const UA_DataType *_) {
+    const UA_QualifiedName *srcQ = (const UA_QualifiedName*)src;
+    UA_QualifiedName *dstQ = (UA_QualifiedName*)dst;
+    dstQ->namespaceIndex = srcQ->namespaceIndex;
+    return String_copy(&srcQ->name, &dstQ->name, NULL);
 }
 
 static void
-QualifiedName_clear(UA_QualifiedName *p, const UA_DataType *_) {
-    String_clear(&p->name, NULL);
+QualifiedName_clear(void *p, const UA_DataType *_) {
+    UA_QualifiedName *qn = (UA_QualifiedName*)p;
+    String_clear(&qn->name, NULL);
 }
 
 u32
@@ -7434,12 +7583,6 @@ UA_QualifiedName_hash(const UA_QualifiedName *q) {
 UA_StatusCode
 UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
                          const UA_NamespaceMapping *nsMapping) {
-    /* If the QualifiedName is NULL, return a NULL string */
-    if(qn->name.data == NULL && qn->namespaceIndex == 0) {
-        UA_String_clear(output);
-        return UA_STATUSCODE_GOOD;
-    }
-
     /* Start tracking the output length */
     size_t len = qn->name.length;
 
@@ -7801,36 +7944,39 @@ UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
 
 /* NodeId */
 static void
-NodeId_clear(UA_NodeId *p, const UA_DataType *_) {
-    switch(p->identifierType) {
+NodeId_clear(void *p, const UA_DataType *_) {
+    UA_NodeId *id = (UA_NodeId*)p;
+    switch(id->identifierType) {
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING:
-        String_clear(&p->identifier.string, NULL);
+        String_clear(&id->identifier.string, NULL);
         break;
     default: break;
     }
 }
 
 static UA_StatusCode
-NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_DataType *_) {
+NodeId_copy(const void *src, void *dst, const UA_DataType *_) {
+    const UA_NodeId *srcN = (const UA_NodeId*)src;
+    UA_NodeId *dstN = (UA_NodeId *)dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    switch(src->identifierType) {
+    switch(srcN->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
-        *dst = *src;
+        *dstN = *srcN;
         return UA_STATUSCODE_GOOD;
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING:
-        retval |= String_copy(&src->identifier.string,
-                              &dst->identifier.string, NULL);
+        retval |= String_copy(&srcN->identifier.string,
+                              &dstN->identifier.string, NULL);
         break;
     case UA_NODEIDTYPE_GUID:
-        dst->identifier.guid = src->identifier.guid;
+        dstN->identifier.guid = srcN->identifier.guid;
         break;
     default:
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    dst->namespaceIndex = src->namespaceIndex;
-    dst->identifierType = src->identifierType;
+    dstN->namespaceIndex = srcN->namespaceIndex;
+    dstN->identifierType = srcN->identifierType;
     return retval;
 }
 
@@ -8099,17 +8245,19 @@ UA_NodeId UA_NODEID(const char *chars) {
 
 /* ExpandedNodeId */
 static void
-ExpandedNodeId_clear(UA_ExpandedNodeId *p, const UA_DataType *_) {
-    NodeId_clear(&p->nodeId, _);
-    String_clear(&p->namespaceUri, NULL);
+ExpandedNodeId_clear(void *p, const UA_DataType *_) {
+    UA_ExpandedNodeId *id = (UA_ExpandedNodeId*)p;
+    NodeId_clear(&id->nodeId, NULL);
+    String_clear(&id->namespaceUri, NULL);
 }
 
 static UA_StatusCode
-ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst,
-                    const UA_DataType *_) {
-    UA_StatusCode retval = NodeId_copy(&src->nodeId, &dst->nodeId, NULL);
-    retval |= String_copy(&src->namespaceUri, &dst->namespaceUri, NULL);
-    dst->serverIndex = src->serverIndex;
+ExpandedNodeId_copy(const void *src, void *dst, const UA_DataType *_) {
+    const UA_ExpandedNodeId *srcE = (const UA_ExpandedNodeId *)src;
+    UA_ExpandedNodeId *dstE = (UA_ExpandedNodeId*)dst;
+    UA_StatusCode retval = NodeId_copy(&srcE->nodeId, &dstE->nodeId, NULL);
+    retval |= String_copy(&srcE->namespaceUri, &dstE->namespaceUri, NULL);
+    dstE->serverIndex = srcE->serverIndex;
     return retval;
 }
 
@@ -8270,17 +8418,18 @@ UA_ExpandedNodeId_print(const UA_ExpandedNodeId *eid, UA_String *output) {
 
 /* ExtensionObject */
 static void
-ExtensionObject_clear(UA_ExtensionObject *p, const UA_DataType *_) {
-    switch(p->encoding) {
+ExtensionObject_clear(void *p, const UA_DataType *_) {
+    UA_ExtensionObject *eo = (UA_ExtensionObject *)p;
+    switch(eo->encoding) {
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
     case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
     case UA_EXTENSIONOBJECT_ENCODED_XML:
-        NodeId_clear(&p->content.encoded.typeId, NULL);
-        String_clear(&p->content.encoded.body, NULL);
+        NodeId_clear(&eo->content.encoded.typeId, NULL);
+        String_clear(&eo->content.encoded.body, NULL);
         break;
     case UA_EXTENSIONOBJECT_DECODED:
-        if(p->content.decoded.data)
-            UA_delete(p->content.decoded.data, p->content.decoded.type);
+        if(eo->content.decoded.data)
+            UA_delete(eo->content.decoded.data, eo->content.decoded.type);
         break;
     default:
         break;
@@ -8288,28 +8437,30 @@ ExtensionObject_clear(UA_ExtensionObject *p, const UA_DataType *_) {
 }
 
 static UA_StatusCode
-ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst,
-                     const UA_DataType *_) {
+ExtensionObject_copy(const void *src, void *dst, const UA_DataType *_) {
+    const UA_ExtensionObject *srcE = (const UA_ExtensionObject *)src;
+    UA_ExtensionObject *dstE = (UA_ExtensionObject *)dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    switch(src->encoding) {
+    switch(srcE->encoding) {
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
     case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
     case UA_EXTENSIONOBJECT_ENCODED_XML:
-        dst->encoding = src->encoding;
-        retval = NodeId_copy(&src->content.encoded.typeId,
-                             &dst->content.encoded.typeId, NULL);
+        dstE->encoding = srcE->encoding;
+        retval = NodeId_copy(&srcE->content.encoded.typeId,
+                             &dstE->content.encoded.typeId, NULL);
         /* ByteString -> copy as string */
-        retval |= String_copy(&src->content.encoded.body,
-                              &dst->content.encoded.body, NULL);
+        retval |= String_copy(&srcE->content.encoded.body,
+                              &dstE->content.encoded.body, NULL);
         break;
     case UA_EXTENSIONOBJECT_DECODED:
     case UA_EXTENSIONOBJECT_DECODED_NODELETE:
-        if(!src->content.decoded.type || !src->content.decoded.data)
+        if(!srcE->content.decoded.type || !srcE->content.decoded.data)
             return UA_STATUSCODE_BADINTERNALERROR;
-        dst->encoding = UA_EXTENSIONOBJECT_DECODED;
-        dst->content.decoded.type = src->content.decoded.type;
-        retval = UA_Array_copy(src->content.decoded.data, 1,
-            &dst->content.decoded.data, src->content.decoded.type);
+        dstE->encoding = UA_EXTENSIONOBJECT_DECODED;
+        dstE->content.decoded.type = srcE->content.decoded.type;
+        retval = UA_Array_copy(srcE->content.decoded.data, 1,
+                               &dstE->content.decoded.data,
+                               srcE->content.decoded.type);
         break;
     default:
         break;
@@ -8398,41 +8549,45 @@ UA_Variant_hasArrayType(const UA_Variant *v, const UA_DataType *type) {
 }
 
 static void
-Variant_clear(UA_Variant *p, const UA_DataType *_) {
+Variant_clear(void *p, const UA_DataType *_) {
+    UA_Variant *v = (UA_Variant *)p;
+
     /* The content is "borrowed" */
-    if(p->storageType == UA_VARIANT_DATA_NODELETE)
+    if(v->storageType == UA_VARIANT_DATA_NODELETE)
         return;
 
     /* Delete the value */
-    if(p->type && p->data > UA_EMPTY_ARRAY_SENTINEL) {
-        if(p->arrayLength == 0)
-            p->arrayLength = 1;
-        UA_Array_delete(p->data, p->arrayLength, p->type);
-        p->data = NULL;
+    if(v->type && v->data > UA_EMPTY_ARRAY_SENTINEL) {
+        if(v->arrayLength == 0)
+            v->arrayLength = 1;
+        UA_Array_delete(v->data, v->arrayLength, v->type);
+        v->data = NULL;
     }
 
     /* Delete the array dimensions */
-    if((void*)p->arrayDimensions > UA_EMPTY_ARRAY_SENTINEL)
-        UA_free(p->arrayDimensions);
+    if((void*)v->arrayDimensions > UA_EMPTY_ARRAY_SENTINEL)
+        UA_free(v->arrayDimensions);
 }
 
 static UA_StatusCode
-Variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *_) {
-    size_t length = src->arrayLength;
-    if(UA_Variant_isScalar(src))
+Variant_copy(const void *src, void *dst, const UA_DataType *_) {
+    const UA_Variant *srcV = (const UA_Variant *)src;
+    UA_Variant *dstV = (UA_Variant *)dst;
+    size_t length = srcV->arrayLength;
+    if(UA_Variant_isScalar(srcV))
         length = 1;
-    UA_StatusCode retval = UA_Array_copy(src->data, length,
-                                         &dst->data, src->type);
+    UA_StatusCode retval = UA_Array_copy(srcV->data, length,
+                                         &dstV->data, srcV->type);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    dst->arrayLength = src->arrayLength;
-    dst->type = src->type;
-    if(src->arrayDimensions) {
-        retval = UA_Array_copy(src->arrayDimensions, src->arrayDimensionsSize,
-            (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
+    dstV->arrayLength = srcV->arrayLength;
+    dstV->type = srcV->type;
+    if(srcV->arrayDimensions) {
+        retval = UA_Array_copy(srcV->arrayDimensions, srcV->arrayDimensionsSize,
+            (void**)&dstV->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        dst->arrayDimensionsSize = src->arrayDimensionsSize;
+        dstV->arrayDimensionsSize = srcV->arrayDimensionsSize;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -8509,8 +8664,11 @@ checkAdjustRange(const UA_Variant *v, UA_NumericRange *range) {
     /* Check that the number of elements in the variant matches the array
      * dimensions */
     size_t elements = 1;
-    for(size_t i = 0; i < dims_count; ++i)
+    for(size_t i = 0; i < dims_count; ++i) {
+        if(dims[i] != 0 && elements > SIZE_MAX / dims[i])
+            return UA_STATUSCODE_BADINTERNALERROR;
         elements *= dims[i];
+    }
     if(elements != v->arrayLength)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -8573,6 +8731,11 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
             *block = running_dimssize * dimrange;
             *stride = running_dimssize * dims[k];
         }
+        /* Overflow in running_dimssize is only possible when the Variant has
+         * passed a corrupted state through checkAdjustRange. Guard here as a
+         * defence-in-depth measure. */
+        if(running_dimssize != 0 && dims[k] > SIZE_MAX / running_dimssize)
+            break;
         *first += running_dimssize * range.dimensions[k].min;
         running_dimssize *= dims[k];
     }
@@ -8805,7 +8968,7 @@ Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
 
     /* If members were moved, initialize original array to prevent reuse */
     if(!copy && !v->type->pointerFree)
-        memset(array, 0, sizeof(elem_size)*arraySize);
+        memset(array, 0, elem_size*arraySize);
 
     return retval;
 }
@@ -8841,33 +9004,37 @@ UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
 }
 
 static void
-LocalizedText_clear(UA_LocalizedText *p, const UA_DataType *_) {
-    String_clear(&p->locale, NULL);
-    String_clear(&p->text, NULL);
+LocalizedText_clear(void *p, const UA_DataType *_) {
+    UA_LocalizedText *lt = (UA_LocalizedText *)p;
+    String_clear(&lt->locale, NULL);
+    String_clear(&lt->text, NULL);
 }
 
 static UA_StatusCode
-LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *dst,
-                   const UA_DataType *_) {
-    UA_StatusCode retval = String_copy(&src->locale, &dst->locale, NULL);
-    retval |= String_copy(&src->text, &dst->text, NULL);
+LocalizedText_copy(const void *src, void *dst, const UA_DataType *_) {
+    const UA_LocalizedText *srcL = (const UA_LocalizedText *)src;
+    UA_LocalizedText *dstL = (UA_LocalizedText *)dst;
+    UA_StatusCode retval = String_copy(&srcL->locale, &dstL->locale, NULL);
+    retval |= String_copy(&srcL->text, &dstL->text, NULL);
     return retval;
 }
 
 /* DataValue */
 static void
-DataValue_clear(UA_DataValue *p, const UA_DataType *_) {
-    Variant_clear(&p->value, NULL);
+DataValue_clear(void *p, const UA_DataType *_) {
+    UA_DataValue *dv = (UA_DataValue *)p;
+    Variant_clear(&dv->value, NULL);
 }
 
 static UA_StatusCode
-DataValue_copy(UA_DataValue const *src, UA_DataValue *dst,
-               const UA_DataType *_) {
-    memcpy(dst, src, sizeof(UA_DataValue));
-    UA_Variant_init(&dst->value);
-    UA_StatusCode retval = Variant_copy(&src->value, &dst->value, NULL);
+DataValue_copy(const void *src, void *dst, const UA_DataType *_) {
+    const UA_DataValue *srcD = (const UA_DataValue*)src;
+    UA_DataValue *dstD = (UA_DataValue *)dst;
+    memcpy(dstD, srcD, sizeof(UA_DataValue));
+    UA_Variant_init(&dstD->value);
+    UA_StatusCode retval = Variant_copy(&srcD->value, &dstD->value, NULL);
     if(retval != UA_STATUSCODE_GOOD)
-        DataValue_clear(dst, NULL);
+        DataValue_clear(dstD, NULL);
     return retval;
 }
 
@@ -8884,32 +9051,35 @@ UA_DataValue_copyRange(const UA_DataValue *src, UA_DataValue * UA_RESTRICT dst,
 
 /* DiagnosticInfo */
 static void
-DiagnosticInfo_clear(UA_DiagnosticInfo *p, const UA_DataType *_) {
-    String_clear(&p->additionalInfo, NULL);
-    if(p->hasInnerDiagnosticInfo && p->innerDiagnosticInfo) {
-        DiagnosticInfo_clear(p->innerDiagnosticInfo, NULL);
-        UA_free(p->innerDiagnosticInfo);
+DiagnosticInfo_clear(void *p, const UA_DataType *_) {
+    UA_DiagnosticInfo *di = (UA_DiagnosticInfo *)p;
+
+    String_clear(&di->additionalInfo, NULL);
+    if(di->hasInnerDiagnosticInfo && di->innerDiagnosticInfo) {
+        DiagnosticInfo_clear(di->innerDiagnosticInfo, NULL);
+        UA_free(di->innerDiagnosticInfo);
     }
 }
 
 static UA_StatusCode
-DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst,
-                    const UA_DataType *_) {
-    memcpy(dst, src, sizeof(UA_DiagnosticInfo));
-    UA_String_init(&dst->additionalInfo);
-    dst->innerDiagnosticInfo = NULL;
+DiagnosticInfo_copy(const void *src, void *dst, const UA_DataType *_) {
+    const UA_DiagnosticInfo *srcD = (const UA_DiagnosticInfo *)src;
+    UA_DiagnosticInfo *dstD = (UA_DiagnosticInfo *)dst;
+    memcpy(dstD, srcD, sizeof(UA_DiagnosticInfo));
+    UA_String_init(&dstD->additionalInfo);
+    dstD->innerDiagnosticInfo = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(src->hasAdditionalInfo)
-        retval = String_copy(&src->additionalInfo, &dst->additionalInfo, NULL);
-    if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
-        dst->innerDiagnosticInfo = (UA_DiagnosticInfo*)
+    if(srcD->hasAdditionalInfo)
+        retval = String_copy(&srcD->additionalInfo, &dstD->additionalInfo, NULL);
+    if(srcD->hasInnerDiagnosticInfo && srcD->innerDiagnosticInfo) {
+        dstD->innerDiagnosticInfo = (UA_DiagnosticInfo*)
             UA_malloc(sizeof(UA_DiagnosticInfo));
-        if(UA_LIKELY(dst->innerDiagnosticInfo != NULL)) {
-            retval |= DiagnosticInfo_copy(src->innerDiagnosticInfo,
-                                          dst->innerDiagnosticInfo, NULL);
-            dst->hasInnerDiagnosticInfo = true;
+        if(UA_LIKELY(dstD->innerDiagnosticInfo != NULL)) {
+            retval |= DiagnosticInfo_copy(srcD->innerDiagnosticInfo,
+                                          dstD->innerDiagnosticInfo, NULL);
+            dstD->hasInnerDiagnosticInfo = true;
         } else {
-            dst->hasInnerDiagnosticInfo = false;
+            dstD->hasInnerDiagnosticInfo = false;
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
         }
     }
@@ -8931,32 +9101,42 @@ void UA_init(void *p, const UA_DataType *type) {
 }
 
 static UA_StatusCode
-copyByte(const u8 *src, u8 *dst, const UA_DataType *_) {
-    *dst = *src;
+copyByte(const void *src, void *dst, const UA_DataType *_) {
+    const u8 *src8 = (const u8 *)src;
+    u8 *dst8 = (u8 *)dst;
+    *dst8 = *src8;
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-copy2Byte(const u16 *src, u16 *dst, const UA_DataType *_) {
-    *dst = *src;
+copy2Byte(const void *src, void *dst, const UA_DataType *_) {
+    const u16 *src16 = (const u16 *)src;
+    u16 *dst16 = (u16 *)dst;
+    *dst16 = *src16;
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-copy4Byte(const u32 *src, u32 *dst, const UA_DataType *_) {
-    *dst = *src;
+copy4Byte(const void *src, void *dst, const UA_DataType *_) {
+    const u32 *src32 = (const u32 *)src;
+    u32 *dst32 = (u32 *)dst;
+    *dst32 = *src32;
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-copy8Byte(const u64 *src, u64 *dst, const UA_DataType *_) {
-    *dst = *src;
+copy8Byte(const void *src, void *dst, const UA_DataType *_) {
+    const u64 *src64 = (const u64 *)src;
+    u64 *dst64 = (u64 *)dst;
+    *dst64 = *src64;
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-copyGuid(const UA_Guid *src, UA_Guid *dst, const UA_DataType *_) {
-    *dst = *src;
+copyGuid(const void *src, void *dst, const UA_DataType *_) {
+    const UA_Guid *srcG = (const UA_Guid*)src;
+    UA_Guid *dstG = (UA_Guid*)dst;
+    *dstG = *srcG;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -9053,37 +9233,37 @@ copyNotImplemented(const void *src, void *dst, const UA_DataType *type) {
 }
 
 const UA_copySignature copyJumpTable[UA_DATATYPEKINDS] = {
-    (UA_copySignature)copyByte, /* Boolean */
-    (UA_copySignature)copyByte, /* SByte */
-    (UA_copySignature)copyByte, /* Byte */
-    (UA_copySignature)copy2Byte, /* Int16 */
-    (UA_copySignature)copy2Byte, /* UInt16 */
-    (UA_copySignature)copy4Byte, /* Int32 */
-    (UA_copySignature)copy4Byte, /* UInt32 */
-    (UA_copySignature)copy8Byte, /* Int64 */
-    (UA_copySignature)copy8Byte, /* UInt64 */
-    (UA_copySignature)copy4Byte, /* Float */
-    (UA_copySignature)copy8Byte, /* Double */
-    (UA_copySignature)String_copy,
-    (UA_copySignature)copy8Byte, /* DateTime */
-    (UA_copySignature)copyGuid, /* Guid */
-    (UA_copySignature)String_copy, /* ByteString */
-    (UA_copySignature)String_copy, /* XmlElement */
-    (UA_copySignature)NodeId_copy,
-    (UA_copySignature)ExpandedNodeId_copy,
-    (UA_copySignature)copy4Byte, /* StatusCode */
-    (UA_copySignature)QualifiedName_copy,
-    (UA_copySignature)LocalizedText_copy,
-    (UA_copySignature)ExtensionObject_copy,
-    (UA_copySignature)DataValue_copy,
-    (UA_copySignature)Variant_copy,
-    (UA_copySignature)DiagnosticInfo_copy,
-    (UA_copySignature)copyNotImplemented, /* Decimal */
-    (UA_copySignature)copy4Byte, /* Enumeration */
-    (UA_copySignature)copyStructure,
-    (UA_copySignature)copyStructure, /* Structure with Optional Fields */
-    (UA_copySignature)copyUnion, /* Union */
-    (UA_copySignature)copyNotImplemented /* BitfieldCluster*/
+    copyByte, /* Boolean */
+    copyByte, /* SByte */
+    copyByte, /* Byte */
+    copy2Byte, /* Int16 */
+    copy2Byte, /* UInt16 */
+    copy4Byte, /* Int32 */
+    copy4Byte, /* UInt32 */
+    copy8Byte, /* Int64 */
+    copy8Byte, /* UInt64 */
+    copy4Byte, /* Float */
+    copy8Byte, /* Double */
+    String_copy,
+    copy8Byte, /* DateTime */
+    copyGuid, /* Guid */
+    String_copy, /* ByteString */
+    String_copy, /* XmlElement */
+    NodeId_copy,
+    ExpandedNodeId_copy,
+    copy4Byte, /* StatusCode */
+    QualifiedName_copy,
+    LocalizedText_copy,
+    ExtensionObject_copy,
+    DataValue_copy,
+    Variant_copy,
+    DiagnosticInfo_copy,
+    copyNotImplemented, /* Decimal */
+    copy4Byte, /* Enumeration */
+    copyStructure,
+    copyStructure, /* Structure with Optional Fields */
+    copyUnion, /* Union */
+    copyNotImplemented /* BitfieldCluster*/
 };
 
 UA_StatusCode
@@ -9156,37 +9336,37 @@ static void nopClear(void *p, const UA_DataType *type) { }
 
 const
 UA_clearSignature clearJumpTable[UA_DATATYPEKINDS] = {
-    (UA_clearSignature)nopClear, /* Boolean */
-    (UA_clearSignature)nopClear, /* SByte */
-    (UA_clearSignature)nopClear, /* Byte */
-    (UA_clearSignature)nopClear, /* Int16 */
-    (UA_clearSignature)nopClear, /* UInt16 */
-    (UA_clearSignature)nopClear, /* Int32 */
-    (UA_clearSignature)nopClear, /* UInt32 */
-    (UA_clearSignature)nopClear, /* Int64 */
-    (UA_clearSignature)nopClear, /* UInt64 */
-    (UA_clearSignature)nopClear, /* Float */
-    (UA_clearSignature)nopClear, /* Double */
-    (UA_clearSignature)String_clear, /* String */
-    (UA_clearSignature)nopClear, /* DateTime */
-    (UA_clearSignature)nopClear, /* Guid */
-    (UA_clearSignature)String_clear, /* ByteString */
-    (UA_clearSignature)String_clear, /* XmlElement */
-    (UA_clearSignature)NodeId_clear,
-    (UA_clearSignature)ExpandedNodeId_clear,
-    (UA_clearSignature)nopClear, /* StatusCode */
-    (UA_clearSignature)QualifiedName_clear,
-    (UA_clearSignature)LocalizedText_clear,
-    (UA_clearSignature)ExtensionObject_clear,
-    (UA_clearSignature)DataValue_clear,
-    (UA_clearSignature)Variant_clear,
-    (UA_clearSignature)DiagnosticInfo_clear,
-    (UA_clearSignature)nopClear, /* Decimal, not implemented */
-    (UA_clearSignature)nopClear, /* Enumeration */
-    (UA_clearSignature)clearStructure,
-    (UA_clearSignature)clearStructure, /* Struct with Optional Fields*/
-    (UA_clearSignature)clearUnion, /* Union*/
-    (UA_clearSignature)nopClear /* BitfieldCluster, not implemented*/
+    nopClear, /* Boolean */
+    nopClear, /* SByte */
+    nopClear, /* Byte */
+    nopClear, /* Int16 */
+    nopClear, /* UInt16 */
+    nopClear, /* Int32 */
+    nopClear, /* UInt32 */
+    nopClear, /* Int64 */
+    nopClear, /* UInt64 */
+    nopClear, /* Float */
+    nopClear, /* Double */
+    String_clear, /* String */
+    nopClear, /* DateTime */
+    nopClear, /* Guid */
+    String_clear, /* ByteString */
+    String_clear, /* XmlElement */
+    NodeId_clear,
+    ExpandedNodeId_clear,
+    nopClear, /* StatusCode */
+    QualifiedName_clear,
+    LocalizedText_clear,
+    ExtensionObject_clear,
+    DataValue_clear,
+    Variant_clear,
+    DiagnosticInfo_clear,
+    nopClear, /* Decimal, not implemented */
+    nopClear, /* Enumeration */
+    clearStructure,
+    clearStructure, /* Struct with Optional Fields*/
+    clearUnion, /* Union*/
+    nopClear /* BitfieldCluster, not implemented*/
 };
 
 void
@@ -10006,6 +10186,12 @@ UA_NamespaceMapping_clear(UA_NamespaceMapping *nm) {
     UA_Array_delete(nm->namespaceUris, nm->namespaceUrisSize, &UA_TYPES[UA_TYPES_STRING]);
     UA_Array_delete(nm->local2remote, nm->local2remoteSize, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Array_delete(nm->remote2local, nm->remote2localSize, &UA_TYPES[UA_TYPES_UINT16]);
+    nm->namespaceUris = NULL;
+    nm->local2remote = NULL;
+    nm->remote2local = NULL;
+    nm->namespaceUrisSize = 0;
+    nm->local2remoteSize = 0;
+    nm->remote2localSize = 0;
 }
 
 void
@@ -10464,7 +10650,7 @@ static UA_StatusCode
 UA_DataType_fromSimpleTypeDescription(UA_DataType *type,
                                       const UA_SimpleTypeDescription *descr) {
     /* Check if the BuiltinType is a "simple type" */
-    if(descr->builtInType > 0 &&
+    if(descr->builtInType == 0 ||
        descr->builtInType > UA_DATATYPEKIND_DIAGNOSTICINFO + 1)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -10634,14 +10820,14 @@ ctxClearNodeId(Ctx *ctx, UA_NodeId *p) {
 
 #define FUNC_ENCODE_BINARY(TYPE) static status                          \
     TYPE##_encodeBinary(Ctx *UA_RESTRICT ctx,                           \
-                        const UA_##TYPE *UA_RESTRICT src,               \
+                        const void *UA_RESTRICT _src,                   \
                         const UA_DataType *type)
 #define FUNC_DECODE_BINARY(TYPE) static status                          \
     TYPE##_decodeBinary(Ctx *UA_RESTRICT ctx,                           \
-                        UA_##TYPE *UA_RESTRICT dst,                     \
+                        void *UA_RESTRICT _dst,                         \
                         const UA_DataType *type)
-#define ENCODE_DIRECT(SRC, TYPE) TYPE##_encodeBinary(ctx, (const UA_##TYPE*)SRC, NULL)
-#define DECODE_DIRECT(DST, TYPE) TYPE##_decodeBinary(ctx, (UA_##TYPE*)DST, NULL)
+#define ENCODE_DIRECT(SRC, TYPE) TYPE##_encodeBinary(ctx, (SRC), NULL)
+#define DECODE_DIRECT(DST, TYPE) TYPE##_decodeBinary(ctx, (DST), NULL)
 
 #define IF_CHECK_BUFSIZE(check)                             \
     if(!UA_LIKELY(check)) {                                 \
@@ -10744,6 +10930,7 @@ UA_decode64(const u8 buf[8], u64 *v) {
 /* Note that sizeof(bool) != 1 on some platforms. Overlayable integer encoding
  * is disabled in those cases. */
 FUNC_ENCODE_BINARY(Boolean) {
+    const UA_Boolean *src = (const UA_Boolean*)_src;
     IF_CHECK_BUFSIZE(ctx->pos + 1 <= ctx->end) {
         *ctx->pos = *(const u8*)src;
     }
@@ -10752,6 +10939,7 @@ FUNC_ENCODE_BINARY(Boolean) {
 }
 
 FUNC_DECODE_BINARY(Boolean) {
+    UA_Boolean *dst = (UA_Boolean*)_dst;
     UA_CHECK(ctx->pos + 1 <= ctx->end, return UA_STATUSCODE_BADDECODINGERROR);
     *dst = (*ctx->pos > 0) ? true : false;
     ++ctx->pos;
@@ -10760,6 +10948,7 @@ FUNC_DECODE_BINARY(Boolean) {
 
 /* Byte */
 FUNC_ENCODE_BINARY(Byte) {
+    const UA_Byte *src = (const UA_Byte*)_src;
     IF_CHECK_BUFSIZE(ctx->pos + sizeof(u8) <= ctx->end) {
         *ctx->pos = *(const u8*)src;
     }
@@ -10768,6 +10957,7 @@ FUNC_ENCODE_BINARY(Byte) {
 }
 
 FUNC_DECODE_BINARY(Byte) {
+    UA_Byte *dst = (UA_Byte*)_dst;
     UA_CHECK(ctx->pos + sizeof(u8) <= ctx->end,
              return UA_STATUSCODE_BADDECODINGERROR);
     *dst = *ctx->pos;
@@ -10777,6 +10967,7 @@ FUNC_DECODE_BINARY(Byte) {
 
 /* UInt16 */
 FUNC_ENCODE_BINARY(UInt16) {
+    const UA_UInt16 *src = (const UA_UInt16*)_src;
     IF_CHECK_BUFSIZE(ctx->pos + sizeof(u16) <= ctx->end) {
 #if UA_BINARY_OVERLAYABLE_INTEGER
         memcpy(ctx->pos, src, sizeof(u16));
@@ -10789,6 +10980,7 @@ FUNC_ENCODE_BINARY(UInt16) {
 }
 
 FUNC_DECODE_BINARY(UInt16) {
+    UA_UInt16 *dst = (UA_UInt16*)_dst;
     UA_CHECK(ctx->pos + sizeof(u16) <= ctx->end,
              return UA_STATUSCODE_BADDECODINGERROR);
 #if UA_BINARY_OVERLAYABLE_INTEGER
@@ -10802,6 +10994,7 @@ FUNC_DECODE_BINARY(UInt16) {
 
 /* UInt32 */
 FUNC_ENCODE_BINARY(UInt32) {
+    const UA_UInt32 *src = (const UA_UInt32*)_src;
     IF_CHECK_BUFSIZE(ctx->pos + sizeof(u32) <= ctx->end) {
 #if UA_BINARY_OVERLAYABLE_INTEGER
         memcpy(ctx->pos, src, sizeof(u32));
@@ -10814,6 +11007,7 @@ FUNC_ENCODE_BINARY(UInt32) {
 }
 
 FUNC_DECODE_BINARY(UInt32) {
+    UA_UInt32 *dst = (UA_UInt32*)_dst;
     UA_CHECK(ctx->pos + sizeof(u32) <= ctx->end,
              return UA_STATUSCODE_BADDECODINGERROR);
 #if UA_BINARY_OVERLAYABLE_INTEGER
@@ -10827,6 +11021,7 @@ FUNC_DECODE_BINARY(UInt32) {
 
 /* UInt64 */
 FUNC_ENCODE_BINARY(UInt64) {
+    const UA_UInt64 *src = (const UA_UInt64*)_src;
     IF_CHECK_BUFSIZE(ctx->pos + sizeof(u64) <= ctx->end) {
 #if UA_BINARY_OVERLAYABLE_INTEGER
         memcpy(ctx->pos, src, sizeof(u64));
@@ -10839,6 +11034,7 @@ FUNC_ENCODE_BINARY(UInt64) {
 }
 
 FUNC_DECODE_BINARY(UInt64) {
+    UA_UInt64 *dst = (UA_UInt64*)_dst;
     UA_CHECK(ctx->pos + sizeof(u64) <= ctx->end,
              return UA_STATUSCODE_BADDECODINGERROR);
 #if UA_BINARY_OVERLAYABLE_INTEGER
@@ -10907,6 +11103,7 @@ unpack754(uint64_t i, unsigned bits, unsigned expbits) {
 #define FLOAT_NEG_ZERO 0x80000000
 
 FUNC_ENCODE_BINARY(Float) {
+    const UA_Float *src = (const UA_Float*)_src;
     UA_Float f = *src;
     u32 encoded;
     if(UA_UNLIKELY(f != f)) encoded = FLOAT_NAN; /* quit NAN */
@@ -10921,6 +11118,7 @@ FUNC_ENCODE_BINARY(Float) {
 }
 
 FUNC_DECODE_BINARY(Float) {
+    UA_Float *dst = (UA_Float*)_dst;
     u32 decoded;
     status ret = DECODE_DIRECT(&decoded, UInt32);
     UA_CHECK_STATUS(ret, return ret);
@@ -10947,6 +11145,7 @@ FUNC_DECODE_BINARY(Float) {
 #define DOUBLE_NEG_ZERO 0x8000000000000000L
 
 FUNC_ENCODE_BINARY(Double) {
+    const UA_Double *src = (const UA_Double*)_src;
     UA_Double d = *src;
     u64 encoded;
     /* cppcheck-suppress duplicateExpression */
@@ -10962,6 +11161,7 @@ FUNC_ENCODE_BINARY(Double) {
 }
 
 FUNC_DECODE_BINARY(Double) {
+    UA_Double *dst = (UA_Double*)_dst;
     u64 decoded;
     status ret = DECODE_DIRECT(&decoded, UInt64);
     UA_CHECK_STATUS(ret, return ret);
@@ -11077,7 +11277,8 @@ Array_decodeBinary(Ctx *ctx, void *UA_RESTRICT *UA_RESTRICT dst,
      * sizeof(UA_DataValue) == 80 and an empty DataValue is encoded with just
      * one byte. We use 128 as the smallest power of 2 larger than 80. */
     size_t length = (size_t)signed_length;
-    UA_CHECK(ctx->pos + ((type->memSize * length) / 128) <= ctx->end,
+    size_t remaining = (size_t)(ctx->end - ctx->pos);
+    UA_CHECK(length / 128 <= remaining / type->memSize,
              return UA_STATUSCODE_BADDECODINGERROR);
 
     /* Allocate memory */
@@ -11118,15 +11319,18 @@ Array_decodeBinary(Ctx *ctx, void *UA_RESTRICT *UA_RESTRICT dst,
 /*****************/
 
 FUNC_ENCODE_BINARY(String) {
+    const UA_String *src = (const UA_String*)_src;
     return Array_encodeBinary(ctx, src->data, src->length, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
 FUNC_DECODE_BINARY(String) {
+    UA_String *dst = (UA_String*)_dst;
     return Array_decodeBinary(ctx, (void**)&dst->data, &dst->length, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
 /* Guid */
 FUNC_ENCODE_BINARY(Guid) {
+    const UA_Guid *src = (const UA_Guid*)_src;
     status ret = UA_STATUSCODE_GOOD;
     ret |= ENCODE_DIRECT(&src->data1, UInt32);
     ret |= ENCODE_DIRECT(&src->data2, UInt16);
@@ -11139,6 +11343,7 @@ FUNC_ENCODE_BINARY(Guid) {
 }
 
 FUNC_DECODE_BINARY(Guid) {
+    UA_Guid *dst = (UA_Guid*)_dst;
     status ret = UA_STATUSCODE_GOOD;
     ret |= DECODE_DIRECT(&dst->data1, UInt32);
     ret |= DECODE_DIRECT(&dst->data2, UInt16);
@@ -11221,10 +11426,12 @@ NodeId_encodeBinaryWithEncodingMask(Ctx *ctx, UA_NodeId const *src, u8 encoding)
 }
 
 FUNC_ENCODE_BINARY(NodeId) {
+    const UA_NodeId *src = (const UA_NodeId*)_src;
     return NodeId_encodeBinaryWithEncodingMask(ctx, src, 0);
 }
 
 FUNC_DECODE_BINARY(NodeId) {
+    UA_NodeId *dst = (UA_NodeId*)_dst;
     u8 dstByte = 0, encodingByte = 0;
     u16 dstUInt16 = 0;
 
@@ -11287,6 +11494,8 @@ FUNC_DECODE_BINARY(NodeId) {
 
 /* ExpandedNodeId */
 FUNC_ENCODE_BINARY(ExpandedNodeId) {
+    const UA_ExpandedNodeId *src = (const UA_ExpandedNodeId*)_src;
+
     /* Set up the encoding mask */
     u8 encoding = 0;
     if((void*)src->namespaceUri.data > UA_EMPTY_ARRAY_SENTINEL)
@@ -11315,6 +11524,7 @@ FUNC_ENCODE_BINARY(ExpandedNodeId) {
 }
 
 FUNC_DECODE_BINARY(ExpandedNodeId) {
+    UA_ExpandedNodeId *dst = (UA_ExpandedNodeId*)_dst;
     /* Decode the encoding mask */
     UA_CHECK(ctx->pos + 1 <= ctx->end, return UA_STATUSCODE_BADDECODINGERROR);
     u8 encoding = *ctx->pos;
@@ -11345,6 +11555,7 @@ FUNC_DECODE_BINARY(ExpandedNodeId) {
 
 /* QualifiedName */
 FUNC_ENCODE_BINARY(QualifiedName) {
+    const UA_QualifiedName *src = (const UA_QualifiedName*)_src;
     status ret = ENCODE_DIRECT(&src->namespaceIndex, UInt16);
     /* Must check here so we can exchange the buffer in the string encoding */
     UA_CHECK_STATUS(ret, return ret);
@@ -11353,6 +11564,7 @@ FUNC_ENCODE_BINARY(QualifiedName) {
 }
 
 FUNC_DECODE_BINARY(QualifiedName) {
+    UA_QualifiedName *dst = (UA_QualifiedName*)_dst;
     status ret = DECODE_DIRECT(&dst->namespaceIndex, UInt16);
     ret |= DECODE_DIRECT(&dst->name, String);
     return ret;
@@ -11363,6 +11575,8 @@ FUNC_DECODE_BINARY(QualifiedName) {
 #define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT 0x02u
 
 FUNC_ENCODE_BINARY(LocalizedText) {
+    const UA_LocalizedText *src = (const UA_LocalizedText*)_src;
+
     /* Set up the encoding mask */
     u8 encoding = 0;
     if(src->locale.data)
@@ -11385,6 +11599,7 @@ FUNC_ENCODE_BINARY(LocalizedText) {
 }
 
 FUNC_DECODE_BINARY(LocalizedText) {
+    UA_LocalizedText *dst = (UA_LocalizedText*)_dst;
     /* Decode the encoding mask */
     u8 encoding = 0;
     status ret = DECODE_DIRECT(&encoding, Byte);
@@ -11433,6 +11648,7 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId) {
 
 /* ExtensionObject */
 FUNC_ENCODE_BINARY(ExtensionObject) {
+    const UA_ExtensionObject *src = (const UA_ExtensionObject*)_src;
     u8 encoding = (u8)src->encoding;
 
     /* No content or already encoded content. */
@@ -11523,6 +11739,7 @@ ExtensionObject_decodeBinaryContent(Ctx *ctx, UA_ExtensionObject *dst,
 }
 
 FUNC_DECODE_BINARY(ExtensionObject) {
+    UA_ExtensionObject *dst = (UA_ExtensionObject*)_dst;
     u8 encoding = 0;
     UA_NodeId binTypeId;
     UA_NodeId_init(&binTypeId);
@@ -11601,6 +11818,8 @@ enum UA_VARIANT_ENCODINGMASKTYPE {
 };
 
 FUNC_ENCODE_BINARY(Variant) {
+    const UA_Variant *src = (const UA_Variant*)_src;
+
     /* Quit early for the empty variant */
     u8 encoding = 0;
     if(!src->type)
@@ -11624,8 +11843,12 @@ FUNC_ENCODE_BINARY(Variant) {
         if(hasDimensions) {
             encoding |= (u8)UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
             size_t totalRequiredSize = 1;
-            for(size_t i = 0; i < src->arrayDimensionsSize; ++i)
+            for(size_t i = 0; i < src->arrayDimensionsSize; ++i) {
+                if(src->arrayDimensions[i] != 0 &&
+                   totalRequiredSize > SIZE_MAX / src->arrayDimensions[i])
+                    return UA_STATUSCODE_BADENCODINGERROR;
                 totalRequiredSize *= src->arrayDimensions[i];
+            }
             if(totalRequiredSize != src->arrayLength) return UA_STATUSCODE_BADENCODINGERROR;
         }
     }
@@ -11793,6 +12016,8 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(Ctx *ctx, void *UA_RESTRICT *UA_R
 
 /* The resulting variant always has the storagetype UA_VARIANT_DATA. */
 FUNC_DECODE_BINARY(Variant) {
+    UA_Variant *dst = (UA_Variant*)_dst;
+
     /* Decode the encoding byte */
     u8 encodingByte;
     status ret = DECODE_DIRECT(&encodingByte, Byte);
@@ -11850,6 +12075,8 @@ FUNC_DECODE_BINARY(Variant) {
             for(size_t i = 0; i < dst->arrayDimensionsSize; ++i) {
                 if(dst->arrayDimensions[i] == 0)
                     ret = UA_STATUSCODE_BADDECODINGERROR;
+                else if(totalSize > SIZE_MAX / dst->arrayDimensions[i])
+                    ret = UA_STATUSCODE_BADDECODINGERROR;
                 totalSize *= dst->arrayDimensions[i];
             }
             UA_CHECK(totalSize == dst->arrayLength, ret = UA_STATUSCODE_BADDECODINGERROR);
@@ -11862,6 +12089,8 @@ FUNC_DECODE_BINARY(Variant) {
 
 /* DataValue */
 FUNC_ENCODE_BINARY(DataValue) {
+    const UA_DataValue *src = (const UA_DataValue*)_src;
+
     /* Set up the encoding mask */
     u8 encodingMask = src->hasValue;
     encodingMask |= (u8)(src->hasStatus << 1u);
@@ -11898,6 +12127,8 @@ FUNC_ENCODE_BINARY(DataValue) {
 #define MAX_PICO_SECONDS 9999
 
 FUNC_DECODE_BINARY(DataValue) {
+    UA_DataValue *dst = (UA_DataValue*)_dst;
+
     /* Decode the encoding mask */
     u8 encodingMask;
     status ret = DECODE_DIRECT(&encodingMask, Byte);
@@ -11943,6 +12174,8 @@ FUNC_DECODE_BINARY(DataValue) {
 
 /* DiagnosticInfo */
 FUNC_ENCODE_BINARY(DiagnosticInfo) {
+    const UA_DiagnosticInfo *src = (const UA_DiagnosticInfo*)_src;
+
     /* Set up the encoding mask */
     u8 encodingMask = src->hasSymbolicId;
     encodingMask |= (u8)(src->hasNamespaceUri << 1u);
@@ -11990,6 +12223,8 @@ FUNC_ENCODE_BINARY(DiagnosticInfo) {
 }
 
 FUNC_DECODE_BINARY(DiagnosticInfo) {
+    UA_DiagnosticInfo *dst = (UA_DiagnosticInfo*)_dst;
+
     /* Decode the encoding mask */
     u8 encodingMask;
     status ret = DECODE_DIRECT(&encodingMask, Byte);
@@ -12043,7 +12278,8 @@ FUNC_DECODE_BINARY(DiagnosticInfo) {
 /********************/
 
 static status
-encodeBinaryStruct(Ctx *ctx, const void *src, const UA_DataType *type) {
+encodeBinaryStruct(Ctx *UA_RESTRICT ctx, const void *UA_RESTRICT src,
+                   const UA_DataType *type) {
     /* Check the recursion limit */
     UA_CHECK(ctx->depth <= UA_ENCODING_MAX_RECURSION,
              return UA_STATUSCODE_BADENCODINGERROR);
@@ -12078,7 +12314,9 @@ encodeBinaryStruct(Ctx *ctx, const void *src, const UA_DataType *type) {
 }
 
 static status
-encodeBinaryStructWithOptFields(Ctx *ctx, const void *src, const UA_DataType *type) {
+encodeBinaryStructWithOptFields(Ctx *UA_RESTRICT ctx,
+                                const void *UA_RESTRICT src,
+                                const UA_DataType *type) {
     /* Check the recursion limit */
     if(ctx->depth > UA_ENCODING_MAX_RECURSION)
         return UA_STATUSCODE_BADENCODINGERROR;
@@ -12156,7 +12394,8 @@ encodeBinaryStructWithOptFields(Ctx *ctx, const void *src, const UA_DataType *ty
 }
 
 static status
-encodeBinaryUnion(Ctx *ctx, const void *src, const UA_DataType *type) {
+encodeBinaryUnion(Ctx *UA_RESTRICT ctx, const void *UA_RESTRICT src,
+                  const UA_DataType *type) {
     /* Check the recursion limit */
     UA_CHECK(ctx->depth <= UA_ENCODING_MAX_RECURSION,
              return UA_STATUSCODE_BADENCODINGERROR);
@@ -12191,43 +12430,44 @@ encodeBinaryUnion(Ctx *ctx, const void *src, const UA_DataType *type) {
 }
 
 static status
-encodeBinaryNotImplemented(Ctx *ctx, const void *src, const UA_DataType *type) {
+encodeBinaryNotImplemented(Ctx *UA_RESTRICT ctx, const void *UA_RESTRICT src,
+                           const UA_DataType *type) {
     (void)src, (void)type, (void)ctx;
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
 const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS] = {
-    (encodeBinarySignature)Boolean_encodeBinary,
-    (encodeBinarySignature)Byte_encodeBinary, /* SByte */
-    (encodeBinarySignature)Byte_encodeBinary,
-    (encodeBinarySignature)UInt16_encodeBinary, /* Int16 */
-    (encodeBinarySignature)UInt16_encodeBinary,
-    (encodeBinarySignature)UInt32_encodeBinary, /* Int32 */
-    (encodeBinarySignature)UInt32_encodeBinary,
-    (encodeBinarySignature)UInt64_encodeBinary, /* Int64 */
-    (encodeBinarySignature)UInt64_encodeBinary,
-    (encodeBinarySignature)Float_encodeBinary,
-    (encodeBinarySignature)Double_encodeBinary,
-    (encodeBinarySignature)String_encodeBinary,
-    (encodeBinarySignature)UInt64_encodeBinary, /* DateTime */
-    (encodeBinarySignature)Guid_encodeBinary,
-    (encodeBinarySignature)String_encodeBinary, /* ByteString */
-    (encodeBinarySignature)String_encodeBinary, /* XmlElement */
-    (encodeBinarySignature)NodeId_encodeBinary,
-    (encodeBinarySignature)ExpandedNodeId_encodeBinary,
-    (encodeBinarySignature)UInt32_encodeBinary, /* StatusCode */
-    (encodeBinarySignature)QualifiedName_encodeBinary,
-    (encodeBinarySignature)LocalizedText_encodeBinary,
-    (encodeBinarySignature)ExtensionObject_encodeBinary,
-    (encodeBinarySignature)DataValue_encodeBinary,
-    (encodeBinarySignature)Variant_encodeBinary,
-    (encodeBinarySignature)DiagnosticInfo_encodeBinary,
-    (encodeBinarySignature)encodeBinaryNotImplemented, /* Decimal */
-    (encodeBinarySignature)UInt32_encodeBinary, /* Enumeration */
-    (encodeBinarySignature)encodeBinaryStruct,
-    (encodeBinarySignature)encodeBinaryStructWithOptFields, /* Structure with Optional Fields */
-    (encodeBinarySignature)encodeBinaryUnion, /* Union */
-    (encodeBinarySignature)encodeBinaryStruct /* BitfieldCluster */
+    Boolean_encodeBinary,
+    Byte_encodeBinary, /* SByte */
+    Byte_encodeBinary,
+    UInt16_encodeBinary, /* Int16 */
+    UInt16_encodeBinary,
+    UInt32_encodeBinary, /* Int32 */
+    UInt32_encodeBinary,
+    UInt64_encodeBinary, /* Int64 */
+    UInt64_encodeBinary,
+    Float_encodeBinary,
+    Double_encodeBinary,
+    String_encodeBinary,
+    UInt64_encodeBinary, /* DateTime */
+    Guid_encodeBinary,
+    String_encodeBinary, /* ByteString */
+    String_encodeBinary, /* XmlElement */
+    NodeId_encodeBinary,
+    ExpandedNodeId_encodeBinary,
+    UInt32_encodeBinary, /* StatusCode */
+    QualifiedName_encodeBinary,
+    LocalizedText_encodeBinary,
+    ExtensionObject_encodeBinary,
+    DataValue_encodeBinary,
+    Variant_encodeBinary,
+    DiagnosticInfo_encodeBinary,
+    encodeBinaryNotImplemented, /* Decimal */
+    UInt32_encodeBinary, /* Enumeration */
+    encodeBinaryStruct,
+    encodeBinaryStructWithOptFields, /* Structure with Optional Fields */
+    encodeBinaryUnion, /* Union */
+    encodeBinaryStruct /* BitfieldCluster */
 };
 
 status
@@ -12290,13 +12530,15 @@ UA_encodeBinary(const void *p, const UA_DataType *type,
 }
 
 static status
-decodeBinaryNotImplemented(Ctx *ctx, void *dst, const UA_DataType *type) {
+decodeBinaryNotImplemented(Ctx *UA_RESTRICT ctx, void *UA_RESTRICT dst,
+                           const UA_DataType *type) {
     (void)dst, (void)type, (void)ctx;
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
 static status
-decodeBinaryStructure(Ctx *ctx, void *dst, const UA_DataType *type) {
+decodeBinaryStructure(Ctx *UA_RESTRICT ctx, void *UA_RESTRICT dst,
+                      const UA_DataType *type) {
     /* Check the recursion limit */
     UA_CHECK(ctx->depth <= UA_ENCODING_MAX_RECURSION,
              return UA_STATUSCODE_BADENCODINGERROR);
@@ -12331,7 +12573,8 @@ decodeBinaryStructure(Ctx *ctx, void *dst, const UA_DataType *type) {
 }
 
 static status
-decodeBinaryStructureWithOptFields(Ctx *ctx, void *dst, const UA_DataType *type) {
+decodeBinaryStructureWithOptFields(Ctx *UA_RESTRICT ctx, void *UA_RESTRICT dst,
+                                   const UA_DataType *type) {
     /* Check the recursion limit */
     UA_CHECK(ctx->depth <= UA_ENCODING_MAX_RECURSION, return UA_STATUSCODE_BADENCODINGERROR);
     ctx->depth++;
@@ -12384,7 +12627,8 @@ decodeBinaryStructureWithOptFields(Ctx *ctx, void *dst, const UA_DataType *type)
 }
 
 static status
-decodeBinaryUnion(Ctx *ctx, void *UA_RESTRICT dst, const UA_DataType *type) {
+decodeBinaryUnion(Ctx *UA_RESTRICT ctx, void *UA_RESTRICT dst,
+                  const UA_DataType *type) {
     /* Check the recursion limit */
     UA_CHECK(ctx->depth <= UA_ENCODING_MAX_RECURSION,
              return UA_STATUSCODE_BADENCODINGERROR);
@@ -12421,37 +12665,37 @@ decodeBinaryUnion(Ctx *ctx, void *UA_RESTRICT dst, const UA_DataType *type) {
 }
 
 const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS] = {
-    (decodeBinarySignature)Boolean_decodeBinary,
-    (decodeBinarySignature)Byte_decodeBinary, /* SByte */
-    (decodeBinarySignature)Byte_decodeBinary,
-    (decodeBinarySignature)UInt16_decodeBinary, /* Int16 */
-    (decodeBinarySignature)UInt16_decodeBinary,
-    (decodeBinarySignature)UInt32_decodeBinary, /* Int32 */
-    (decodeBinarySignature)UInt32_decodeBinary,
-    (decodeBinarySignature)UInt64_decodeBinary, /* Int64 */
-    (decodeBinarySignature)UInt64_decodeBinary,
-    (decodeBinarySignature)Float_decodeBinary,
-    (decodeBinarySignature)Double_decodeBinary,
-    (decodeBinarySignature)String_decodeBinary,
-    (decodeBinarySignature)UInt64_decodeBinary, /* DateTime */
-    (decodeBinarySignature)Guid_decodeBinary,
-    (decodeBinarySignature)String_decodeBinary, /* ByteString */
-    (decodeBinarySignature)String_decodeBinary, /* XmlElement */
-    (decodeBinarySignature)NodeId_decodeBinary,
-    (decodeBinarySignature)ExpandedNodeId_decodeBinary,
-    (decodeBinarySignature)UInt32_decodeBinary, /* StatusCode */
-    (decodeBinarySignature)QualifiedName_decodeBinary,
-    (decodeBinarySignature)LocalizedText_decodeBinary,
-    (decodeBinarySignature)ExtensionObject_decodeBinary,
-    (decodeBinarySignature)DataValue_decodeBinary,
-    (decodeBinarySignature)Variant_decodeBinary,
-    (decodeBinarySignature)DiagnosticInfo_decodeBinary,
-    (decodeBinarySignature)decodeBinaryNotImplemented, /* Decimal */
-    (decodeBinarySignature)UInt32_decodeBinary, /* Enumeration */
-    (decodeBinarySignature)decodeBinaryStructure,
-    (decodeBinarySignature)decodeBinaryStructureWithOptFields, /* Structure with optional fields */
-    (decodeBinarySignature)decodeBinaryUnion, /* Union */
-    (decodeBinarySignature)decodeBinaryNotImplemented /* BitfieldCluster */
+    Boolean_decodeBinary,
+    Byte_decodeBinary, /* SByte */
+    Byte_decodeBinary,
+    UInt16_decodeBinary, /* Int16 */
+    UInt16_decodeBinary,
+    UInt32_decodeBinary, /* Int32 */
+    UInt32_decodeBinary,
+    UInt64_decodeBinary, /* Int64 */
+    UInt64_decodeBinary,
+    Float_decodeBinary,
+    Double_decodeBinary,
+    String_decodeBinary,
+    UInt64_decodeBinary, /* DateTime */
+    Guid_decodeBinary,
+    String_decodeBinary, /* ByteString */
+    String_decodeBinary, /* XmlElement */
+    NodeId_decodeBinary,
+    ExpandedNodeId_decodeBinary,
+    UInt32_decodeBinary, /* StatusCode */
+    QualifiedName_decodeBinary,
+    LocalizedText_decodeBinary,
+    ExtensionObject_decodeBinary,
+    DataValue_decodeBinary,
+    Variant_decodeBinary,
+    DiagnosticInfo_decodeBinary,
+    decodeBinaryNotImplemented, /* Decimal */
+    UInt32_decodeBinary, /* Enumeration */
+    decodeBinaryStructure,
+    decodeBinaryStructureWithOptFields, /* Structure with optional fields */
+    decodeBinaryUnion, /* Union */
+    decodeBinaryNotImplemented /* BitfieldCluster */
 };
 
 status
@@ -30305,25 +30549,25 @@ UA_TrustListDataType_contains(const UA_TrustListDataType *trustList,
     if(!trustList || !certificate)
         return false;
 
-    if(specifiedList == UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
+    if(specifiedList & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
         for(size_t i = 0; i < trustList->trustedCertificatesSize; i++) {
             if(UA_ByteString_equal(certificate, &trustList->trustedCertificates[i]))
                 return true;
         }
     }
-    if(specifiedList == UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
+    if(specifiedList & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
         for(size_t i = 0; i < trustList->trustedCrlsSize; i++) {
             if(UA_ByteString_equal(certificate, &trustList->trustedCrls[i]))
                 return true;
         }
     }
-    if(specifiedList == UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
+    if(specifiedList & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
         for(size_t i = 0; i < trustList->issuerCertificatesSize; i++) {
             if(UA_ByteString_equal(certificate, &trustList->issuerCertificates[i]))
                 return true;
         }
     }
-    if(specifiedList == UA_TRUSTLISTMASKS_ISSUERCRLS) {
+    if(specifiedList & UA_TRUSTLISTMASKS_ISSUERCRLS) {
         for(size_t i = 0; i < trustList->issuerCrlsSize; i++) {
             if(UA_ByteString_equal(certificate, &trustList->issuerCrls[i]))
                 return true;
@@ -30609,7 +30853,7 @@ UA_TrustListDataType_getSize(const UA_TrustListDataType *trustList) {
 
 /**** amalgamated original file "/src/util/ua_types_lex.c" ****/
 
-/* Generated by re2c 3.1 */
+/* Generated by re2c 4.5.1 */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -30631,6 +30875,8 @@ UA_TrustListDataType_getSize(const UA_TrustListDataType *trustList) {
  *
  * In order that users of the SDK don't need to install re2c, always commit a
  * recent ua_types_lex.c if changes are made to the lexer. */
+
+#define UA_MAXPATHLENGTH 128 /* Maximum relative path depth */
 
 #define YYCURSOR pos
 #define YYMARKER context.marker
@@ -30735,8 +30981,10 @@ parse_nodeid_body(UA_NodeId *id, const u8 *body, const u8 *end, UA_Escaping esc)
         id->identifierType = UA_NODEIDTYPE_BYTESTRING;
         id->identifier.byteString.data =
             UA_unbase64(str.data, str.length, &id->identifier.byteString.length);
-        if(!id->identifier.byteString.data && str.length > 0)
-            res = UA_STATUSCODE_BADDECODINGERROR;
+        if(!id->identifier.byteString.data) {
+            UA_assert(id->identifier.byteString.length == 0);
+            res = UA_STATUSCODE_BADDECODINGERROR; /* Returned on error by UA_unbase64 */
+        }
         break;
     default:
         res = UA_STATUSCODE_BADDECODINGERROR;
@@ -31286,6 +31534,10 @@ UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str) {
 
 static UA_StatusCode
 relativepath_addelem(UA_RelativePath *rp, UA_RelativePathElement *el) {
+    /* Check for unrealistic path lengths */
+    if(rp->elementsSize >= UA_MAXPATHLENGTH)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     /* Allocate memory */
     UA_RelativePathElement *newArray = (UA_RelativePathElement*)
         UA_realloc(rp->elements, sizeof(UA_RelativePathElement) * (rp->elementsSize + 1));
@@ -31560,10 +31812,11 @@ parse_relativepathElement(UA_RelativePath *rp, const u8 **ppos, const u8 *end,
 
     /* Add current to the rp */
     res |= relativepath_addelem(rp, &current);
+
+ out:
     if(res != UA_STATUSCODE_GOOD)
         UA_RelativePathElement_clear(&current);
 
- out:
     /* Return the status */
     *ppos = pos;
     *done |= (res != UA_STATUSCODE_GOOD);
@@ -32032,9 +32285,17 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
                             UA_ByteString *tokenData,
                             const UA_ByteString serverSessionNonce,
                             const UA_ByteString serverEphemeralPubKey) {
-    /* Extract some basic information from the SecurityPolicy */
+    /* Extract some basic information from the SecurityPolicy. AEAD policies
+     * (AES-GCM) expose a dedicated IV length (12 bytes) and append an
+     * authentication tag after the ciphertext; legacy CBC policies use the
+     * cipher block size as the IV length and have no tag. */
+    UA_Boolean aead = UA_SecurityPolicy_isAead(sp);
     size_t symKeyLen = sp->symEncryptionAlgorithm.getLocalKeyLength(sp, spContext);
-    size_t ivLen = sp->symEncryptionAlgorithm.getRemoteBlockSize(sp, spContext);
+    size_t ivLen = (aead && sp->symEncryptionAlgorithm.getLocalIvLength) ?
+        sp->symEncryptionAlgorithm.getLocalIvLength(sp, spContext) :
+        sp->symEncryptionAlgorithm.getRemoteBlockSize(sp, spContext);
+    size_t tagLen = aead ?
+        sp->symSignatureAlgorithm.getLocalSignatureSize(sp, spContext) : 0;
     size_t sigLen = sp->asymSignatureAlgorithm.getRemoteSignatureSize(sp, spContext);
     UA_assert(symKeyLen > 0 && ivLen > 0);
 
@@ -32077,25 +32338,37 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         return retval;
     }
 
-    /* Length of the encrypted content. If the InitializationVectorLength is
-     * less than 16 bytes, then 16 bytes are used instead. */
-    size_t encryptedLength =
-        UA_ByteString_calcSizeBinary(&secret.nonce) +
-        UA_ByteString_calcSizeBinary(&secret.secret) + 2; /* Incl padding length */
-    size_t paddingIvLen = ivLen;
-    if(paddingIvLen < 16)
-        paddingIvLen = 16;
-    size_t paddingLen = paddingIvLen - (encryptedLength % paddingIvLen);
-    encryptedLength += paddingLen;
+    /* Compute the padding. the alignment block is 16 bytes for AEAD (AES-GCM)
+     * and the IV/block size for CBC. The padding region is `paddingCount` bytes
+     * of value paddingCount, followed by a 2-byte padding-size field
+     * (PaddingSize | ExtraPaddingSize); those 2 bytes are included in the
+     * alignment. */
+    size_t blockSize = aead ? 16 : ivLen;
+    size_t baseLen = UA_ByteString_calcSizeBinary(&secret.nonce) +
+                     UA_ByteString_calcSizeBinary(&secret.secret);
+    size_t modLen = (baseLen + 2) % blockSize;
+    size_t paddingCount = (modLen == 0) ? 0 : (blockSize - modLen);
+    if(paddingCount + secret.secret.length < blockSize)
+        paddingCount += blockSize;
+    size_t encryptedLength = baseLen + paddingCount + 2;
 
     /* Compute the total length including the headers and the signature */
     size_t signatureLen = sp->asymSignatureAlgorithm.
         getLocalSignatureSize(sp, spContext);
     secret.keyDataLen = (UA_UInt16)
         UA_EccEncryptedSecret_getPolicyHeaderSize(&secret);
-    size_t totalLength = encryptedLength + secret.keyDataLen +
+    size_t totalLength = encryptedLength + tagLen + secret.keyDataLen +
         UA_EccEncryptedSecret_getCommonHeaderSize(&secret) + signatureLen;
-    secret.length = (UA_UInt32)totalLength;
+
+    /* The EncryptedSecret "Length" field is the number of bytes that FOLLOW the
+     * Length field, not the full serialized size. Subtract the common-header
+     * prefix (TypeId NodeId + EncodingByte + the Length field itself = 9
+     * bytes). */
+    size_t headerPrefix =
+        UA_calcSizeBinary(&secret.typeId, &UA_TYPES[UA_TYPES_NODEID], NULL) +
+        UA_calcSizeBinary(&secret.encodingMask, &UA_TYPES[UA_TYPES_BYTE], NULL) +
+        UA_calcSizeBinary(&secret.length, &UA_TYPES[UA_TYPES_UINT32], NULL);
+    secret.length = (UA_UInt32)(totalLength - headerPrefix);
 
     /* Compute the symmetric key to encrypt */
     UA_ByteString symEncKeyMaterial;
@@ -32153,21 +32426,32 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
     UA_Byte* payloadPos = bufPos;
     retval |= UA_ByteString_encodeBinary(&secret.nonce, &bufPos, bufEnd);
     retval |= UA_ByteString_encodeBinary(&secret.secret, &bufPos, bufEnd);
-    UA_Byte pad = paddingLen & 0xFF;
-    for(size_t i = 0; i < paddingLen; i++) {
+    UA_Byte pad = (UA_Byte)(paddingCount & 0xFF);
+    for(size_t i = 0; i < paddingCount; i++) {
         *bufPos = pad;
         bufPos++;
     }
-    UA_UInt16 paddingLen16 = (UA_UInt16)paddingLen;
-    retval |= UA_UInt16_encodeBinary(&paddingLen16, &bufPos, bufEnd);
+    /* 2-byte padding-size field: PaddingSize byte + ExtraPaddingSize byte.
+     * For paddingCount < 256 this equals the little-endian UInt16. */
+    UA_UInt16 paddingCount16 = (UA_UInt16)paddingCount;
+    retval |= UA_UInt16_encodeBinary(&paddingCount16, &bufPos, bufEnd);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_EccEncryptedSecretStruct_clear(&secret);
         UA_ByteString_clear(&output);
         return retval;
     }
 
-    /* Encrypt the payload part in-situ */
-    UA_ByteString payload = {(size_t)(bufPos - payloadPos), payloadPos};
+    /* Encrypt the payload region in-situ. For AEAD (AES-GCM) the GCM primitive
+     * writes the authentication tag into the last `tagLen` bytes of the buffer
+     * it is given, so the region passed in spans the plaintext plus the
+     * reserved tag bytes. The AAD is the EccEncryptedSecret header preceding
+     * the encrypted region, and the IV is used unmasked (tokenId / sequence
+     * number = 0). */
+    UA_ByteString payload = {(size_t)(bufPos - payloadPos) + tagLen, payloadPos};
+    if(aead) {
+        UA_ByteString aad = {(size_t)(payloadPos - output.data), output.data};
+        retval |= sp->setMessageSecurityParameters(sp, spContext, 0, 0, &aad);
+    }
     retval |= sp->symEncryptionAlgorithm.encrypt(sp, spContext, &payload);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(logger, channel,
@@ -32177,9 +32461,12 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         return retval;
     }
 
+    /* The authentication tag (if any) now occupies the next tagLen bytes;
+     * advance past it to the signature slot. */
+    bufPos += tagLen;
     UA_assert(bufPos + sigLen == bufEnd);
 
-    /* Compute the overall signature */
+    /* Compute the overall signature over everything except the signature. */
     UA_ByteString sigContent = {(size_t)(bufPos - output.data), output.data};
     UA_ByteString signature = {sigLen, bufPos};
     retval = sp->asymSignatureAlgorithm.sign(sp, spContext, &sigContent, &signature);
@@ -32205,7 +32492,7 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
                     UA_ByteString sessionServerNonce,
                     UA_EccEncryptedSecret *es) {
     /* ECC usage verified before calling into this function */
-    UA_assert(sp->policyType == UA_SECURITYPOLICYTYPE_ECC);
+    UA_assert(UA_SecurityPolicy_isEcc(sp));
 
     /* Define and initialize in case of clean-up */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -32233,9 +32520,25 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         goto cleanecc;
     }
 
+    /* The "Length" field counts the bytes following the Length field, so the
+     * end of the secret is (Length + the common-header prefix: TypeId NodeId +
+     * EncodingByte + Length field). Validate it and use it (instead of the
+     * whole ByteString size) for the payload/signature bounds. */
+    size_t headerPrefix =
+        UA_calcSizeBinary(&esd.typeId, &UA_TYPES[UA_TYPES_NODEID], NULL) +
+        UA_calcSizeBinary(&esd.encodingMask, &UA_TYPES[UA_TYPES_BYTE], NULL) +
+        UA_calcSizeBinary(&esd.length, &UA_TYPES[UA_TYPES_UINT32], NULL);
+    size_t endOfSecret = (size_t)esd.length + headerPrefix;
+    if(endOfSecret > es->length || endOfSecret <= offset) {
+        UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
+                             "Inconsistent Length field");
+        res = UA_STATUSCODE_BADDECODINGERROR;
+        goto cleanecc;
+    }
+
     /* Verify signature */
     size_t sigLen = sp->asymSignatureAlgorithm.getRemoteSignatureSize(sp, spContext);
-    size_t signedDataLen = es->length - sigLen;
+    size_t signedDataLen = endOfSecret - sigLen;
     UA_ByteString signedData = {signedDataLen, es->data};
     UA_ByteString signature = {sigLen, &es->data[signedDataLen]};
     res = sp->asymSignatureAlgorithm.verify(sp, spContext, &signedData, &signature);
@@ -32263,17 +32566,22 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
     }
 
     /* Check the payload length */
-    if(es->length <= offset + sigLen) {
+    if(endOfSecret <= offset + sigLen) {
         UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
                              "Inconstent payload / signature length");
         res = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         goto cleanecc;
     }
-    UA_ByteString payload = {es->length - offset - sigLen, es->data + offset};
+    UA_ByteString payload = {endOfSecret - offset - sigLen, es->data + offset};
 
-    /* Deriving (remote) symmetric encryption key to decrypt the payload */
+    /* Deriving (remote) symmetric encryption key to decrypt the payload.
+     * AEAD policies (AES-GCM) use a dedicated 12-byte IV length; legacy CBC
+     * uses the cipher block size. */
+    UA_Boolean aead = UA_SecurityPolicy_isAead(sp);
     size_t symKeyLen = sp->symEncryptionAlgorithm.getRemoteKeyLength(sp, spContext);
-    size_t ivLen = sp->symEncryptionAlgorithm.getRemoteBlockSize(sp, spContext);
+    size_t ivLen = (aead && sp->symEncryptionAlgorithm.getLocalIvLength) ?
+        sp->symEncryptionAlgorithm.getLocalIvLength(sp, spContext) :
+        sp->symEncryptionAlgorithm.getRemoteBlockSize(sp, spContext);
     res = UA_ByteString_allocBuffer(&symEncKeyMaterial, symKeyLen+ivLen);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanecc;
@@ -32309,6 +32617,20 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
                              "Failed to set IV/RemoteSymEncryptingKey");
         goto cleanecc;
+    }
+
+    /* For AEAD (AES-GCM), the AAD is the EccEncryptedSecret header that
+     * precedes the encrypted region and the IV is used unmasked (tokenId /
+     * sequence number = 0). The 16-byte tag at the end of the payload is
+     * verified (and stripped) by the decrypt. */
+    if(aead) {
+        UA_ByteString aad = {(size_t)(payload.data - es->data), es->data};
+        res = sp->setMessageSecurityParameters(sp, spContext, 0, 0, &aad);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
+                                 "Failed to set AEAD parameters");
+            goto cleanecc;
+        }
     }
 
     /* Decrypt payload (password) */
@@ -32541,8 +32863,11 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel, UA_SecurityPolicy 
     UA_CHECK_STATUS_ERROR(res, return res, sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                           "Could not create the certificate thumbprint");
 
-    /* Set the SecurityPolicy */
+    /* Set the SecurityPolicy and cache the URI-derived properties (the policy
+     * is fixed for the channel's lifetime). */
     channel->securityPolicy = sp;
+    channel->enhancedSecurity = UA_SecurityPolicy_isEnhancedSecurity(sp);
+    channel->legacySequenceNumbers = UA_SecurityPolicy_useLegacySequenceNumbers(sp);
 
     /* Set a temporary SecurityMode. The client sets the final SecurityMode
      * right after. The server only after fully decoding the OPN message in the
@@ -32587,6 +32912,7 @@ hideErrors(UA_TcpErrorMessage *const error) {
     case UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN:
     case UA_STATUSCODE_BADCERTIFICATEREVOKED:
     case UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED:
+    case UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED:
         error->error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         error->reason = UA_STRING_NULL;
         break;
@@ -32688,6 +33014,8 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
         sp->deleteChannelContext(sp, channel->channelContext);
         channel->securityPolicy = NULL;
         channel->channelContext = NULL;
+        channel->enhancedSecurity = false;     /* No policy => not enhanced */
+        channel->legacySequenceNumbers = true; /* No policy => legacy */
     }
 
     /* Remove remaining delayed callback */
@@ -32709,6 +33037,11 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
     UA_ByteString_clear(&channel->remoteCertificate);
     UA_ByteString_clear(&channel->localNonce);
     UA_ByteString_clear(&channel->remoteNonce);
+
+    /* Clean up the v1.05.07 SecureChannel elements */
+    UA_ByteString_clear(&channel->firstRequestSignature);
+    UA_ByteString_clear(&channel->currentIKM);
+    UA_ByteString_clear(&channel->channelThumbprint);
 
     /* Clean up endpointUrl and remoteAddress */
     UA_String_clear(&channel->endpointUrl);
@@ -32881,12 +33214,9 @@ encodeHeadersSym(UA_MessageContext *mc, size_t totalLength) {
     else
         header.messageTypeAndChunkType += UA_CHUNKTYPE_INTERMEDIATE;
 
-    /* Increase the sequence number in the channel */
-    channel->sendSequenceNumber++;
-
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = mc->requestId;
-    seqHeader.sequenceNumber = channel->sendSequenceNumber;
+    seqHeader.sequenceNumber = UA_SecureChannel_nextSequenceNumber(channel);
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_encodeBinaryInternal(&header, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
@@ -32929,7 +33259,7 @@ sendSymmetricChunk(UA_MessageContext *mc) {
 
     /* Add padding if the message is encrypted (not for AEAD policies) */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT &&
-       sp->policyType != UA_SECURITYPOLICYTYPE_ECC_AEAD)
+       !UA_SecurityPolicy_isAead(sp))
         padChunk(channel, &sp->symSignatureAlgorithm, &sp->symEncryptionAlgorithm,
                  &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_UNENCRYPTEDLENGTH],
                  &mc->buf_pos);
@@ -33118,11 +33448,39 @@ UA_SecureChannel_sendCLO(UA_SecureChannel *channel, UA_UInt32 requestId,
  * Section 6.7.2.4 of the standard. */
 #define UA_SEQUENCENUMBER_ROLLOVER 4294966271
 
+UA_UInt32
+UA_SecureChannel_nextSequenceNumber(UA_SecureChannel *channel) {
+    /* channel->sendSequenceNumber mirrors the reference-stack counter: a
+     * pre-increment value initialized to 0. The legacy scheme emits the
+     * counter (first = 1); the non-legacy scheme emits counter-1 (first = 0). */
+    UA_UInt64 next = (UA_UInt64)channel->sendSequenceNumber + 1;
+    if(channel->legacySequenceNumbers) {
+        /* Legacy rollover: the first number after the max is 1. */
+        if(next > UA_SEQUENCENUMBER_ROLLOVER)
+            next = 1;
+        channel->sendSequenceNumber = (UA_UInt32)next;
+        return channel->sendSequenceNumber;
+    }
+    /* Non-legacy: the counter wraps to 0 after UA_UINT32_MAX so the emitted
+     * value (counter - 1) covers the full UInt32 range and then restarts at 0. */
+    if(next > UA_UINT32_MAX)
+        next = 0;
+    channel->sendSequenceNumber = (UA_UInt32)next;
+    return (channel->sendSequenceNumber == 0) ?
+        UA_UINT32_MAX : (channel->sendSequenceNumber - 1);
+}
+
 #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 static UA_StatusCode
 processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
     if(sequenceNumber != channel->receiveSequenceNumber + 1) {
-        if(channel->receiveSequenceNumber + 1 <= UA_SEQUENCENUMBER_ROLLOVER ||
+        /* The non-legacy (ECC) rollover from UA_UINT32_MAX to 0 is already
+         * accepted by the check above (unsigned overflow makes
+         * receiveSequenceNumber + 1 == 0). Only the legacy "< 1024" rollover
+         * needs the special case below; non-legacy policies reject anything
+         * that is not the immediate successor. */
+        if(!channel->legacySequenceNumbers ||
+           channel->receiveSequenceNumber + 1 <= UA_SEQUENCENUMBER_ROLLOVER ||
            sequenceNumber >= 1024)
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         channel->receiveSequenceNumber = sequenceNumber - 1; /* Roll over */
@@ -33596,8 +33954,56 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     return sp->generateNonce(sp, channel->channelContext, &channel->localNonce);
 }
 
+/* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" — IKM chaining (enhanced
+ * policies only). The IKM is XORed with the new shared secret on each renewal;
+ * the accumulator is the curve's coordinate size (half the nonceLength, e.g. 32
+ * bytes for P-256). It is carried through sp->generateKey without changing that
+ * signature by prepending it to the `secret` ByteString: the backend's
+ * DeriveKeys helper detects the prepend (key1 longer than the ephemeral public
+ * key), XORs, and writes the chained IKM back into the slot. */
+#define IKM_PREPEND_LENGTH(channel) \
+    ((channel)->enhancedSecurity ? ((channel)->securityPolicy->nonceLength / 2) : 0)
+
+/* Allocate and fill the prepend buffer [currentIKM | nonce] when
+ * chaining is active; otherwise point *outInput at the original
+ * nonce. The caller frees *outCombined with UA_ByteString_clear. */
+static UA_StatusCode
+prepareKeyInput(UA_SecureChannel *channel, const UA_ByteString *nonce,
+                UA_ByteString *outInput, UA_ByteString *outCombined) {
+    size_t ikmLen = IKM_PREPEND_LENGTH(channel);
+    if(ikmLen == 0) {
+        *outInput = *nonce;
+        *outCombined = UA_BYTESTRING_NULL;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_StatusCode res =
+        UA_ByteString_allocBuffer(outCombined, ikmLen + nonce->length);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(channel->currentIKM.length == ikmLen)
+        memcpy(outCombined->data, channel->currentIKM.data, ikmLen);
+    else
+        memset(outCombined->data, 0, ikmLen);
+    memcpy(outCombined->data + ikmLen, nonce->data, nonce->length);
+    *outInput = *outCombined;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Pull the (possibly updated) IKM from the prepend slot and store
+ * it as channel->currentIKM. Called only by the local-keys pass;
+ * the remote-keys pass leaves the accumulator untouched. */
+static UA_StatusCode
+captureIKMSlot(UA_SecureChannel *channel, const UA_ByteString *combined) {
+    size_t ikmLen = IKM_PREPEND_LENGTH(channel);
+    if(ikmLen == 0)
+        return UA_STATUSCODE_GOOD;
+    UA_ByteString_clear(&channel->currentIKM);
+    UA_ByteString ikmSlot = {ikmLen, combined->data};
+    return UA_ByteString_copy(&ikmSlot, &channel->currentIKM);
+}
+
 UA_StatusCode
-UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
+UA_SecureChannel_generateLocalKeys(UA_SecureChannel *channel) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
     UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new local keys");
@@ -33625,8 +34031,27 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
     /* TODO: Signal that no ECC salt is generated. Find a clean solution for this.  */
     buf.data[0] = 0x00;
 
-    /* Generate key */
-    res = sp->generateKey(sp, cc, &channel->remoteNonce, &channel->localNonce, &buf);
+    /* Build the IKM-prefixed `secret` input (the helper detects
+     * the prepend via the length mismatch against the local
+     * ephemeral public key). The `seed` arg is passed unchanged —
+     * the helper uses it as the alternate ephemeral public key
+     * candidate and as part of the salt, so the prepend must not
+     * appear there. */
+    UA_ByteString secretInput, seedInput = channel->localNonce;
+    UA_ByteString secretCombined = UA_BYTESTRING_NULL;
+    res = prepareKeyInput(channel, &channel->remoteNonce,
+                         &secretInput, &secretCombined);
+    UA_CHECK_STATUS(res, goto error);
+
+    /* Generate key. The policy's wrapper detects the prepend (via the
+     * length mismatch in key1 vs the local ephemeral public key) and
+     * performs the IKM chaining, deriving against the *previous*
+     * accumulator (channel->currentIKM). The new accumulator is NOT
+     * promoted here: the local- and remote-keys passes of one OPN must
+     * both derive against the same previous accumulator, so the
+     * advance to IKM_n happens exactly once, in generateRemoteKeys
+     * (the last of the two passes). */
+    res = sp->generateKey(sp, cc, &secretInput, &seedInput, &buf);
     UA_CHECK_STATUS(res, goto error);
 
     /* Set the channel context */
@@ -33641,11 +34066,12 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
                              UA_StatusCode_name(res));
     }
     UA_ByteString_clear(&buf);
+    UA_ByteString_clear(&secretCombined);
     return res;
 }
 
 UA_StatusCode
-generateRemoteKeys(const UA_SecureChannel *channel) {
+generateRemoteKeys(UA_SecureChannel *channel) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
     UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new remote keys");
@@ -33673,9 +34099,34 @@ generateRemoteKeys(const UA_SecureChannel *channel) {
     /* TODO: Signal that no ECC salt is generated. Find a clean solution for this.  */
     buf.data[0] = 0x00;
 
-    /* Generate key */
-    res = sp->generateKey(sp, cc, &channel->localNonce, &channel->remoteNonce, &buf);
+    /* Build the IKM-prefixed `secret` input. Both the local- and
+     * remote-keys passes of one OPN derive against the *same* previous
+     * accumulator (channel->currentIKM); generateLocalKeys deliberately
+     * did not advance it. The `seed` arg is passed unchanged — the
+     * helper uses it as the alternate ephemeral public key candidate
+     * and as part of the salt, so the prepend must not appear there. */
+    UA_ByteString secretInput, seedInput = channel->remoteNonce;
+    UA_ByteString secretCombined = UA_BYTESTRING_NULL;
+    res = prepareKeyInput(channel, &channel->localNonce,
+                         &secretInput, &secretCombined);
     UA_CHECK_STATUS(res, goto error);
+
+    /* Generate key. The policy's wrapper XORs the previous accumulator
+     * with the new shared secret and writes the result (IKM_n) back
+     * into secretCombined. */
+    res = sp->generateKey(sp, cc, &secretInput, &seedInput, &buf);
+    UA_CHECK_STATUS(res, goto error);
+
+    /* This is the last derivation of the OPN: promote the just-updated
+     * IKM slot into channel->currentIKM so the next renewal chains from
+     * IKM_n. (On the first OPN currentIKM was empty, so IKM_0 == the raw
+     * shared secret for both passes — matching the spec's "no chaining
+     * on the first OpenSecureChannel".) */
+    res = captureIKMSlot(channel, &secretCombined);
+    if(res != UA_STATUSCODE_GOOD) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto error;
+    }
 
     /* Set the channel context */
     res |= sp->setRemoteSymSigningKey(sp, cc, &remoteSigningKey);
@@ -33689,7 +34140,145 @@ generateRemoteKeys(const UA_SecureChannel *channel) {
                                UA_StatusCode_name(res));
     }
     UA_ByteString_clear(&buf);
+    UA_ByteString_clear(&secretCombined);
     return res;
+}
+
+/* v1.05.07 channel-bound SignatureData (SecureChannelEnhancements): the
+ * CreateSession / ActivateSession signatures are bound to the SecureChannel by
+ * prepending the ChannelThumbprint and including certificate hashes (not the
+ * raw certs). */
+
+/* The certificate hash is provided by the crypto backend via the global
+ * UA_SecurityPolicy_hashCertificate (the algorithm is derived from the policy
+ * URI). Wrapped here so this file links without a crypto backend - the
+ * builders below are only reached at runtime for enhanced-security policies,
+ * which only exist when encryption is enabled. */
+#ifdef UA_ENABLE_ENCRYPTION
+static UA_StatusCode
+hashCert(const UA_SecurityPolicy *sp, const UA_ByteString *cert,
+         UA_ByteString *hash) {
+    return UA_SecurityPolicy_hashCertificate(sp, cert, hash);
+}
+#else
+static UA_StatusCode
+hashCert(const UA_SecurityPolicy *sp, const UA_ByteString *cert,
+         UA_ByteString *hash) {
+    (void)sp; (void)cert; (void)hash;
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+#endif
+
+/* Assemble a channel-bound SignatureData (OPC UA Part 6 v1.05.07,
+ * SecureChannelEnhancements). All three share the shape
+ *   channelThumbprint | nonceA | H(cert_0) .. H(cert_n-1) | nonceB
+ * and differ only in which certificate hashes appear and the nonce order:
+ *
+ *   CreateSession ServerSignature   (server signs, client verifies):
+ *     TP | clientNonce | H(serverChannelCert) | H(clientChannelCert) | serverNonce
+ *   ActivateSession ClientSignature (client signs, server verifies):
+ *     TP | serverNonce | H(serverAppCert) | H(serverChannelCert) |
+ *                        H(clientChannelCert) | clientNonce
+ *   ActivateSession user-token sig  (client signs w/ user key, server verifies):
+ *     TP | serverNonce | H(serverAppCert) | H(serverChannelCert) |
+ *                        H(clientAppCert) | H(clientChannelCert) | clientNonce
+ *
+ * H() = the policy's curve hash of the leaf DER. Both peers must produce the
+ * SAME bytes, so each side maps the logical certificate roles onto its own
+ * local vs. remote view (the certs are channel-scoped: app == channel cert in
+ * open62541, hence the duplicated hashes). The user/X.509-token certificate is
+ * NOT part of the signed data (it is conveyed and validated separately).
+ *
+ *   logical cert role      server passes               client passes
+ *   --------------------------------------------------------------------------
+ *   server App / Channel   sp->localCertificate        channel->remoteCertificate
+ *   client App / Channel   channel->remoteCertificate  sp->localCertificate
+ *
+ *   serverNonce = the session ServerNonce, clientNonce = the session
+ *   ClientNonce (the same value on both sides). */
+#define UA_MAX_SIGDATA_CERTS 4
+static UA_StatusCode
+buildChannelBoundSignatureData(const UA_SecureChannel *channel,
+                               const UA_ByteString *firstNonce,
+                               const UA_ByteString *const *certs, size_t certCount,
+                               const UA_ByteString *lastNonce, UA_ByteString *out) {
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(!sp || !channel->enhancedSecurity || certCount > UA_MAX_SIGDATA_CERTS ||
+       channel->channelThumbprint.length == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Hash the certificates. The inputs may be DER chains (e.g. the OPN
+     * SenderCertificate stored in remoteCertificate), so hash only the leaf -
+     * independent of how a given crypto backend's hashCert handles a chain. */
+    UA_ByteString hashes[UA_MAX_SIGDATA_CERTS];
+    for(size_t i = 0; i < UA_MAX_SIGDATA_CERTS; i++)
+        hashes[i] = UA_BYTESTRING_NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    size_t hashesLen = 0;
+    for(size_t i = 0; i < certCount && res == UA_STATUSCODE_GOOD; i++) {
+        UA_ByteString leaf = getLeafCertificate(*certs[i]);
+        res = hashCert(sp, &leaf, &hashes[i]);
+        hashesLen += hashes[i].length;
+    }
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    /* channelThumbprint | firstNonce | hashes | lastNonce */
+    const UA_ByteString *tp = &channel->channelThumbprint;
+    res = UA_ByteString_allocBuffer(out, tp->length + firstNonce->length +
+                                    hashesLen + lastNonce->length);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    size_t o = 0;
+    memcpy(out->data + o, tp->data, tp->length); o += tp->length;
+    memcpy(out->data + o, firstNonce->data, firstNonce->length); o += firstNonce->length;
+    for(size_t i = 0; i < certCount; i++) {
+        memcpy(out->data + o, hashes[i].data, hashes[i].length);
+        o += hashes[i].length;
+    }
+    memcpy(out->data + o, lastNonce->data, lastNonce->length);
+
+ cleanup:
+    for(size_t i = 0; i < certCount; i++)
+        UA_ByteString_clear(&hashes[i]);
+    return res;
+}
+
+/* CreateSession ServerSignature (see the layout table above). */
+UA_StatusCode
+UA_SecureChannel_buildCreateSessionSignatureData(
+    const UA_SecureChannel *channel, const UA_ByteString *clientNonce,
+    const UA_ByteString *serverNonce, const UA_ByteString *serverChannelCert,
+    const UA_ByteString *clientChannelCert, UA_ByteString *out) {
+    const UA_ByteString *certs[] = {serverChannelCert, clientChannelCert};
+    return buildChannelBoundSignatureData(channel, clientNonce, certs, 2,
+                                          serverNonce, out);
+}
+
+/* ActivateSession ClientSignature (see the layout table above). */
+UA_StatusCode
+UA_SecureChannel_buildActivateSessionSignatureData(
+    const UA_SecureChannel *channel, const UA_ByteString *serverNonce,
+    const UA_ByteString *clientNonce, const UA_ByteString *serverAppCert,
+    const UA_ByteString *serverChannelCert, const UA_ByteString *clientChannelCert,
+    UA_ByteString *out) {
+    const UA_ByteString *certs[] = {serverAppCert, serverChannelCert, clientChannelCert};
+    return buildChannelBoundSignatureData(channel, serverNonce, certs, 3,
+                                          clientNonce, out);
+}
+
+/* ActivateSession X.509 user-token signature (see the layout table above). */
+UA_StatusCode
+UA_SecureChannel_buildUserTokenSignatureData(
+    const UA_SecureChannel *channel, const UA_ByteString *serverNonce,
+    const UA_ByteString *clientNonce, const UA_ByteString *serverAppCert,
+    const UA_ByteString *serverChannelCert, const UA_ByteString *clientAppCert,
+    const UA_ByteString *clientChannelCert, UA_ByteString *out) {
+    const UA_ByteString *certs[] = {serverAppCert, serverChannelCert,
+                                    clientAppCert, clientChannelCert};
+    return buildChannelBoundSignatureData(channel, serverNonce, certs, 4,
+                                          clientNonce, out);
 }
 
 /***************************/
@@ -33735,6 +34324,7 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
             getRemoteBlockSize(sp, cc);
 
         /* Padding always fills up the last block */
+        UA_assert(plainTextBlockSize > 0);
         UA_assert(dataToEncryptLength % plainTextBlockSize == 0);
         size_t blocks = dataToEncryptLength / plainTextBlockSize;
         *encryptedLength = totalLength + blocks * (encryptedBlockSize - plainTextBlockSize);
@@ -33765,12 +34355,9 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
                                   &header_pos, &buf_end, NULL, NULL, NULL);
     UA_CHECK_STATUS(res, return res);
 
-    /* Increase the sequence number in the channel */
-    channel->sendSequenceNumber++;
-
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = requestId;
-    seqHeader.sequenceNumber = channel->sendSequenceNumber;
+    seqHeader.sequenceNumber = UA_SecureChannel_nextSequenceNumber(channel);
     res = UA_encodeBinaryInternal(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
                                   &header_pos, &buf_end, NULL, NULL, NULL);
     return res;
@@ -33799,6 +34386,7 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
         sp->asymEncryptionAlgorithm.getRemoteBlockSize(sp, cc);
 
     size_t max_encrypted = (size_t)(*buf_end - *buf_start);
+    UA_assert(encryptedBlockSize > 0);
     size_t max_blocks = max_encrypted / encryptedBlockSize;
     size_t max_plaintext = max_blocks * plainTextBlockSize;
 
@@ -33831,6 +34419,7 @@ padChunk(UA_SecureChannel *channel,
     UA_Boolean extraPadding = (ea->getRemoteKeyLength(sp, cc) > 2048);
     size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
 
+    UA_assert(plainTextBlockSize > 0);
     size_t lastBlock = ((bytesToWrite + signatureSize + paddingBytes) % plainTextBlockSize);
     size_t paddingLength = (lastBlock != 0) ? plainTextBlockSize - lastBlock : 0;
 
@@ -33868,13 +34457,64 @@ signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     void *cc = channel->channelContext;
 
-    /* Sign message */
-    const UA_ByteString dataToSign = {preSignLength, buf->data};
+    /* OPC UA Part 6 v1.05.07 §6.7.5 "ChannelThumbprint" (enhanced policies,
+     * FIRST OPN only — an empty channelThumbprint identifies the first OPN; NOT
+     * on renewals. The OPN response signature is extended with the first OPN
+     * request signature: the client (request side) stores its just-computed
+     * signature for the later response verify; the server (response side)
+     * appends the request signature captured by decryptAndVerifyChunk to the
+     * data being signed. */
+    UA_Boolean firstOPN = (channel->enhancedSecurity &&
+                           channel->channelThumbprint.length == 0);
+    UA_ByteString *appendSig = NULL;
+    if(firstOPN && channel->firstRequestSignature.length > 0)
+        appendSig = &channel->firstRequestSignature; /* server: extend signed data */
+
     size_t sigsize = sp->asymSignatureAlgorithm.getLocalSignatureSize(sp, cc);
+
+    /* Prepare the data to sign. If we need to append the request
+     * signature, build a contiguous buffer [body | requestSig] and sign
+     * that. Otherwise sign the body in-place. */
     UA_ByteString signature = {sigsize, buf->data + preSignLength};
-    UA_StatusCode retval = sp->asymSignatureAlgorithm.
-        sign(sp, cc, &dataToSign, &signature);
+    UA_StatusCode retval;
+
+    if(appendSig) {
+        size_t bodyLen = preSignLength;
+        size_t extLen = bodyLen + appendSig->length;
+        UA_Byte *ext = (UA_Byte*)UA_malloc(extLen);
+        if(!ext)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        memcpy(ext, buf->data, bodyLen);
+        memcpy(ext + bodyLen, appendSig->data, appendSig->length);
+        UA_ByteString dataToSignExt = {extLen, ext};
+        retval = sp->asymSignatureAlgorithm.sign(sp, cc, &dataToSignExt, &signature);
+        UA_free(ext);
+    } else {
+        const UA_ByteString dataToSign = {preSignLength, buf->data};
+        retval = sp->asymSignatureAlgorithm.sign(sp, cc, &dataToSign, &signature);
+        /* First-OPN client side: remember the just-computed request
+         * signature. The verify path on the client will use it to
+         * extend the response body. */
+        if(retval == UA_STATUSCODE_GOOD && firstOPN && signature.length > 0) {
+            UA_StatusCode clip =
+                UA_ByteString_copy(&signature, &channel->firstRequestSignature);
+            if(clip != UA_STATUSCODE_GOOD)
+                retval = clip;
+        }
+    }
+
     UA_CHECK_STATUS(retval, return retval);
+
+    /* Server, first OPN response (appendSig != NULL): the just-computed
+     * signature is the ChannelThumbprint - capture it (preserved across renewals
+     * to bind the session SignatureData) and release the consumed request
+     * signature. (The client stored its request signature above; that copy is
+     * released later by the OPN-response verify.) */
+    if(appendSig != NULL) {
+        UA_StatusCode tp = UA_ByteString_copy(&signature, &channel->channelThumbprint);
+        UA_CHECK_STATUS(tp, return tp);
+        UA_ByteString_clear(&channel->firstRequestSignature);
+    }
 
     /* Specification part 6, 6.7.4: The OpenSecureChannel Messages are
      * signed and encrypted if the SecurityMode is not None (even if the
@@ -33903,15 +34543,22 @@ signAndEncryptSym(UA_MessageContext *messageContext,
     /* For AEAD policies (ChaCha20-Poly1305), set the message security
      * parameters for nonce masking. Then let the encrypt callback handle
      * both authentication and encryption. */
-    if(sp->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD) {
+    if(UA_SecurityPolicy_isAead(sp)) {
         /* Set AEAD parameters: tokenId, previous seqNo, AAD */
         if(sp->setMessageSecurityParameters) {
             UA_ByteString aad;
             aad.data = messageContext->messageBuffer.data;
             aad.length = UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
                          UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH;
-            UA_UInt32 prevSeqNo = channel->sendSequenceNumber > 0 ?
-                (UA_UInt32)(channel->sendSequenceNumber - 1) : 0;
+            /* The AEAD nonce is masked with the PREVIOUS sequence number: the
+             * receiver masks with its receiveSequenceNumber, which is still the
+             * prior chunk's number at decrypt time (incremented only after
+             * decryption). sendSequenceNumber is the post-increment counter, so
+             * the value just emitted is (sendSequenceNumber - 1) and the
+             * previous one is (sendSequenceNumber - 2). ECC_AEAD always uses the
+             * non-legacy counter (first emitted number is 0). */
+            UA_UInt32 prevSeqNo = channel->sendSequenceNumber >= 2 ?
+                (UA_UInt32)(channel->sendSequenceNumber - 2) : 0;
             UA_StatusCode res = sp->setMessageSecurityParameters(
                 sp, cc, channel->securityToken.tokenId, prevSeqNo, &aad);
             UA_CHECK_STATUS(res, return res);
@@ -33983,7 +34630,7 @@ setBufPos(UA_MessageContext *mc) {
 
     /* For AEAD (ChaCha20-Poly1305): no padding, no block alignment.
      * Only reserve space for the authentication tag (signature size). */
-    if(sp->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD) {
+    if(UA_SecurityPolicy_isAead(sp)) {
         size_t sigsize =
             sp->symSignatureAlgorithm.getLocalSignatureSize(sp, cc);
         mc->buf_end -= sigsize;
@@ -34008,6 +34655,7 @@ setBufPos(UA_MessageContext *mc) {
 
     /* Leave enough space for the signature and padding */
     mc->buf_end -= sigsize;
+    UA_assert(plainBlockSize > 0);
     mc->buf_end -= mc->messageBuffer.length % plainBlockSize;
 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
@@ -34051,7 +34699,7 @@ decodePadding(const UA_SecureChannel *channel,
 /* Sets the payload to a pointer inside the chunk buffer. Returns the requestId
  * and the sequenceNumber */
 UA_StatusCode
-decryptAndVerifyChunk(const UA_SecureChannel *channel,
+decryptAndVerifyChunk(UA_SecureChannel *channel,
                       const UA_SecurityPolicySignatureAlgorithm *signatureAlgorithm,
                       const UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm,
                       UA_MessageType messageType, UA_ByteString *chunk,
@@ -34062,14 +34710,24 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
 
     /* AEAD path (ChaCha20-Poly1305): the decrypt callback handles both
      * decryption and authentication tag verification in one step. */
-    if(sp->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD &&
+    if(UA_SecurityPolicy_isAead(sp) &&
        messageType != UA_MESSAGETYPE_OPN) {
 
-        /* Set AEAD parameters before decrypt/verify */
+        /* Set AEAD parameters before decrypt/verify. The masked nonce is keyed
+         * on the TokenId of *this* message, which is taken from the chunk's
+         * symmetric SecurityHeader (right after the 12-byte channel header) and
+         * not from channel->securityToken: during a token rollover the peer may
+         * still secure messages with the old token (Part 4 §5.5.2) while the
+         * channel already holds the new token. Using the wrong TokenId here
+         * makes the AEAD tag verification fail. */
         if(sp->setMessageSecurityParameters) {
             UA_ByteString aad = {offset, chunk->data};
+            size_t tokenOffset = UA_SECURECHANNEL_CHANNELHEADER_LENGTH;
+            UA_UInt32 msgTokenId = channel->securityToken.tokenId;
+            if(offset >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH)
+                UA_UInt32_decodeBinary(chunk, &tokenOffset, &msgTokenId);
             res = sp->setMessageSecurityParameters(
-                sp, cc, channel->securityToken.tokenId,
+                sp, cc, msgTokenId,
                 channel->receiveSequenceNumber, &aad);
             UA_CHECK_STATUS(res, return res);
         }
@@ -34129,10 +34787,81 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
     UA_CHECK(sigsize < chunk->length, return UA_STATUSCODE_BADSECURITYCHECKSFAILED);
     const UA_ByteString content = {chunk->length - sigsize, chunk->data};
     const UA_ByteString sig = {sigsize, chunk->data + chunk->length - sigsize};
-    res = signatureAlgorithm->verify(sp, cc, &content, &sig);
+
+    /* OPC UA Part 6 v1.05.07 §6.7.5 "ChannelThumbprint" (only for the first
+     * OPN exchange and only for SecurityPolicies with
+     * secureChannelEnhancements = true). For the *first* OPN only:
+     *
+     *   Server side (verify an incoming OPN request): the request
+     *   signature is unknown to the server until it has been
+     *   verified. Capture the bytes now (BEFORE stripping) so the
+     *   sign path of the OPN response can append them.
+     *
+     *   Client side (verify the OPN response): the client's own
+     *   request signature was stored in firstRequestSignature when
+     *   the request was sent. Extend the verify content with it.
+     *
+     * For OPN *renewals* the firstRequestSignature is empty (it was
+     * cleared by the first exchange) and the normal v1.05.06 verify
+     * path is used. */
+    UA_ByteString verifyContent = content;
+    UA_Byte *extendedBuf = NULL;
+    UA_Boolean capturedIncoming = false;
+    /* First-OPN only (channelThumbprint empty). On renewals neither capture nor
+     * extend - the v1.05.06 verify path is used. */
+    UA_Boolean firstOPN = (channel->enhancedSecurity &&
+                           messageType == UA_MESSAGETYPE_OPN &&
+                           channel->channelThumbprint.length == 0);
+    if(firstOPN) {
+        if(channel->firstRequestSignature.length == 0) {
+            /* First-OPN, receiving side: capture the incoming signature.
+             * The sign path of the response will consume it. */
+            UA_StatusCode clip = UA_ByteString_copy(&sig, &channel->firstRequestSignature);
+            UA_CHECK_STATUS(clip, return clip);
+            capturedIncoming = true;
+        } else {
+            /* Verifying the OPN response: extend the content. */
+            extendedBuf = (UA_Byte*)UA_malloc(
+                content.length + channel->firstRequestSignature.length);
+            if(!extendedBuf) {
+                UA_ByteString_clear(&channel->firstRequestSignature);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            memcpy(extendedBuf, content.data, content.length);
+            memcpy(extendedBuf + content.length,
+                   channel->firstRequestSignature.data,
+                   channel->firstRequestSignature.length);
+            verifyContent.data = extendedBuf;
+            verifyContent.length =
+                content.length + channel->firstRequestSignature.length;
+        }
+    }
+
+    res = signatureAlgorithm->verify(sp, cc, &verifyContent, &sig);
+    UA_free(extendedBuf);
+
+    /* Single-use: if we just consumed the stored signature (client side
+     * verifying the response), clear it. If we just captured the
+     * incoming signature (server side verifying the request), keep
+     * it — the sign path of the response will use and then clear it. */
+    if(firstOPN && !capturedIncoming) {
+        UA_ByteString_clear(&channel->firstRequestSignature);
+    }
+
     UA_CHECK_STATUS(res, UA_LOG_WARNING_CHANNEL(sp->logger, channel,
                                                 "Could not verify the signature");
                     return res);
+
+    /* OPC UA Part 6 v1.05.07 ChannelThumbprint: on the client, the
+     * verified first-OPN *response* signature (sig) is the
+     * ChannelThumbprint. capturedIncoming is false only on the
+     * client response-verify path. Capture once, preserve across
+     * renewals; binds the session SignatureData to this channel. */
+    if(channel->enhancedSecurity && messageType == UA_MESSAGETYPE_OPN &&
+       !capturedIncoming && channel->channelThumbprint.length == 0) {
+        UA_StatusCode tp = UA_ByteString_copy(&sig, &channel->channelThumbprint);
+        UA_CHECK_STATUS(tp, return tp);
+    }
 
     /* Compute the padding if the payload is encrypted (not ECC policy) */
     size_t padSize = 0;
@@ -34280,7 +35009,7 @@ UA_SecureChannel_checkTimeout(UA_SecureChannel *channel, UA_DateTime nowMonotoni
 
 void UA_Session_init(UA_Session *session) {
     memset(session, 0, sizeof(UA_Session));
-    session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
+    TAILQ_INIT(&session->continuationPoints);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     SIMPLEQ_INIT(&session->responseQueue);
     TAILQ_INIT(&session->subscriptions);
@@ -34311,13 +35040,9 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_NodeId_clear(&session->sessionId);
     UA_String_clear(&session->sessionName);
     UA_ByteString_clear(&session->serverNonce);
-    struct ContinuationPoint *cp, *next = session->continuationPoints;
-    while((cp = next)) {
-        next = ContinuationPoint_clear(cp);
-        UA_free(cp);
-    }
-    session->continuationPoints = NULL;
-    session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
+    UA_ByteString_clear(&session->clientNonce);
+    ContinuationPointQueue_clear(&session->continuationPoints);
+    session->continuationPointsSize = 0;
 
     UA_KeyValueMap_clear(&session->attributes);
 
@@ -34402,10 +35127,11 @@ UA_Session_generateNonce(UA_Session *session) {
         spC = session->sessionSpContext;
     }
 
-    /* The nonce is at least 32 byte (force the #None SecurityPolicy) */
-    size_t nonceLength = sp->nonceLength;
-    if(nonceLength < 32)
-        nonceLength = 32;
+    /* The session ServerNonce is a 32-byte application nonce. This is
+     * independent of the SecurityPolicy's SecureChannel nonce length (for ECC
+     * policies that is the 64-byte ephemeral key, which is NOT the session
+     * nonce). */
+    size_t nonceLength = 32;
 
     /* Is the length of the previous nonce correct? */
     if(session->serverNonce.length != nonceLength) {
@@ -34416,6 +35142,9 @@ UA_Session_generateNonce(UA_Session *session) {
             return res;
     }
 
+    /* Generate plain random data. Ensure data[0] is not the 'e' of the "eph"
+     * trigger that some ECC policies use to produce an ephemeral key. */
+    session->serverNonce.data[0] = 0;
     return sp->generateNonce(sp, spC, &session->serverNonce);
 }
 
@@ -34569,6 +35298,8 @@ UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                               const UA_QualifiedName key, const UA_Variant *value) {
     if(protectedAttribute(key))
         return UA_STATUSCODE_BADNOTWRITABLE;
+    if(!sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
     UA_Session *session = getSessionById(server, sessionId);
     UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
@@ -34583,6 +35314,8 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                                  const UA_QualifiedName key) {
     if(protectedAttribute(key))
         return UA_STATUSCODE_BADNOTWRITABLE;
+    if(!sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
     UA_Session *session = getSessionById(server, sessionId);
     if(!session) {
@@ -34600,6 +35333,8 @@ getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                     UA_Boolean copy) {
     if(!outValue)
         return UA_STATUSCODE_BADINTERNALERROR;
+    if(!sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_Session *session = getSessionById(server, sessionId);
     if(!session)
@@ -36474,8 +37209,8 @@ UA_Server_init(UA_Server *server) {
 #endif
 
     /* Initialize namespace 0 */
-#ifdef UA_GENERATED_NAMESPACE_ZERO
-    /* Standard configuration: generate NS0 nodes at runtime */
+#if defined(UA_GENERATED_NAMESPACE_ZERO) || defined(UA_NAMESPACE_ZERO_MINIMAL)
+    /* Generate NS0 nodes at runtime or create the minimal NS0 */
     res = initNS0(server);
 #else
     /* NONE configuration: NS0 pre-loaded by external nodestore (e.g., ROM).
@@ -38514,15 +39249,17 @@ configureNS0(UA_Server *server) {
 #endif
 
     /* ServerConfiguration - MulticastDnsEnabled */
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_MULTICASTDNSENABLED,
                                &server->config.mdnsEnabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
-#elif defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
+#else
     {
         UA_Boolean mdnsEnabled = false;
         retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_MULTICASTDNSENABLED,
                                    &mdnsEnabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
     }
+#endif
 #endif
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
@@ -39671,6 +40408,8 @@ checkSessionActive(UA_Server *server, void *data) {
         removingCallback = false;
 
         UA_CertificateGroup *certGroup = getCertGroup(server, &fileInfoContext->certificateGroupId);
+        if(!certGroup)
+            continue;
 
         UA_FileContext *fileContext, *fileContextTmp;
         LIST_FOREACH_SAFE(fileContext, &fileInfo.fileContext, listEntry, fileContextTmp) {
@@ -40244,6 +40983,8 @@ readTrustList(UA_Server *server,
 
     UA_UInt32 fileHandle = *(UA_UInt32*)input[0].data;
     UA_Int32 length = *(UA_Int32*)input[1].data;
+    if(length < 0)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
     if(!certGroup)
@@ -40766,6 +41507,9 @@ openFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
@@ -40797,6 +41541,9 @@ readFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
@@ -40828,6 +41575,9 @@ writeFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
@@ -40859,6 +41609,9 @@ closeFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
@@ -40890,6 +41643,9 @@ getPositionFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
@@ -40921,6 +41677,9 @@ setPositionFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
     const UA_Node *objectType =
         getNodeType(server, &object->head, ~(UA_UInt32)0,
                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
@@ -41444,11 +42203,15 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
     /* Clean up the SecureChannel. This is the only place where
      * UA_SecureChannel_clear must be called within the server code-base.
      *
-     * First detach all Sessions from the SecureChannel. This also removes
-     * outstanding Publish requests whose RequestId is valid only for the
-     * SecureChannel. */
-    while(channel->sessions)
-        UA_Session_detachFromSecureChannel(server, channel->sessions);
+     * Activated sessions are detached so they can be re-activated on a new
+     * channel. Non-activated sessions are deleted (Part 4, §5.6.3). */
+    while(channel->sessions) {
+        UA_Session *session = channel->sessions;
+        if(!session->activated)
+            UA_Session_remove(server, session, UA_SHUTDOWNREASON_PURGE);
+        else
+            UA_Session_detachFromSecureChannel(server, session);
+    }
 
     /* Detach the channel from the server list */
     TAILQ_REMOVE(&server->channels, channel, serverEntry);
@@ -41942,26 +42705,39 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     connConfig.localMaxChunkCount = config->tcpMaxChunks;
     connConfig.remoteMaxChunkCount = config->tcpMaxChunks;
 
-    /* Set 64kB buffer size if not configured */
-    if(connConfig.recvBufferSize == 0)
-        connConfig.recvBufferSize = 1 << 16; /* 64kB */
-    if(connConfig.sendBufferSize == 0)
-        connConfig.sendBufferSize = 1 << 16; /* 64kB */
-
     /* Further constrain the bufsize if the ConnectionManager has static rx/tx
-     * buffers configured */
+     * buffers configured. Also applies when tcpBufSize is unset (0), so that
+     * chunks always fit into the static buffers. Never constrain below 8192
+     * bytes: the transport buffer must be at least that size to fit a single
+     * MessageChunk (OPC UA Part 6 v1.05.07 §6.7.1 and §6.7.2.4). */
     const UA_UInt32 *bufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&cm->eventSource.params,
                                  UA_QUALIFIEDNAME(0, "recv-bufsize"),
                                  &UA_TYPES[UA_TYPES_UINT32]);
-    if(bufSize && *bufSize < connConfig.recvBufferSize)
+    if(bufSize && *bufSize >= 8192 &&
+       (connConfig.recvBufferSize == 0 || *bufSize < connConfig.recvBufferSize))
         connConfig.recvBufferSize = *bufSize;
     bufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&cm->eventSource.params,
                                  UA_QUALIFIEDNAME(0, "send-bufsize"),
                                  &UA_TYPES[UA_TYPES_UINT32]);
-    if(bufSize && *bufSize < connConfig.sendBufferSize)
+    if(bufSize && *bufSize >= 8192 &&
+       (connConfig.sendBufferSize == 0 || *bufSize < connConfig.sendBufferSize))
         connConfig.sendBufferSize = *bufSize;
+
+    /* Set upper bounds if not configured */
+    if(connConfig.recvBufferSize == 0)
+        connConfig.recvBufferSize = 1 << 16; /* 64kB */
+    if(connConfig.sendBufferSize == 0)
+        connConfig.sendBufferSize = 1 << 16; /* 64kB */
+    if(connConfig.localMaxMessageSize == 0)
+        connConfig.localMaxMessageSize = 1 << 29; /* 512 MB */
+    if(connConfig.remoteMaxMessageSize == 0)
+        connConfig.remoteMaxMessageSize = 1 << 29; /* 512 MB */
+    if(connConfig.localMaxChunkCount == 0)
+        connConfig.localMaxChunkCount = 1 << 14; /* 16384 */
+    if(connConfig.remoteMaxChunkCount == 0)
+        connConfig.remoteMaxChunkCount = 1 << 14; /* 16384 */
 
     /* Set up the new SecureChannel */
     UA_SecureChannel_init(channel);
@@ -42036,7 +42812,16 @@ addDiscoveryUrl(UA_Server *server, const UA_String hostname, UA_UInt16 port) {
     }
 }
 
-/* Callback of a TCP socket (server socket or an active connection) */
+/* Callback of a TCP socket (server socket or an active connection).
+ *
+ * The connectionContext points to one of two possible structures. A
+ * double-pointer is used here, so we get re-assign the context to a different
+ * memory location within the callback.
+ *
+ * - The server socket (listening) has an initial NULL context and then gets
+ *   assigned to the appropriate UA_ServerConnection slot.
+ * - The connection socket (active) initially points to the UA_ServerConnection
+ *   slot and then gets assigned to the new SecureChannel instance. */
 static void
 serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
                             void *application, void **connectionContext,
@@ -42087,6 +42872,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
+    /* Either sc or channel applies. See the comment before this function. */
     UA_ServerConnection *sc = (UA_ServerConnection*)*connectionContext;
     UA_SecureChannel *channel = (UA_SecureChannel*)*connectionContext;
     UA_Boolean serverSocket = (sc >= bpm->serverConnections &&
@@ -43351,8 +44137,31 @@ const UA_ViewAttributes UA_ViewAttributes_default = {
  *
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
  *    Copyright 2019, 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
+
+/* The layout of the results array is is:
+ * [results-array] | padding | UA_AsyncResponse | padding | [UA_AsyncOperation]
+ *
+ * We need to take care about memory alignment (padding). */
+static void *
+allocateResultsArray(const UA_DataType *resultsType, size_t resultsLen,
+                     UA_AsyncResponse **resp, UA_AsyncOperation **ops) {
+    uintptr_t align = sizeof(size_t);
+    size_t arrEnd = resultsType->memSize * resultsLen;
+    uintptr_t responseBegin = (arrEnd + align - 1) & ~(align - 1);
+    uintptr_t responseEnd = responseBegin + sizeof(UA_AsyncResponse);
+    uintptr_t opsBegin = (responseEnd + align - 1) & ~(align - 1);
+    uintptr_t opsEnd =  opsBegin + (sizeof(UA_AsyncOperation) * resultsLen);
+    void *arr = UA_calloc(1, opsEnd);
+    if(!arr)
+        return NULL;
+    uintptr_t arrMem = (uintptr_t)arr;
+    *resp = (UA_AsyncResponse*)(arrMem + responseBegin);
+    *ops = (UA_AsyncOperation*)(arrMem + opsBegin);
+    return arr;
+}
 
 /* Cancel the operation, but don't _clear it here */
 static void
@@ -43899,13 +44708,12 @@ Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *reque
         return true;
     }
 
-    /* Allocate the response array. The AsyncResponse and AsyncOperations are
-     * added to the back. So they get cleaned up automatically if none of the
-     * calls are async. */
-    size_t opsLen = sizeof(UA_DataValue) * request->nodesToReadSize;
-    size_t len = opsLen + sizeof(UA_AsyncResponse) +
-        (sizeof(UA_AsyncOperation) * request->nodesToReadSize);
-    response->results = (UA_DataValue*)UA_calloc(1, len);
+    /* Allocate the results array */
+    UA_AsyncResponse *ar = NULL;
+    UA_AsyncOperation *aopArray = NULL;
+    response->results = (UA_DataValue*)
+        allocateResultsArray(&UA_TYPES[UA_TYPES_DATAVALUE],
+                             request->nodesToReadSize, &ar, &aopArray);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return true;
@@ -43913,8 +44721,6 @@ Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *reque
     response->resultsSize = request->nodesToReadSize;
 
     /* Execute the operations */
-    UA_AsyncResponse *ar = (UA_AsyncResponse*)&response->results[response->resultsSize];
-    UA_AsyncOperation *aopArray = (UA_AsyncOperation*)&ar[1];
     for(size_t i = 0; i < request->nodesToReadSize; i++) {
         UA_Boolean done = Operation_Read(server, session, request->timestampsToReturn,
                                          &request->nodesToRead[i], &response->results[i]);
@@ -43942,6 +44748,13 @@ read_async(UA_Server *server, UA_Session *session, const UA_ReadValueId *operati
     UA_AsyncOperation *op = (UA_AsyncOperation*)UA_calloc(1, sizeof(UA_AsyncOperation));
     if(!op)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_AsyncManager *am = &server->asyncManager;
+    if(server->config.maxAsyncOperationQueueSize != 0 &&
+       am->opsCount >= server->config.maxAsyncOperationQueueSize) {
+        UA_free(op);
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    }
 
     UA_DateTime timeoutDate = UA_INT64_MAX;
     if(timeout > 0) {
@@ -44011,13 +44824,12 @@ Service_Write(UA_Server *server, UA_Session *session,
         return true;
     }
 
-    /* Allocate the response array. The AsyncResponse and AsyncOperations are
-     * added to the back. So they get cleaned up automatically if none of the
-     * calls are async. */
-    size_t opsLen = sizeof(UA_StatusCode) * request->nodesToWriteSize;
-    size_t len = opsLen + sizeof(UA_AsyncResponse) +
-        (sizeof(UA_AsyncOperation) * request->nodesToWriteSize);
-    response->results = (UA_StatusCode*)UA_calloc(1, len);
+    /* Allocate the results array */
+    UA_AsyncResponse *ar = NULL;
+    UA_AsyncOperation *aopArray = NULL;
+    response->results = (UA_StatusCode*)
+        allocateResultsArray(&UA_TYPES[UA_TYPES_STATUSCODE],
+                             request->nodesToWriteSize, &ar, &aopArray);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return true;
@@ -44025,8 +44837,6 @@ Service_Write(UA_Server *server, UA_Session *session,
     response->resultsSize = request->nodesToWriteSize;
 
     /* Execute the operations */
-    UA_AsyncResponse *ar = (UA_AsyncResponse*)&response->results[response->resultsSize];
-    UA_AsyncOperation *aopArray = (UA_AsyncOperation*)&ar[1];
     for(size_t i = 0; i < request->nodesToWriteSize; i++) {
         /* Ensure a stable pointer for the writevalue. Doesn't get written to,
          * just used for the lookup of the async operation later on.
@@ -44058,6 +44868,13 @@ write_async(UA_Server *server, UA_Session *session, const UA_WriteValue *operati
     UA_AsyncOperation *op = (UA_AsyncOperation*)UA_calloc(1, sizeof(UA_AsyncOperation));
     if(!op)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_AsyncManager *am = &server->asyncManager;
+    if(server->config.maxAsyncOperationQueueSize != 0 &&
+       am->opsCount >= server->config.maxAsyncOperationQueueSize) {
+        UA_free(op);
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    }
 
     UA_DateTime timeoutDate = UA_INT64_MAX;
     if(timeout > 0) {
@@ -44134,13 +44951,12 @@ Service_Call(UA_Server *server, UA_Session *session,
         return true;
     }
 
-    /* Allocate the response array. The AsyncResponse and AsyncOperations are
-     * added to the back. So they get cleaned up automatically if none of the
-     * calls are async. */
-    size_t opsLen = sizeof(UA_CallMethodResult) * request->methodsToCallSize;
-    size_t len = opsLen + sizeof(UA_AsyncResponse) +
-        (sizeof(UA_AsyncOperation) * request->methodsToCallSize);
-    response->results = (UA_CallMethodResult*)UA_calloc(1, len);
+    /* Allocate the results array */
+    UA_AsyncResponse *ar = NULL;
+    UA_AsyncOperation *aopArray = NULL;
+    response->results = (UA_CallMethodResult*)
+        allocateResultsArray(&UA_TYPES[UA_TYPES_CALLMETHODRESULT],
+                             request->methodsToCallSize, &ar, &aopArray);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return true;
@@ -44148,8 +44964,6 @@ Service_Call(UA_Server *server, UA_Session *session,
     response->resultsSize = request->methodsToCallSize;
 
     /* Execute the operations */
-    UA_AsyncResponse *ar = (UA_AsyncResponse*)&response->results[response->resultsSize];
-    UA_AsyncOperation *aopArray = (UA_AsyncOperation*)&ar[1];
     for(size_t i = 0; i < request->methodsToCallSize; i++) {
         UA_Boolean done = Operation_CallMethod(server, session, &request->methodsToCall[i],
                                                &response->results[i]);
@@ -44177,6 +44991,13 @@ call_async(UA_Server *server, UA_Session *session, const UA_CallMethodRequest *o
     UA_AsyncOperation *op = (UA_AsyncOperation*)UA_calloc(1, sizeof(UA_AsyncOperation));
     if(!op)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_AsyncManager *am = &server->asyncManager;
+    if(server->config.maxAsyncOperationQueueSize != 0 &&
+       am->opsCount >= server->config.maxAsyncOperationQueueSize) {
+        UA_free(op);
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    }
 
     UA_DateTime timeoutDate = UA_INT64_MAX;
     if(timeout > 0) {
@@ -44217,15 +45038,18 @@ UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
     UA_AsyncManager *am = &server->asyncManager;
     UA_AsyncOperation *op = NULL;
     TAILQ_FOREACH(op, &am->waitingOps, pointers) {
-        if(op->output.call->outputArguments == output) {
-            op->output.call->statusCode = result;
-            processOperationResult(server, op);
-            break;
-        }
-        if(op->output.directCall.outputArguments == output) {
-            op->output.directCall.statusCode = result;
-            processOperationResult(server, op);
-            break;
+        if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_REQUEST) {
+            if(op->output.call->outputArguments == output) {
+                op->output.call->statusCode = result;
+                processOperationResult(server, op);
+                break;
+            }
+        } else if(op->asyncOperationType == UA_ASYNCOPERATIONTYPE_CALL_DIRECT) {
+            if(op->output.directCall.outputArguments == output) {
+                op->output.directCall.statusCode = result;
+                processOperationResult(server, op);
+                break;
+            }
         }
     }
     unlockServer(server);
@@ -45826,32 +46650,51 @@ UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
     if(!sub->session)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    /* For SamplingInterval == 0 and Value attribute, check if the node is a
+     * DataSource. DataSource nodes (e.g. internal diagnostic nodes) compute
+     * their value on-the-fly via a read callback. The backpointer-based
+     * sampling only triggers on OPC UA write, which never happens for
+     * DataSources. Fall through to normal sampling instead. */
+    UA_Boolean extValueSource = false;
+    if(mon->parameters.samplingInterval == 0.0 &&
+       mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_VALUE) {
+        const UA_Node *node = UA_NODESTORE_GET(server, &mon->itemToMonitor.nodeId);
+        if(node) {
+            if(node->head.nodeClass == UA_NODECLASS_VARIABLE)
+                extValueSource = VariableNode_externalDataSource(&node->variableNode);
+            UA_NODESTORE_RELEASE(server, node);
+        }
+    }
+
+    /* Add backpointer to the node for "event-based sampling" during write */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER ||
-       mon->parameters.samplingInterval == 0.0) {
+       (mon->parameters.samplingInterval == 0.0 && !extValueSource)) {
         /* Add to the linked list in the node */
         res = editNode(server, sub->session, &mon->itemToMonitor.nodeId, 0,
                        UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
                        addMonitoredItemBackpointer, mon);
         if(res == UA_STATUSCODE_GOOD)
             mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_EVENT;
-    } else if(mon->parameters.samplingInterval == sub->publishingInterval) {
+        return res;
+    }
+
+    /* Add backpointer to the subscription for sampling before every publish */
+    if(mon->parameters.samplingInterval == sub->publishingInterval) {
         /* Add to the subscription for sampling before every publish */
         LIST_INSERT_HEAD(&sub->samplingMonitoredItems, mon,
                          sampling.subscriptionSampling);
         mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_PUBLISH;
-    } else {
-        /* DataChange MonitoredItems with a positive sampling interval have a
-         * repeated callback. Other MonitoredItems are attached to the Node in a
-         * linked list of backpointers. */
-        res = addRepeatedCallback(server,
-                                  (UA_ServerCallback)UA_MonitoredItem_lockAndSample,
-                                  mon, mon->parameters.samplingInterval,
-                                  &mon->sampling.callbackId);
-        if(res == UA_STATUSCODE_GOOD)
-            mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_CYCLIC;
+        return res;
     }
 
+    /* Standard sampling with a repeated callback */
+    res = addRepeatedCallback(server,
+                              (UA_ServerCallback)UA_MonitoredItem_lockAndSample,
+                              mon, mon->parameters.samplingInterval,
+                              &mon->sampling.callbackId);
+    if(res == UA_STATUSCODE_GOOD)
+        mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_CYCLIC;
     return res;
 }
 
@@ -45969,12 +46812,38 @@ UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon, UA_UInt32 
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
-/* Detect value changes outside the deadband */
-#define UA_DETECT_DEADBAND(TYPE) do {                           \
-    TYPE v1 = *(const TYPE*)data1;                              \
-    TYPE v2 = *(const TYPE*)data2;                              \
-    TYPE diff = (v1 > v2) ? (TYPE)(v1 - v2) : (TYPE)(v2 - v1);  \
-    return ((UA_Double)diff > deadband);                        \
+/* Detect value changes outside the deadband.
+ *
+ * Integer types: compute the absolute difference in a wide unsigned type
+ * (UA_UInt64) first, then widen only the *difference* to UA_Double for the
+ * deadband comparison. This avoids both signed integer overflow (e.g.
+ * (UA_SByte)(100 - (-50)) wraps to -106 instead of 150) and the 2^53
+ * precision loss that comes from casting the operands to UA_Double before
+ * subtracting: two huge but close Int64/UInt64 values would each round to a
+ * nearby representable double and the subtraction would accumulate the
+ * rounding error. Computing the exact integer magnitude first keeps the
+ * difference exact (it fits in UA_Double's 53-bit mantissa for any realistic
+ * deadband), so only the (usually small) delta is widened. The (UA_UInt64)
+ * cast of a negative signed value yields the correct unsigned magnitude on
+ * every platform. */
+#define UA_DETECT_DEADBAND(TYPE) do {                                      \
+    TYPE v1 = *(const TYPE*)data1;                                         \
+    TYPE v2 = *(const TYPE*)data2;                                         \
+    UA_UInt64 mag = (v1 > v2) ? (UA_UInt64)v1 - (UA_UInt64)v2               \
+                              : (UA_UInt64)v2 - (UA_UInt64)v1;              \
+    UA_Double diff = (UA_Double)mag;                                       \
+    return (diff > deadband);                                              \
+} while(false)
+
+/* Floating-point types: the integer magnitude approach would truncate the
+ * fractional part, so subtract directly in UA_Double. This is safe from
+ * overflow and exact (Float widens to Double without loss). */
+#define UA_DETECT_DEADBAND_FLOAT(TYPE) do {                                 \
+    TYPE v1 = *(const TYPE*)data1;                                         \
+    TYPE v2 = *(const TYPE*)data2;                                         \
+    UA_Double diff = (v1 > v2) ? (UA_Double)v1 - (UA_Double)v2             \
+                               : (UA_Double)v2 - (UA_Double)v1;            \
+    return (diff > deadband);                                              \
 } while(false)
 
 static UA_Boolean
@@ -45997,9 +46866,9 @@ detectScalarDeadBand(const void *data1, const void *data2,
     } else if(type->typeKind == UA_DATATYPEKIND_UINT64) {
         UA_DETECT_DEADBAND(UA_UInt64);
     } else if(type->typeKind == UA_DATATYPEKIND_FLOAT) {
-        UA_DETECT_DEADBAND(UA_Float);
+        UA_DETECT_DEADBAND_FLOAT(UA_Float);
     } else if(type->typeKind == UA_DATATYPEKIND_DOUBLE) {
-        UA_DETECT_DEADBAND(UA_Double);
+        UA_DETECT_DEADBAND_FLOAT(UA_Double);
     } else {
         return false; /* Not a known numerical type */
     }
@@ -46691,22 +47560,28 @@ implicitCastTargetType(const UA_DataType *t1, const UA_DataType *t2) {
  * - Converting a value that is outside the range of the target type causes a
  *   conversion error. */
 
-#define UA_CAST_SIGNED(t, T)                                         \
-    if(i < (UA_Int64)T##_MIN || i > (UA_Int64)T##_MAX)               \
-        return;                                                      \
-    *(t*)data = (t)i;                                                \
+#define UA_CAST_SIGNED(t, T)                                           \
+    if(i < (UA_Int64)T##_MIN || i > (UA_Int64)T##_MAX) {               \
+        UA_free(data);                                                 \
+        return;                                                        \
+    }                                                                  \
+    *(t*)data = (t)i;                                                  \
     do { } while(0)
 
-#define UA_CAST_UNSIGNED(t, T)                                       \
-    if(u > T##_MAX)                                                  \
-        return;                                                      \
-    *(t*)data = (t)u;                                                \
+#define UA_CAST_UNSIGNED(t, T)                                         \
+    if(u > T##_MAX) {                                                  \
+        UA_free(data);                                                 \
+        return;                                                        \
+    }                                                                  \
+    *(t*)data = (t)u;                                                  \
     do { } while(0)
 
-#define UA_CAST_FLOAT(t, T)                                          \
-    if(f + 0.5 < (UA_Double)T##_MIN || f + 0.5 > (UA_Double)T##_MAX) \
-        return;                                                      \
-    *(t*)data = (t)(f + 0.5);                                        \
+#define UA_CAST_FLOAT(t, T)                                            \
+    if(f + 0.5 < (UA_Double)T##_MIN || f + 0.5 > (UA_Double)T##_MAX) { \
+        UA_free(data);                                                 \
+        return;                                                        \
+    }                                                                  \
+    *(t*)data = (t)(f + 0.5);                                          \
     do { } while(0)
 
 /* We can cast between any numerical type. So this can be reused for explicit casting. */
@@ -47900,10 +48775,11 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
             }
             ctx.filter = *(UA_EventFilter*)mon->parameters.filter.content.decoded.data;
 
-            /* Select the session used to resolve SimpleAttributeOperands. If
-             * the subscription is not bound to a session, use the AdminSession.
-             * TODO: Preserve the access rights of the last connected session? */
-            ctx.session = (sub->session) ? sub->session : &server->adminSession;
+            /* Do not evaluate event fields for detached subscriptions.
+             * Using adminSession would bypass per-session access control. */
+            if(!sub->session)
+                continue;
+            ctx.session = sub->session;
 
             /* Evaluate the where-clause and create a notification */
             res = UA_MonitoredItem_addEvent(mon, &ctx);
@@ -50833,10 +51709,13 @@ static UA_StatusCode
 getLowLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *lowLimit) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
+    UA_Variant_init(&value);
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_LOWLIMIT), &value);
-    *lowLimit = *(UA_Double*) value.data;
+    if(retval == UA_STATUSCODE_GOOD)
+        *lowLimit = *(UA_Double*)value.data;
+    UA_Variant_clear(&value);
     return retval;
 }
 
@@ -50844,10 +51723,13 @@ static UA_StatusCode
 getLowLowLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *lowLowLimit) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
+    UA_Variant_init(&value);
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_LOWLOWLIMIT), &value);
-    *lowLowLimit = *(UA_Double*) value.data;
+    if(retval == UA_STATUSCODE_GOOD)
+        *lowLowLimit = *(UA_Double*)value.data;
+    UA_Variant_clear(&value);
     return retval;
 }
 
@@ -50855,10 +51737,13 @@ static UA_StatusCode
 getHighLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *highLimit) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
+    UA_Variant_init(&value);
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_HIGHLIMIT), &value);
-    *highLimit = *(UA_Double*) value.data;
+    if(retval == UA_STATUSCODE_GOOD)
+        *highLimit = *(UA_Double*)value.data;
+    UA_Variant_clear(&value);
     return retval;
 }
 
@@ -50866,10 +51751,13 @@ static UA_StatusCode
 getHighHighLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *highHighLimit) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
+    UA_Variant_init(&value);
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_HIGHHIGHLIMIT), &value);
-    *highHighLimit = *(UA_Double*) value.data;
+    if(retval == UA_STATUSCODE_GOOD)
+        *highHighLimit = *(UA_Double*)value.data;
+    UA_Variant_clear(&value);
     return retval;
 }
 
@@ -50878,7 +51766,7 @@ setLimitState(UA_Server *server, const UA_NodeId conditionId,
               UA_Double limitValue) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_NodeId limitState;
+    UA_NodeId limitState = UA_NODEID_NULL;
     UA_Double lowLowLimit;
     UA_Double lowLimit;
     UA_Double highLimit;
@@ -50892,7 +51780,7 @@ setLimitState(UA_Server *server, const UA_NodeId conditionId,
     retval |= getHighHighLimit(server, conditionId, &highHighLimit);
     if(retval == UA_STATUSCODE_GOOD) {
         if(limitValue >= highHighLimit) {
-            UA_NodeId highHighLimitId;
+            UA_NodeId highHighLimitId = UA_NODEID_NULL;
             retval |= getConditionFieldNodeId(server, &conditionId,
                                               &fieldHighHighLimitQN, &highHighLimitId);
             UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_HIGHHIGH_TEXT);
@@ -50908,7 +51796,7 @@ setLimitState(UA_Server *server, const UA_NodeId conditionId,
     retval |= getHighLimit(server, conditionId, &highLimit);
     if(retval == UA_STATUSCODE_GOOD) {
         if(limitValue >= highLimit) {
-            UA_NodeId highLimitId;
+            UA_NodeId highLimitId = UA_NODEID_NULL;
             retval |= getConditionFieldNodeId(server, &conditionId, &fieldHighLimitQN, &highLimitId);
             UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_HIGH_TEXT);
             UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
@@ -50925,7 +51813,7 @@ setLimitState(UA_Server *server, const UA_NodeId conditionId,
     retval |= getLowLowLimit(server, conditionId, &lowLowLimit);
     if(retval == UA_STATUSCODE_GOOD) {
         if(limitValue <= lowLowLimit) {
-            UA_NodeId lowLowLimitId;
+            UA_NodeId lowLowLimitId = UA_NODEID_NULL;
             retval |= getConditionFieldNodeId(server, &conditionId,
                                               &fieldLowLowLimitQN, &lowLowLimitId);
             UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_LOWLOW_TEXT);
@@ -50942,7 +51830,7 @@ setLimitState(UA_Server *server, const UA_NodeId conditionId,
     retval |= getLowLimit(server, conditionId, &lowLimit);
     if(retval == UA_STATUSCODE_GOOD) {
         if(limitValue <= lowLimit) {
-            UA_NodeId lowLimitId;
+            UA_NodeId lowLimitId = UA_NODEID_NULL;
             retval |= getConditionFieldNodeId(server, &conditionId, &fieldLowLimitQN, &lowLimitId);
             UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_LOW_TEXT);
             UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
@@ -51923,7 +52811,7 @@ RefResult_clear(RefResult *rr) {
 }
 
 struct ContinuationPoint {
-    ContinuationPoint *next;
+    TAILQ_ENTRY(ContinuationPoint) pointers;
     UA_ByteString identifier;
 
     /* Parameters of the Browse Request */
@@ -51939,12 +52827,22 @@ struct ContinuationPoint {
     UA_Boolean lastRefInverse;
 };
 
-ContinuationPoint *
+static void
 ContinuationPoint_clear(ContinuationPoint *cp) {
     UA_ByteString_clear(&cp->identifier);
     UA_BrowseDescription_clear(&cp->browseDescription);
     UA_NodePointer_clear(&cp->lastTarget);
-    return cp->next;
+}
+
+void
+ContinuationPointQueue_clear(ContinuationPointQueue *queue) {
+    ContinuationPoint *cp;
+    while((cp = TAILQ_FIRST(queue))) {
+        TAILQ_REMOVE(queue, cp, pointers);
+        UA_assert(cp != TAILQ_FIRST(queue));
+        ContinuationPoint_clear(cp);
+        UA_free(cp);
+    }
 }
 
 struct BrowseContext {
@@ -52265,14 +53163,21 @@ browse(struct BrowseContext *bc) {
     }
 }
 
+typedef struct {
+    UA_UInt32 maxReferences;
+    ContinuationPoint *lastPriorContinuationPoint;
+} BrowseOperationContext;
+
 /* Start to browse with no previous cp */
-void
-Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
-                 const UA_BrowseDescription *descr, UA_BrowseResult *result) {
+static void
+Operation_BrowseWithContext(UA_Server *server, UA_Session *session,
+                            BrowseOperationContext *context,
+                            const UA_BrowseDescription *descr,
+                            UA_BrowseResult *result) {
     /* Stack-allocate a temporary cp */
     ContinuationPoint cp;
     memset(&cp, 0, sizeof(ContinuationPoint));
-    cp.maxReferences = *maxrefs;
+    cp.maxReferences = context->maxReferences;
     cp.browseDescription = *descr; /* Shallow copy. Deep-copy later if we persist the cp. */
 
     /* How many references can we return at most? */
@@ -52335,9 +53240,22 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Enough space for the continuation point? */
-    if(session->availableContinuationPoints == 0) {
-        retval = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
-        goto cleanup;
+    if(session->continuationPointsSize >= UA_MAXCONTINUATIONPOINTS) {
+        /* Reclaim the oldest continuation point from a prior Browse request.
+         * Points created by other operations in this request are not eligible. */
+        if(!context->lastPriorContinuationPoint) {
+            retval = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
+            goto cleanup;
+        }
+
+        ContinuationPoint *reclaimed =
+            TAILQ_FIRST(&session->continuationPoints);
+        if(reclaimed == context->lastPriorContinuationPoint)
+            context->lastPriorContinuationPoint = NULL;
+        TAILQ_REMOVE(&session->continuationPoints, reclaimed, pointers);
+        ContinuationPoint_clear(reclaimed);
+        UA_free(reclaimed);
+        --session->continuationPointsSize;
     }
 
     /* Allocate and fill the data structure */
@@ -52374,9 +53292,8 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         goto cleanup;
 
     /* Attach the cp to the session */
-    cp2->next = session->continuationPoints;
-    session->continuationPoints = cp2;
-    --session->availableContinuationPoints;
+    TAILQ_INSERT_TAIL(&session->continuationPoints, cp2, pointers);
+    ++session->continuationPointsSize;
     return;
 
  cleanup:
@@ -52387,6 +53304,14 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     UA_NodePointer_clear(&cp.lastTarget);
     UA_BrowseResult_clear(result);
     result->statusCode = retval;
+}
+
+void
+Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
+                 const UA_BrowseDescription *descr, UA_BrowseResult *result) {
+    BrowseOperationContext context = {
+        *maxrefs, TAILQ_LAST(&session->continuationPoints, ContinuationPointQueue)};
+    Operation_BrowseWithContext(server, session, &context, descr, result);
 }
 
 UA_Boolean
@@ -52408,10 +53333,13 @@ Service_Browse(UA_Server *server, UA_Session *session,
         return true;
     }
 
+    BrowseOperationContext context = {request->requestedMaxReferencesPerNode,
+        TAILQ_LAST(&session->continuationPoints, ContinuationPointQueue)};
+
     response->responseHeader.serviceResult =
         allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_Browse,
-                                      &request->requestedMaxReferencesPerNode,
+                                      (UA_ServiceOperation)Operation_BrowseWithContext,
+                                      &context,
                                       &request->nodesToBrowseSize,
                                       &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
                                       &response->resultsSize,
@@ -52435,12 +53363,10 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
                      const UA_Boolean *releaseContinuationPoints,
                      const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
     /* Find the continuation point */
-    ContinuationPoint **prev = &session->continuationPoints;
-    ContinuationPoint *cp;
-    while((cp = *prev)) {
+    ContinuationPoint *cp = NULL;
+    TAILQ_FOREACH(cp, &session->continuationPoints, pointers) {
         if(UA_ByteString_equal(&cp->identifier, continuationPoint))
             break;
-        prev = &cp->next;
     }
     if(!cp) {
         result->statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
@@ -52449,9 +53375,10 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 
     /* Remove the cp */
     if(*releaseContinuationPoints) {
-        *prev = ContinuationPoint_clear(cp);
+        TAILQ_REMOVE(&session->continuationPoints, cp, pointers);
+        ContinuationPoint_clear(cp);
         UA_free(cp);
-        ++session->availableContinuationPoints;
+        --session->continuationPointsSize;
         return;
     }
 
@@ -52496,9 +53423,10 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 
  remove_cp:
     /* Remove the cp */
-    *prev = ContinuationPoint_clear(cp);
+    TAILQ_REMOVE(&session->continuationPoints, cp, pointers);
+    ContinuationPoint_clear(cp);
     UA_free(cp);
-    ++session->availableContinuationPoints;
+    --session->continuationPointsSize;
 }
 
 UA_Boolean
@@ -52598,6 +53526,25 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
                                                          UA_BROWSEDIRECTION_FORWARD);
         if(!node)
             continue;
+
+        /* Check whether the session is allowed to browse this node.
+         * Mirrors the access-control gate applied in browseWithContinuation().
+         * Without this check, a client denied direct Browse on a node can
+         * still use it as a waypoint in TranslateBrowsePathsToNodeIds,
+         * disclosing hidden intermediate nodes and their children. */
+        if(session != &server->adminSession) {
+            UA_UNLOCK(&server->serviceMutex);
+            UA_Boolean canBrowse =
+                server->config.accessControl.allowBrowseNode(
+                    server, &server->config.accessControl,
+                    &session->sessionId, session->context,
+                    &current->targets[i].nodeId, node->head.context);
+            UA_LOCK(&server->serviceMutex);
+            if(!canBrowse) {
+                UA_NODESTORE_RELEASE(server, node);
+                continue;
+            }
+        }
 
         /* Test whether the node fits the class mask */
         UA_Boolean skip = !matchClassMask(node, nodeClassMask);
@@ -52758,6 +53705,25 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
                                        UA_BROWSEDIRECTION_INVALID);
         if(!node)
             continue;
+
+        /* Check whether the session is allowed to browse the resolved target.
+         * Without this check, a client denied direct Browse on a terminal node
+         * can still have its NodeId disclosed as the result of path
+         * translation. */
+        if(session != &server->adminSession) {
+            UA_UNLOCK(&server->serviceMutex);
+            UA_Boolean canBrowse =
+                server->config.accessControl.allowBrowseNode(
+                    server, &server->config.accessControl,
+                    &session->sessionId, session->context,
+                    &next->targets[k].nodeId, node->head.context);
+            UA_LOCK(&server->serviceMutex);
+            if(!canBrowse) {
+                UA_NODESTORE_RELEASE(server, node);
+                continue;
+            }
+        }
+
         UA_Boolean match = UA_QualifiedName_equal(browseNameFilter, &node->head.browseName);
         UA_NODESTORE_RELEASE(server, node);
         if(!match)
@@ -53531,6 +54497,14 @@ UA_Session *
 getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    /* A NULL sessionId is a programming error from the public API
+     * (UA_Server_closeSession) or from an internal caller that has
+     * no session id. Treat it as "not found" so callers like
+     * UA_Server_closeSession can return BADSESSIONIDINVALID instead
+     * of dereferencing NULL inside UA_NodeId_equal. */
+    if(!sessionId)
+        return NULL;
+
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &server->sessions, pointers) {
         /* Token does not match */
@@ -53570,24 +54544,38 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     /* Prepare the signature */
     const UA_SecurityPolicySignatureAlgorithm *signAlg = &sp->asymSignatureAlgorithm;
     size_t signatureSize = signAlg->getLocalSignatureSize(sp, cc);
-    UA_StatusCode retval = UA_String_copy(&signAlg->uri, &signatureData->algorithm);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* OPC UA Part 4 v1.05.07: for SecurityPolicies with
+     * secureChannelEnhancements = true, the algorithm field in
+     * SignatureData shall be NULL or empty and receivers shall
+     * ignore the value. */
+    if(!UA_SecurityPolicy_isEnhancedSecurity(sp))
+        retval = UA_String_copy(&signAlg->uri, &signatureData->algorithm);
     retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Allocate a temp buffer */
-    size_t dataToSignSize =
-        request->clientCertificate.length + request->clientNonce.length;
-    UA_ByteString dataToSign;
-    retval = UA_ByteString_allocBuffer(&dataToSign, dataToSignSize);
+    /* Build the data to sign. */
+    UA_ByteString dataToSign = UA_BYTESTRING_NULL;
+    if(UA_SecurityPolicy_isEnhancedSecurity(sp)) {
+        /* Channel-bound v1.05.07 signature (see the cert-role table at
+         * UA_SecureChannel_buildCreateSessionSignatureData). */
+        retval = UA_SecureChannel_buildCreateSessionSignatureData(
+            channel, &request->clientNonce, &response->serverNonce,
+            &sp->localCertificate, &channel->remoteCertificate, &dataToSign);
+    } else {
+        retval = UA_ByteString_allocBuffer(&dataToSign,
+            request->clientCertificate.length + request->clientNonce.length);
+        if(retval == UA_STATUSCODE_GOOD) {
+            memcpy(dataToSign.data, request->clientCertificate.data,
+                   request->clientCertificate.length);
+            memcpy(dataToSign.data + request->clientCertificate.length,
+                   request->clientNonce.data, request->clientNonce.length);
+        }
+    }
     if(retval != UA_STATUSCODE_GOOD)
         return retval; /* signatureData->signature is cleaned up with the response */
 
-    /* Sign the signature */
-    memcpy(dataToSign.data, request->clientCertificate.data,
-           request->clientCertificate.length);
-    memcpy(dataToSign.data + request->clientCertificate.length,
-           request->clientNonce.data, request->clientNonce.length);
     retval = signAlg->sign(sp, cc, &dataToSign, &signatureData->signature);
 
     /* Clean up */
@@ -53638,6 +54626,28 @@ createCheckSessionAuthSecurityPolicyContext(UA_Server *server, UA_Session *sessi
         }
     }
     return res;
+}
+
+/* The client requests a server ephemeral ECDH key by adding an "ECDHPolicyUri"
+ * entry to the request's AdditionalHeader (an AdditionalParametersType). The
+ * server must return its ECDHKey only when this was requested. */
+static UA_Boolean
+clientRequestedEphemeralKey(const UA_ExtensionObject *additionalHeader) {
+    if(additionalHeader->encoding != UA_EXTENSIONOBJECT_DECODED &&
+       additionalHeader->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
+        return false;
+    if(additionalHeader->content.decoded.type !=
+       &UA_TYPES[UA_TYPES_ADDITIONALPARAMETERSTYPE])
+        return false;
+    const UA_AdditionalParametersType *ap = (const UA_AdditionalParametersType*)
+        additionalHeader->content.decoded.data;
+    UA_String ecdhPolicyUri = UA_STRING("ECDHPolicyUri");
+    for(size_t i = 0; i < ap->parametersSize; i++) {
+        if(ap->parameters[i].key.namespaceIndex == 0 &&
+           UA_String_equal(&ap->parameters[i].key.name, &ecdhPolicyUri))
+            return true;
+    }
+    return false;
 }
 
 static UA_StatusCode
@@ -53830,28 +54840,20 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         }
     }
 
-    /* According to the spec, the ClientNonce needs a length between 32 and 128
-     * bytes inclusive. Some deprecated SecurityPolicies have 16 byte. If both
-     * sides still allow that, proceed to connect to legacy devices. */
+    /* According to the spec, the (session) ClientNonce needs a length between
+     * 32 and 128 bytes inclusive. This is the application nonce length and is
+     * independent of the SecurityPolicy's SecureChannel nonce length (for ECC
+     * policies that is the 64-byte ephemeral key, which is NOT the session
+     * nonce). */
     if(channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
-       (request->clientNonce.length < sp->nonceLength ||
-        request->clientNonce.length > 128)) {
-        /* Workaround: Give a warning (but allow) if the nonce length is between
-         * 32 and sp->nonceLength */
-        if(request->clientNonce.length >= 32 &&
-           request->clientNonce.length < sp->nonceLength) {
-            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
-                                   "CreateSession: The nonce provided by the client "
-                                   "has the wrong length (but at least 32 bytes)");
-        } else {
-            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                                 "CreateSession: The nonce provided by the client "
-                                 "has the wrong length");
-            server->serverDiagnosticsSummary.securityRejectedSessionCount++;
-            server->serverDiagnosticsSummary.rejectedSessionCount++;
-            rh->serviceResult = UA_STATUSCODE_BADNONCEINVALID;
-            return;
-        }
+       (request->clientNonce.length < 32 || request->clientNonce.length > 128)) {
+        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                             "CreateSession: The nonce provided by the client "
+                             "has the wrong length");
+        server->serverDiagnosticsSummary.securityRejectedSessionCount++;
+        server->serverDiagnosticsSummary.rejectedSessionCount++;
+        rh->serviceResult = UA_STATUSCODE_BADNONCEINVALID;
+        return;
     }
 
     /* Create the Session */
@@ -53882,6 +54884,12 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(channel->remoteCertificate.length == 0)
         rh->serviceResult |= UA_ByteString_copy(&request->clientCertificate,
                                                 &newSession->clientCertificate);
+
+    /* Retain the clientNonce for the v1.05.07 channel-bound
+     * ActivateSession ClientSignature verification
+     * (secureChannelEnhancements). */
+    rh->serviceResult |= UA_ByteString_copy(&request->clientNonce,
+                                            &newSession->clientNonce);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
     rh->serviceResult |= UA_String_copy(&request->serverUri,
@@ -53935,7 +54943,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
      * The private part of the ephemeral key is persisted in the
      * Session-SecurityPolicy context. Until it gets overridden during
      * ActivateSession. */
-    if(sessionSp && sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+    if(sessionSp && UA_SecurityPolicy_isEcc(sessionSp) &&
+       clientRequestedEphemeralKey(&request->requestHeader.additionalHeader)) {
         rh->serviceResult = addEphemeralKeyAdditionalHeader(server, newSession,
                                                             &rh->additionalHeader);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
@@ -53953,13 +54962,19 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->authenticationToken = newSession->authenticationToken;
     rh->serviceResult |= UA_ByteString_copy(&newSession->serverNonce,
                                             &response->serverNonce);
-    if(sessionSp && channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
+    /* The CreateSessionResponse carries the Server's application instance
+     * certificate so the Client can encrypt the UserIdentityToken with it. This
+     * is needed even on a #None SecureChannel when the user token is encrypted
+     * "on top" (sessionSp is then the user-token encryption policy, whose
+     * localCertificate is the Server certificate; the #None channel policy has
+     * no certificate). So copy it whenever a session-auth SecurityPolicy was
+     * instantiated, regardless of the channel SecurityMode. */
+    if(sessionSp)
         rh->serviceResult |= UA_ByteString_copy(&sessionSp->localCertificate,
                                                 &response->serverCertificate);
 
     /* Copy the server's endpointdescriptions into the response */
-    rh->serviceResult |= setCurrentEndPointsArray(server, channel,
-                                                  request->endpointUrl,
+    rh->serviceResult |= setCurrentEndpointsArray(server, request->endpointUrl,
                                                   NULL, 0,
                                                   &response->serverEndpoints,
                                                   &response->serverEndpointsSize);
@@ -54107,7 +55122,7 @@ selectTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
         UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken*)
             identityToken->content.decoded.data;
 
-        /* In setCurrentEndPointsArray we prepend the PolicyId with the
+        /* In setCurrentEndpointsArray we prepend the PolicyId with the
          * SecurityMode of the endpoint and the postfix of the
          * SecurityPolicyUri to make it unique. Check the PolicyId. */
         if(pol->policyId.length > token->policyId.length)
@@ -54208,10 +55223,35 @@ checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Sessio
         return res;
     }
 
-    /* Check the user token signature */
-    res = checkCertificateSignature(server, tokenSp, tempChannelContext, &session->serverNonce,
-                                    tokenSignature, true,
-                                    (channel->securityMode == UA_MESSAGESECURITYMODE_NONE));
+    /* Check the user token signature. The channel-bound v1.05.07 layout (see
+     * the cert-role table at UA_SecureChannel_buildUserTokenSignatureData) is
+     * used only when BOTH the SecureChannel AND the user-token SecurityPolicy
+     * are enhanced; a legacy RSA / old-ECC user token uses the legacy layout
+     * even over an enhanced (AesGcm) SecureChannel. */
+    if(UA_SecurityPolicy_isEnhancedSecurity(channel->securityPolicy) &&
+       UA_SecurityPolicy_isEnhancedSecurity(tokenSp)) {
+        if(tokenSignature->signature.length == 0) {
+            res = UA_STATUSCODE_BADUSERSIGNATUREINVALID;
+            goto out;
+        }
+        UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
+        res = UA_SecureChannel_buildUserTokenSignatureData(
+            channel, &session->serverNonce, &session->clientNonce,
+            &channel->securityPolicy->localCertificate,
+            &channel->securityPolicy->localCertificate,
+            &channel->remoteCertificate, &channel->remoteCertificate, &dataToVerify);
+        if(res == UA_STATUSCODE_GOOD) {
+            res = tokenSp->asymSignatureAlgorithm.verify(
+                tokenSp, tempChannelContext, &dataToVerify, &tokenSignature->signature);
+            if(res != UA_STATUSCODE_GOOD)
+                res = UA_STATUSCODE_BADUSERSIGNATUREINVALID;
+        }
+        UA_ByteString_clear(&dataToVerify);
+    } else {
+        res = checkCertificateSignature(server, tokenSp, tempChannelContext, &session->serverNonce,
+                                        tokenSignature, true,
+                                        (channel->securityMode == UA_MESSAGESECURITYMODE_NONE));
+    }
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
                              "ActivateSession: User token signature check "
@@ -54270,7 +55310,7 @@ decryptUserToken(UA_Server *server, UA_Session *session, UA_SecureChannel *chann
     /* Decrypt the token. Differentiate between secret encryptions (ECC,
      * legacy).
      * TODO: Implement "modern" RSA secret encryption */
-    if(tokenSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+    if(UA_SecurityPolicy_isEcc(tokenSp)) {
         res = decryptUserTokenEcc(server->config.logging, channel,
                                 session->sessionSp, session->sessionSpContext,
                                 session->serverNonce, token);
@@ -54351,10 +55391,34 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Check the client signature */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        rh->serviceResult =
-            checkCertificateSignature(server, channel->securityPolicy,
-                                      channel->channelContext, &session->serverNonce,
-                                      &req->clientSignature, false, false);
+        const UA_SecurityPolicy *csp = channel->securityPolicy;
+        if(UA_SecurityPolicy_isEnhancedSecurity(csp)) {
+            /* Channel-bound v1.05.07 ClientSignature (see the cert-role table at
+             * UA_SecureChannel_buildActivateSessionSignatureData). clientNonce is
+             * the ClientNonce stored at CreateSession. */
+            if(req->clientSignature.signature.length == 0) {
+                rh->serviceResult = UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
+            } else {
+                UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
+                rh->serviceResult = UA_SecureChannel_buildActivateSessionSignatureData(
+                    channel, &session->serverNonce, &session->clientNonce,
+                    &csp->localCertificate, &csp->localCertificate,
+                    &channel->remoteCertificate, &dataToVerify);
+                if(rh->serviceResult == UA_STATUSCODE_GOOD) {
+                    rh->serviceResult = csp->asymSignatureAlgorithm.verify(
+                        csp, channel->channelContext, &dataToVerify,
+                        &req->clientSignature.signature);
+                    if(rh->serviceResult != UA_STATUSCODE_GOOD)
+                        rh->serviceResult = UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
+                }
+                UA_ByteString_clear(&dataToVerify);
+            }
+        } else {
+            rh->serviceResult =
+                checkCertificateSignature(server, channel->securityPolicy,
+                                          channel->channelContext, &session->serverNonce,
+                                          &req->clientSignature, false, false);
+        }
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_SESSION(server->config.logging, session,
                                  "ActivateSession: Client signature check failed "
@@ -54484,7 +55548,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * ActivateSession response */
     const UA_SecurityPolicy *sessionSp = session->sessionSp;
     if(sessionSp && session->sessionSpContext &&
-       sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+       UA_SecurityPolicy_isEcc(sessionSp) &&
+       clientRequestedEphemeralKey(&req->requestHeader.additionalHeader)) {
         rh->serviceResult = addEphemeralKeyAdditionalHeader(server, session,
                                                             &rh->additionalHeader);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
@@ -55195,6 +56260,7 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
             memmove(ed, &ed->enumDefinition, sizeof(UA_EnumDefinition));
             UA_Variant_setScalar(&v->value, ed, &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
         } else {
+            UA_ExtensionObject_clear(&typeDescr);
             retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         }
 #else
@@ -56417,8 +57483,12 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
             }
-            /* Writing the StatusCode requires the StatusWrite bit */
-            if(wvalue->value.hasStatus) {
+            /* Writing a StatusCode different to "Good" requires the
+             * StatusWrite bit (see OPC specification 10000-3: AccessLevelType;
+             * https://reference.opcfoundation.org/specs/OPC-10000-3/v1.05.06/8.57)
+             */
+            if(   (wvalue->value.hasStatus)
+               && (wvalue->value.status != UA_STATUSCODE_GOOD)) {
                 accessLevel = getAccessLevel(server, session, &node->variableNode);
                 if(!(accessLevel & UA_ACCESSLEVELMASK_STATUSWRITE)) {
                     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
@@ -56430,8 +57500,13 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                     break;
                 }
             }
-            /* Writing the SourceTimestamp requires the TimestampWrite bit */
-            if(wvalue->value.hasSourceTimestamp) {
+            /* Writing a SourceTimestamp different to NULL requires the
+             * TimestampWrite bit (see OPC specification 10000-3:
+             * AccessLevelType;
+             * https://reference.opcfoundation.org/specs/OPC-10000-3/v1.05.06/8.57)
+             */
+            if(   (wvalue->value.hasSourceTimestamp)
+               && (wvalue->value.sourceTimestamp != (UA_DateTime)(0))) {
                 accessLevel = getAccessLevel(server, session, &node->variableNode);
                 if(!(accessLevel & UA_ACCESSLEVELMASK_TIMESTAMPWRITE)) {
                     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
@@ -57358,15 +58433,18 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server,
     UA_SecurityPolicy *best = NULL;
     UA_Byte securityLevel = 0;
 
+    (void)type;
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
         if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
             continue;
-        if(sp->policyType == UA_SECURITYPOLICYTYPE_RSA &&
-           type == UA_SECURITYPOLICYTYPE_ECC)
-            continue;
-        if(sp->policyType == UA_SECURITYPOLICYTYPE_ECC &&
-           type == UA_SECURITYPOLICYTYPE_RSA)
+        /* This SecurityPolicy is used to secure a UserIdentityToken on top of a
+         * #None SecureChannel (the only situation this function is called for).
+         * ECC and RSA-DH policies use ephemeral key agreement that must be
+         * bound to a secured SecureChannel - they must never be used to secure
+         * an auth token over #None. Only the static-RSA encryption policies
+         * (e.g. Basic256Sha256, Aes*_RsaOaep/RsaPss) qualify. */
+        if(UA_SecurityPolicy_isEcc(sp) || UA_SecurityPolicy_isEnhancedSecurity(sp))
             continue;
         /* Return early with Basic256Sha256 when available. "Secure enough" and
          * most clients support it.*/
@@ -57384,6 +58462,7 @@ static const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+e
 
 UA_String
 securityPolicyUriPostfix(const UA_String uri) {
+    if(uri.length == 0) return uri;
     for(UA_Byte *b = uri.data + uri.length - 1; b >= uri.data; b--) {
         if(*b != '#')
             continue;
@@ -57484,8 +58563,7 @@ updateEndpointUserIdentityToken(UA_Server *server,
 /* Also reused to create the EndpointDescription array in the
  * CreateSessionResponse */
 UA_StatusCode
-setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
-                         const UA_String endpointUrl,
+setCurrentEndpointsArray(UA_Server *server, const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
                          UA_EndpointDescription **arr, size_t *arrSize) {
     UA_ServerConfig *sc = &server->config;
@@ -57529,11 +58607,6 @@ setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
                            "%S which is not available", ep->securityPolicyUri);
             continue;
         }
-
-        /* Coming from CreateSession we have a channel already. Only return
-         * Endpoints where SecurityPolicy is an exact match. */
-        if(channel && channel->securityPolicy != sp)
-            continue;
 
         /* Copy into the results */
         for(size_t i = 0; i < clone_times; ++i) {
@@ -57629,7 +58702,7 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
     /* If the client expects to see a specific endpointurl, mirror it back. If
      * not, clone the endpoints with the discovery url of all networklayers. */
     response->responseHeader.serviceResult =
-        setCurrentEndPointsArray(server, NULL, request->endpointUrl,
+        setCurrentEndpointsArray(server, request->endpointUrl,
                                  request->profileUris, request->profileUrisSize,
                                  &response->endpoints, &response->endpointsSize);
     return true;
@@ -58468,6 +59541,15 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     }
     sub->monitoredItemsSize = 0;
 
+    /* Move over the samplingMonitoredItems and adjust the backpointers */
+    LIST_INIT(&newSub->samplingMonitoredItems);
+    UA_MonitoredItem *smon, *smon_tmp;
+    LIST_FOREACH_SAFE(smon, &sub->samplingMonitoredItems, sampling.subscriptionSampling, smon_tmp) {
+        LIST_REMOVE(smon, sampling.subscriptionSampling);
+        LIST_INSERT_HEAD(&newSub->samplingMonitoredItems, smon,
+                         sampling.subscriptionSampling);
+    }
+
     /* Move over the notification queue */
     TAILQ_INIT(&newSub->notificationQueue);
     UA_Notification *nn, *nn_tmp;
@@ -58769,6 +59851,18 @@ checkEventFilterParam(UA_Server *server, UA_Session *session,
 }
 #endif
 
+UA_Boolean
+VariableNode_externalDataSource(const UA_VariableNode *vn) {
+    switch(vn->valueSourceType) {
+    case UA_VALUESOURCETYPE_INTERNAL:
+        return (vn->valueSource.internal.notifications.onRead != NULL);
+    case UA_VALUESOURCETYPE_EXTERNAL:
+    case UA_VALUESOURCETYPE_CALLBACK:
+    default:
+        return true;
+    }
+}
+
 /* Verify and adjust the parameters of a MonitoredItem */
 static UA_StatusCode
 checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
@@ -58835,26 +59929,6 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
         }
     }
 
-    /* Read the minimum sampling interval for the variable. The sampling
-     * interval of the MonitoredItem must not be less than that. */
-    if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_VALUE) {
-        const UA_Node *node = UA_NODESTORE_GET(server, &mon->itemToMonitor.nodeId);
-        if(node) {
-            const UA_VariableNode *vn = &node->variableNode;
-            if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
-                /* Take into account if the publishing interval is used for sampling */
-                UA_Double samplingInterval = params->samplingInterval;
-                if(samplingInterval < 0 && mon->subscription)
-                    samplingInterval = mon->subscription->publishingInterval;
-                /* Adjust if smaller than the allowed minimum for the variable */
-                if(samplingInterval < vn->minimumSamplingInterval)
-                    params->samplingInterval = vn->minimumSamplingInterval;
-            }
-            UA_NODESTORE_RELEASE(server, node);
-        }
-    }
-
-
     /* A negative number indicates that the sampling interval is the publishing
      * interval of the Subscription. Note that the sampling interval selected
      * here remains also when the Subscription's publish interval is adjusted
@@ -58862,13 +59936,37 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
     if(mon->subscription && params->samplingInterval < 0.0)
         params->samplingInterval = mon->subscription->publishingInterval;
 
-    /* Adjust non-null sampling interval to lie within the configured limits */
-    if(params->samplingInterval != 0.0) {
+    /* If the value comes from an "external" data source, sampling is required.
+     * Otherwise, for samplingInterval == 0, we add a hook for every write. */
+    UA_Boolean extValueSource = false;
+
+    /* VariableNodes can lower-bound the permissible sampling interval */
+    UA_Double minimumSamplingInterval = 0.0;
+
+    /* Use hasValueSource and minimumSamplingInterval from a VariableNode */
+    if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_VALUE) {
+        const UA_Node *node = UA_NODESTORE_GET(server, &mon->itemToMonitor.nodeId);
+        if(node) {
+            if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
+                minimumSamplingInterval = node->variableNode.minimumSamplingInterval;
+                extValueSource = VariableNode_externalDataSource(&node->variableNode);
+            }
+            UA_NODESTORE_RELEASE(server, node);
+        }
+    }
+
+    /* Adjust non-null sampling interval to lie within the configured limits.
+     * Nodes with a value source require a >0.0 sampling interval. */
+    if(params->samplingInterval != 0.0 || extValueSource) {
         UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
                                    params->samplingInterval, params->samplingInterval);
         /* Check for NaN */
         if(mon->parameters.samplingInterval != mon->parameters.samplingInterval)
             params->samplingInterval = server->config.samplingIntervalLimits.min;
+
+        /* Minimum interval from the node */
+        if(params->samplingInterval < minimumSamplingInterval)
+            params->samplingInterval = minimumSamplingInterval;
     }
 
     /* Adjust the maximum queue size */
@@ -62192,6 +63290,17 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
             *retval = UA_STATUSCODE_BADTARGETNODEIDINVALID;
             return;
         }
+        if(item->targetNodeClass != UA_NODECLASS_UNSPECIFIED &&
+           item->targetNodeClass != targetNode->head.nodeClass) {
+            UA_LOG_DEBUG_SESSION(server->config.logging, session,
+                                 "Cannot add reference - target %N has NodeClass %u "
+                                 "but request expects %u",
+                                 item->targetNodeId.nodeId, (unsigned)targetNode->head.nodeClass,
+                                 (unsigned)item->targetNodeClass);
+            UA_NODESTORE_RELEASE(server, targetNode);
+            *retval = UA_STATUSCODE_BADNODECLASSINVALID;
+            return;
+        }
     }
 
     UA_Node *sourceNode =
@@ -63682,7 +64791,6 @@ unsigned dtoa(double d, char* buffer) {
     if(sign) {
         buffer[0] = '-';
         pos++;
-        buffer++;
     }
 
     if(exponent == ((1u << exponent_bits) - 1u)) {
@@ -63699,7 +64807,7 @@ unsigned dtoa(double d, char* buffer) {
     char digits[18];
     memset(digits, 0, 18);
     unsigned ndigits = grisu2(bits, digits, &K);
-    return pos + emit_digits(digits, ndigits, buffer, K, sign);
+    return pos + emit_digits(digits, ndigits, &buffer[pos], K, sign);
 }
 
 /**** amalgamated original file "/deps/musl_inet_pton.c" ****/
@@ -65045,9 +66153,16 @@ parseInt64(const char *str, size_t size, int64_t *result) {
             return 0;
         *result = (int64_t)n;
     } else {
+        /* n is unsigned, so 9223372036854775808UL == 2^63 fits without
+         * overflow. (int64_t)n would also fit for n in [0, 2^63], but
+         * the negation -(int64_t)(2^63) is undefined because the result
+         * (which is +2^63) cannot be represented. Use the unsigned
+         * representation and reinterpret as int64_t instead. */
         if(n > 9223372036854775808UL)
             return 0;
-        *result = -(int64_t)n;
+        *result = (n == 9223372036854775808UL)
+            ? (int64_t)(-9223372036854775807LL - 1)
+            : -(int64_t)n;
     }
     return len + i;
 }
@@ -90057,12 +91172,23 @@ UA_Client_getConfig(UA_Client *client) {
 
 #if UA_LOGLEVEL <= 300
 static const char *channelStateTexts[14] = {
-    "Fresh", "ReverseListening", "Connecting", "Connected", "ReverseConnected", "RHESent", "HELSent", "HELReceived", "ACKSent",
-    "AckReceived", "OPNSent", "Open", "Closing", "Closed"};
+    "Closed", "ReverseListening", "Connecting", "Connected", "ReverseConnected", "RHESent", "HELSent", "HELReceived", "ACKSent",
+    "AckReceived", "OPNSent", "Open", "Closing"};
 static const char *sessionStateTexts[6] =
     {"Closed", "CreateRequested", "Created",
      "ActivateRequested", "Activated", "Closing"};
 #endif
+
+void
+setConnectStatus(UA_Client *client, UA_StatusCode status) {
+    UA_LOCK_ASSERT(&client->clientMutex);
+
+    client->connectStatus = status;
+    if(status != UA_STATUSCODE_GOOD)
+        closeSecureChannel(client);
+
+    notifyClientState(client);
+}
 
 void
 notifyClientState(UA_Client *client) {
@@ -90257,6 +91383,7 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
     UA_DecodeBinaryOptions opt;
     memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
     opt.customTypes = config->customDataTypes;
+    opt.namespaceMapping = client->channel.namespaceMapping;
     retval = UA_decodeBinaryInternal(msg, &offset, response, responseType, &opt);
 
  process:
@@ -91238,8 +92365,8 @@ UA_Client_Service_queryFirst(UA_Client *client,
 UA_QueryNextResponse
 UA_Client_Service_queryNext(UA_Client *client, const UA_QueryNextRequest request) {
     UA_QueryNextResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_QUERYFIRSTREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_QUERYFIRSTRESPONSE]);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_QUERYNEXTREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_QUERYNEXTRESPONSE]);
     return response;
 }
 
@@ -91397,15 +92524,16 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
 }
 
 /* Match PolicyUri and certificate. The returned SecurityPolicy instance carries
- * the private key to sign with the given ceertificate. */
+ * the private key to sign with the given certificate. When the certificate is
+ * NULL, only the PolicyUri is matched (used for non-X509 token types). */
 static UA_SecurityPolicy *
 getAuthSecurityPolicy(UA_Client *client, const UA_String policyUri,
-                      const UA_ByteString certificate) {
+                      const UA_ByteString *certificate) {
     for(size_t i = 0; i < client->config.authSecurityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &client->config.authSecurityPolicies[i];
         if(!UA_String_equal(&policyUri, &sp->policyUri))
             continue;
-        if(!UA_ByteString_equal(&certificate, &sp->localCertificate))
+        if(certificate && !UA_ByteString_equal(certificate, &sp->localCertificate))
             continue;
         return sp;
     }
@@ -91467,19 +92595,24 @@ initUserTokenPolicy(UA_Client *client, const UA_UserTokenPolicy **outUtp,
     UA_String tokenSecurityPolicyUri = (utp->securityPolicyUri.length > 0) ?
         utp->securityPolicyUri : client->endpoint.securityPolicyUri;
 
-    /* Get the SecurityPolicy for authentication */
+    /* Get the SecurityPolicy for the UserIdentityToken. X509 tokens sign with
+     * a private key, so they must use an authSecurityPolicy (matched by
+     * PolicyUri and certificate). Other tokens only encrypt with the server
+     * certificate, so fall back to the SecureChannel securityPolicies. */
     UA_SecurityPolicy *utsp;
     if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
         UA_X509IdentityToken *token = (UA_X509IdentityToken*)
             client->config.userIdentityToken.content.decoded.data;
         utsp = getAuthSecurityPolicy(client, tokenSecurityPolicyUri,
-                                     token->certificateData);
+                                     &token->certificateData);
     } else {
-        utsp = getSecurityPolicy(client, tokenSecurityPolicyUri);
+        utsp = getAuthSecurityPolicy(client, tokenSecurityPolicyUri, NULL);
+        if(!utsp)
+            utsp = getSecurityPolicy(client, tokenSecurityPolicyUri);
     }
     if(!utsp) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "%s: SecurityPoliocy %S not available for the "
+                     "%s: SecurityPolicy %S not available for the "
                      "UserTokenPolicy", logPrefix, tokenSecurityPolicyUri);
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
     }
@@ -91489,8 +92622,8 @@ initUserTokenPolicy(UA_Client *client, const UA_UserTokenPolicy **outUtp,
         if(!UA_String_equal(&client->utpSp->policyUri,
                             &tokenSecurityPolicyUri)) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                         "%s: SecurityPoliocy %S cannot be instantiated. "
-                         "A different SecurityPolicy %s is in place already",
+                         "%s: SecurityPolicy %S cannot be instantiated. "
+                         "A different SecurityPolicy %S is in place already",
                          logPrefix, tokenSecurityPolicyUri,
                          client->utpSp->policyUri);
             return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
@@ -91519,6 +92652,27 @@ initUserTokenPolicy(UA_Client *client, const UA_UserTokenPolicy **outUtp,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Legacy (pre-v1.05.07) signature: the leaf of the remote (peer) certificate
+ * concatenated with the server's session nonce, signed with the given
+ * SecurityPolicy/context. Shared by the application ClientSignature and the
+ * X.509 user-token signature. The leaf is used (not the raw, possibly-chained
+ * remoteCertificate) so the bytes match the server's verify, which is computed
+ * over its single localCertificate. */
+static UA_StatusCode
+signLegacyCertNonce(const UA_SecurityPolicy *sp, void *spContext,
+                    const UA_ByteString *remoteCertificate,
+                    const UA_ByteString *serverNonce, UA_ByteString *outSignature) {
+    UA_ByteString leaf = getLeafCertificate(*remoteCertificate);
+    size_t signDataSize = leaf.length + serverNonce->length;
+    if(signDataSize > MAX_DATA_SIZE)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_Byte buf[MAX_DATA_SIZE];
+    UA_ByteString signData = {signDataSize, buf};
+    memcpy(buf, leaf.data, leaf.length);
+    memcpy(buf + leaf.length, serverNonce->data, serverNonce->length);
+    return sp->asymSignatureAlgorithm.sign(sp, spContext, &signData, outSignature);
+}
+
 /* Function to create a signature using remote certificate and nonce.
  * This uses the SecurityPolicy of the SecureChannel. */
 static UA_StatusCode
@@ -91530,8 +92684,13 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
     UA_SignatureData *sd = &request->clientSignature;
     const UA_SecurityPolicySignatureAlgorithm *signAlg = &sp->asymSignatureAlgorithm;
 
-    /* Copy the signature algorithm identifier */
-    UA_StatusCode retval = UA_String_copy(&signAlg->uri, &sd->algorithm);
+    /* OPC UA Part 4 v1.05.07: for SecurityPolicies with
+     * secureChannelEnhancements = true, the algorithm field in
+     * SignatureData shall be NULL or empty and receivers shall
+     * ignore the value. */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!UA_SecurityPolicy_isEnhancedSecurity(sp))
+        retval = UA_String_copy(&signAlg->uri, &sd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -91541,22 +92700,24 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* If we have a full certificate chain, isolate the first certificate */
-    UA_ByteString rc = getLeafCertificate(client->channel.remoteCertificate);
+    if(UA_SecurityPolicy_isEnhancedSecurity(sp)) {
+        /* Channel-bound v1.05.07 ClientSignature (see the cert-role table at
+         * UA_SecureChannel_buildActivateSessionSignatureData). */
+        UA_ByteString signData = UA_BYTESTRING_NULL;
+        retval = UA_SecureChannel_buildActivateSessionSignatureData(
+            channel, &client->serverSessionNonce, &client->clientSessionNonce,
+            &channel->remoteCertificate, &channel->remoteCertificate,
+            &sp->localCertificate, &signData);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        retval = signAlg->sign(sp, cc, &signData, &sd->signature);
+        UA_ByteString_clear(&signData);
+        return retval;
+    }
 
-    /* Create a temporary buffer */
-    size_t signDataSize =
-        rc.length + client->serverSessionNonce.length;
-    if(signDataSize > MAX_DATA_SIZE)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_Byte buf[MAX_DATA_SIZE];
-    UA_ByteString signData = {signDataSize, buf};
-
-    /* Sign the ClientSignature */
-    memcpy(buf, rc.data, rc.length);
-    memcpy(buf + rc.length, client->serverSessionNonce.data,
-           client->serverSessionNonce.length);
-    return signAlg->sign(sp, cc, &signData, &sd->signature);
+    /* Legacy (v1.05.06): leaf(serverCert) + serverNonce. */
+    return signLegacyCertNonce(sp, cc, &channel->remoteCertificate,
+                               &client->serverSessionNonce, &sd->signature);
 }
 
 /* This uses the SecurityPolicy of the UserTokenPolicy */
@@ -91569,19 +92730,15 @@ signUserTokenSignature(UA_Client *client,
     UA_SecurityPolicy *utpSp = client->utpSp;
     UA_assert(utpSp);
 
-    /* Check the size of the content for signing and create a temporary buffer */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    size_t signDataSize =
-        client->channel.remoteCertificate.length + client->serverSessionNonce.length;
-    if(signDataSize > MAX_DATA_SIZE)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_Byte buf[MAX_DATA_SIZE];
-    UA_ByteString signData = {signDataSize, buf};
-
-    /* Copy the algorithm identifier */
+    UA_SecureChannel *channel = &client->channel;
     UA_SecurityPolicySignatureAlgorithm *signAlg = &utpSp->asymSignatureAlgorithm;
     UA_SignatureData *utsd = &request->userTokenSignature;
-    retval = UA_String_copy(&signAlg->uri, &utsd->algorithm);
+
+    /* Stricter servers reject an empty user-token algorithm - so always send
+     * the policy's signature URI (the AesGcm policy carries its SecurityPolicy
+     * URI there; RSA carries the RSA URI; plain ECC carries an empty
+     * string). */
+    UA_StatusCode retval = UA_String_copy(&signAlg->uri, &utsd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -91591,12 +92748,30 @@ signUserTokenSignature(UA_Client *client,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Create the UserTokenSignature */
-    memcpy(buf, client->channel.remoteCertificate.data,
-           client->channel.remoteCertificate.length);
-    memcpy(buf + client->channel.remoteCertificate.length,
-           client->serverSessionNonce.data, client->serverSessionNonce.length);
-    return signAlg->sign(utpSp, client->utpSpContext, &signData, &utsd->signature);
+    /* Channel-bound v1.05.07 user-token signature (see the cert-role table at
+     * UA_SecureChannel_buildUserTokenSignatureData), produced with the user's
+     * private key (utpSp context). Used only when BOTH the SecureChannel AND the
+     * user-token SecurityPolicy are enhanced; a legacy RSA / old-ECC user token
+     * uses the legacy layout even over an enhanced (AesGcm) SecureChannel. */
+    if(UA_SecurityPolicy_isEnhancedSecurity(channel->securityPolicy) &&
+       UA_SecurityPolicy_isEnhancedSecurity(utpSp)) {
+        const UA_ByteString *clientCert = &channel->securityPolicy->localCertificate;
+        UA_ByteString signData = UA_BYTESTRING_NULL;
+        retval = UA_SecureChannel_buildUserTokenSignatureData(
+            channel, &client->serverSessionNonce, &client->clientSessionNonce,
+            &channel->remoteCertificate, &channel->remoteCertificate,
+            clientCert, clientCert, &signData);
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = signAlg->sign(utpSp, client->utpSpContext, &signData, &utsd->signature);
+        UA_ByteString_clear(&signData);
+        return retval;
+    }
+
+    /* Legacy (v1.05.06): leaf(serverCert) + serverNonce (same as the
+     * application ClientSignature), signed with the user's key. */
+    return signLegacyCertNonce(utpSp, client->utpSpContext,
+                               &channel->remoteCertificate,
+                               &client->serverSessionNonce, &utsd->signature);
 }
 
 /* UserName and IssuedIdentity can be encrypted. This uses the SecurityPolicy
@@ -91639,18 +92814,27 @@ encryptUserIdentityToken(UA_Client *client, UA_ExtensionObject *userIdentityToke
 
     /* Encrypt the TokenData */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(utpSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+    if(UA_SecurityPolicy_isEcc(utpSp)) {
         res = encryptUserIdentityTokenEcc(client->config.logging, &client->channel,
                                           utpSp, client->utpSpContext, tokenData,
                                           client->serverSessionNonce,
                                           client->serverEphemeralPubKey);
         /* Don't reuse the Ephemeral Public Key */
         UA_ByteString_clear(&client->serverEphemeralPubKey);
-    } else {
-        res = encryptSecretLegacy(utpSp, client->utpSpContext,
-                                  client->serverSessionNonce, tokenData);
+
+        /* The EccEncryptedSecret identifies its algorithm via the SecurityPolicy
+         * URI embedded in the secret header, so the UserIdentityToken's
+         * encryptionAlgorithm field is left EMPTY (matching the OPC UA reference
+         * stack, which sets it to null for the EncryptedSecret format). Sending
+         * the policy's asymEncryptionAlgorithm URI here makes strict servers
+         * reject the token with BadIdentityTokenInvalid */
+        return res;
     }
 
+    res = encryptSecretLegacy(utpSp, client->utpSpContext,
+                              client->serverSessionNonce, tokenData);
+
+    /* Legacy RSA EncryptedData: carry the asymmetric encryption algorithm URI */
     return res | UA_String_copy(&utpSp->asymEncryptionAlgorithm.uri, encryptionAlg);
 }
 
@@ -91669,15 +92853,25 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     const UA_ByteString *lc = &sp->localCertificate;
 
-    size_t dataToVerifySize = lc->length + client->clientSessionNonce.length;
     UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
-    UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify, dataToVerifySize);
+    UA_StatusCode retval;
+    if(UA_SecurityPolicy_isEnhancedSecurity(sp)) {
+        /* Channel-bound v1.05.07 CreateSession ServerSignature (see the
+         * cert-role table at UA_SecureChannel_buildCreateSessionSignatureData). */
+        retval = UA_SecureChannel_buildCreateSessionSignatureData(
+            channel, &client->clientSessionNonce, &response->serverNonce,
+            &channel->remoteCertificate, lc, &dataToVerify);
+    } else {
+        retval = UA_ByteString_allocBuffer(&dataToVerify,
+                                           lc->length + client->clientSessionNonce.length);
+        if(retval == UA_STATUSCODE_GOOD) {
+            memcpy(dataToVerify.data, lc->data, lc->length);
+            memcpy(dataToVerify.data + lc->length, client->clientSessionNonce.data,
+                   client->clientSessionNonce.length);
+        }
+    }
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-
-    memcpy(dataToVerify.data, lc->data, lc->length);
-    memcpy(dataToVerify.data + lc->length, client->clientSessionNonce.data,
-           client->clientSessionNonce.length);
 
     const UA_SecurityPolicySignatureAlgorithm *signAlg = &sp->asymSignatureAlgorithm;
     retval = signAlg->verify(sp, channel->channelContext, &dataToVerify,
@@ -91694,15 +92888,14 @@ void
 processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
     size_t offset = 0;
     UA_TcpErrorMessage errMessage;
-    client->connectStatus =
+    UA_StatusCode res =
         UA_decodeBinaryInternal(chunk, &offset, &errMessage,
                                 &UA_TRANSPORT[UA_TRANSPORT_TCPERRORMESSAGE], NULL);
-    if(client->connectStatus != UA_STATUSCODE_GOOD) {
+    if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(client->config.logging, &client->channel,
                              "Received an ERR response that could not be decoded "
-                             "with StatusCode %s",
-                             UA_StatusCode_name(client->connectStatus));
-        closeSecureChannel(client);
+                             "with StatusCode %s", UA_StatusCode_name(res));
+        setConnectStatus(client, res);
         return;
     }
 
@@ -91711,8 +92904,7 @@ processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
                          "the following reason: \"%S\"",
                          UA_StatusCode_name(errMessage.error),
                          errMessage.reason);
-    client->connectStatus = errMessage.error;
-    closeSecureChannel(client);
+    setConnectStatus(client, errMessage.error);
     UA_TcpErrorMessage_clear(&errMessage);
 }
 
@@ -91722,31 +92914,29 @@ processACKResponse(UA_Client *client, const UA_ByteString *chunk) {
     if(channel->state != UA_SECURECHANNELSTATE_HEL_SENT) {
         UA_LOG_ERROR_CHANNEL(client->config.logging, channel,
                              "SecureChannel not in the HEL-sent state");
-        client->connectStatus = UA_STATUSCODE_BADSECURECHANNELCLOSED;
-        closeSecureChannel(client);
+        setConnectStatus(client, UA_STATUSCODE_BADSECURECHANNELCLOSED);
         return;
     }
 
     /* Decode the message */
     size_t offset = 0;
     UA_TcpAcknowledgeMessage ackMessage;
-    client->connectStatus =
+    UA_StatusCode res =
         UA_decodeBinaryInternal(chunk, &offset, &ackMessage,
                                 &UA_TRANSPORT[UA_TRANSPORT_TCPACKNOWLEDGEMESSAGE], NULL);
-    if(client->connectStatus != UA_STATUSCODE_GOOD) {
+    if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_NETWORK,
                      "Decoding ACK message failed");
-        closeSecureChannel(client);
+        setConnectStatus(client, res);
         return;
     }
 
-    client->connectStatus =
-        UA_SecureChannel_processHELACK(channel, &ackMessage);
-    if(client->connectStatus != UA_STATUSCODE_GOOD) {
+    res = UA_SecureChannel_processHELACK(channel, &ackMessage);
+    if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_NETWORK,
                      "Processing the ACK message failed with StatusCode %s",
-                     UA_StatusCode_name(client->connectStatus));
-        closeSecureChannel(client);
+                     UA_StatusCode_name(res));
+        setConnectStatus(client, res);
         return;
     }
 
@@ -91777,9 +92967,12 @@ sendHELMessage(UA_Client *client) {
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
-    client->connectStatus =
-        UA_encodeBinaryInternal(&hello, &UA_TRANSPORT[UA_TRANSPORT_TCPHELLOMESSAGE],
-                                &bufPos, &bufEnd, NULL, NULL, NULL);
+    retval = UA_encodeBinaryInternal(&hello, &UA_TRANSPORT[UA_TRANSPORT_TCPHELLOMESSAGE],
+                                     &bufPos, &bufEnd, NULL, NULL, NULL);
+    if(retval != UA_STATUSCODE_GOOD) {
+        cm->freeNetworkBuffer(cm, client->channel.connectionId, &message);
+        return retval;
+    }
 
     /* Encode the message header at offset 0 */
     UA_TcpMessageHeader messageHeader;
@@ -91801,7 +92994,7 @@ sendHELMessage(UA_Client *client) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
                     "Sending HEL failed");
-        closeSecureChannel(client);
+        setConnectStatus(client, retval);
         return retval;
     }
 
@@ -91817,49 +93010,52 @@ void processRHEMessage(UA_Client *client, const UA_ByteString *chunk) {
 
     size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
     UA_TcpReverseHelloMessage rheMessage;
-    UA_StatusCode retval =
-        UA_decodeBinaryInternal(chunk, &offset, &rheMessage,
-                                &UA_TRANSPORT[UA_TRANSPORT_TCPREVERSEHELLOMESSAGE], NULL);
-
-    if(retval != UA_STATUSCODE_GOOD) {
+    static const UA_DataType *rheType = &UA_TRANSPORT[UA_TRANSPORT_TCPREVERSEHELLOMESSAGE];
+    UA_StatusCode res = UA_decodeBinaryInternal(chunk, &offset, &rheMessage, rheType, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
                      "Decoding RHE message failed");
-        closeSecureChannel(client);
+        setConnectStatus(client, res);
         return;
     }
 
+    /* Set the internal DisocveryUrl */
     UA_String_clear(&client->discoveryUrl);
-    UA_String_copy(&rheMessage.endpointUrl, &client->discoveryUrl);
-
+    client->discoveryUrl = rheMessage.endpointUrl;
+    UA_String_init(&rheMessage.endpointUrl);
     UA_TcpReverseHelloMessage_clear(&rheMessage);
 
-    sendHELMessage(client);
+    /* Send the HEL message */
+    setConnectStatus(client, sendHELMessage(client));
 }
 
 void
 processOPNResponse(UA_Client *client, const UA_ByteString *message) {
-    /* Is the content of the expected type? */
     size_t offset = 0;
     UA_NodeId responseId;
+    UA_OpenSecureChannelResponse response;
     UA_NodeId expectedId = UA_NS0ID(OPENSECURECHANNELRESPONSE_ENCODING_DEFAULTBINARY);
-    UA_StatusCode retval = UA_NodeId_decodeBinary(message, &offset, &responseId);
-    if(retval != UA_STATUSCODE_GOOD) {
-        closeSecureChannel(client);
-        return;
-    }
 
+    /* Decode the type NodeId */
+    UA_StatusCode res = UA_NodeId_decodeBinary(message, &offset, &responseId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto finish_decode;
+
+    /* Is the response of the expected type? */
     if(!UA_NodeId_equal(&responseId, &expectedId)) {
-        UA_NodeId_clear(&responseId);
-        closeSecureChannel(client);
-        return;
+        res = UA_STATUSCODE_BADDECODINGERROR;
+        goto finish_decode;
     }
 
     /* Decode the response */
-    UA_OpenSecureChannelResponse response;
-    retval = UA_decodeBinaryInternal(message, &offset, &response,
-                                     &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE], NULL);
-    if(retval != UA_STATUSCODE_GOOD) {
-        closeSecureChannel(client);
+    res = UA_decodeBinaryInternal(message, &offset, &response,
+                                  &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE], NULL);
+
+    finish_decode:
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_CHANNEL(client->config.logging, &client->channel,
+                             "Could not decode the OpenSecureChannelResponse");
+        setConnectStatus(client, res);
         return;
     }
 
@@ -91868,8 +93064,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
        UA_ByteString_equal(&client->channel.remoteNonce, &response.serverNonce)) {
         UA_LOG_ERROR_CHANNEL(client->config.logging, &client->channel,
                              "The server reused the last nonce");
-        client->connectStatus = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        closeSecureChannel(client);
+        setConnectStatus(client, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
         return;
     }
 
@@ -91877,8 +93072,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     if(response.serverNonce.length < client->channel.securityPolicy->nonceLength) {
         UA_LOG_ERROR_CHANNEL(client->config.logging, &client->channel,
                              "The server nonce is too short");
-        client->connectStatus = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        closeSecureChannel(client);
+        setConnectStatus(client, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
         return;
     }
 
@@ -91921,9 +93115,9 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
 
     /* Compute the new local keys. The remote keys are updated when a message
      * with the new SecurityToken is received. */
-    retval = UA_SecureChannel_generateLocalKeys(&client->channel);
-    if(retval != UA_STATUSCODE_GOOD) {
-        closeSecureChannel(client);
+    res = UA_SecureChannel_generateLocalKeys(&client->channel);
+    if(res != UA_STATUSCODE_GOOD) {
+        setConnectStatus(client, res);
         return;
     }
 
@@ -91945,17 +93139,14 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
 }
 
 /* OPN messges to renew the channel are sent asynchronous */
-static void
+static UA_StatusCode
 sendOPNAsync(UA_Client *client, UA_Boolean renew) {
-    if(!UA_SecureChannel_isConnected(&client->channel)) {
-        client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
-        return;
-    }
+    if(!UA_SecureChannel_isConnected(&client->channel))
+        return UA_STATUSCODE_BADINTERNALERROR;
 
-    client->connectStatus =
-        UA_SecureChannel_generateLocalNonce(&client->channel);
-    if(client->connectStatus != UA_STATUSCODE_GOOD)
-        return;
+    UA_StatusCode res = UA_SecureChannel_generateLocalNonce(&client->channel);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     UA_EventLoop *el = client->config.eventLoop;
 
@@ -91983,15 +93174,13 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
     /* Send the OPN message */
     UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_SECURECHANNEL,
                  "Requesting to open a SecureChannel");
-    client->connectStatus =
-        UA_SecureChannel_sendOPN(&client->channel, requestId, &opnSecRq,
-                                 &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST]);
-    if(client->connectStatus != UA_STATUSCODE_GOOD) {
+    static const UA_DataType *opnReqType = &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST];
+    res = UA_SecureChannel_sendOPN(&client->channel, requestId, &opnSecRq, opnReqType);
+    if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_SECURECHANNEL,
                       "Sending OPN message failed with error %s",
-                      UA_StatusCode_name(client->connectStatus));
-        closeSecureChannel(client);
-        return;
+                      UA_StatusCode_name(res));
+        return res;
     }
 
     /* Update the state */
@@ -92001,6 +93190,8 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
 
     UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_SECURECHANNEL,
                  "OPN message sent");
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -92016,9 +93207,10 @@ __Client_renewSecureChannel(UA_Client *client) {
        client->nextChannelRenewal > now)
         return UA_STATUSCODE_GOODCALLAGAIN;
 
-    sendOPNAsync(client, true);
+    UA_StatusCode res = sendOPNAsync(client, true);
+    setConnectStatus(client, res);
 
-    return client->connectStatus;
+    return res;
 }
 
 UA_StatusCode
@@ -92089,14 +93281,15 @@ responseReadNamespacesArray(UA_Client *client, void *userdata,
         nsMapping->remote2local[i] = nsIndex;
     }
 
-    nsMapping->local2remote = (UA_UInt16*)UA_calloc( nsSize, sizeof(UA_UInt16));
+    size_t l2rSize = client->namespacesSize > nsSize ? client->namespacesSize : nsSize;
+    nsMapping->local2remote = (UA_UInt16*)UA_calloc(l2rSize, sizeof(UA_UInt16));
     if(!nsMapping->local2remote) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Namespace mapping creation failed. Out of Memory.");
         UA_NamespaceMapping_delete(nsMapping);
         return;
     }
-    nsMapping->local2remoteSize = nsSize;
+    nsMapping->local2remoteSize = l2rSize;
     nsMapping->local2remote[0] = 0;
     nsMapping->local2remote[1] = 1;
 
@@ -92196,8 +93389,7 @@ responseActivateSession(UA_Client *client, void *userdata,
                          "Session cannot be activated with StatusCode %s. "
                          "The client is configured not to create a new Session.",
                          UA_StatusCode_name(ar->responseHeader.serviceResult));
-            client->connectStatus = ar->responseHeader.serviceResult;
-            closeSecureChannel(client);
+            setConnectStatus(client, ar->responseHeader.serviceResult);
             return;
         }
 
@@ -92206,7 +93398,7 @@ responseActivateSession(UA_Client *client, void *userdata,
            ar->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Session to be activated no longer exists. Create a new Session.");
-            client->connectStatus = createSessionAsync(client);
+            setConnectStatus(client, createSessionAsync(client));
             return;
         }
 
@@ -92215,18 +93407,18 @@ responseActivateSession(UA_Client *client, void *userdata,
                      "Session cannot be activated with StatusCode %s. "
                      "The client cannot recover from this, closing the connection.",
                      UA_StatusCode_name(ar->responseHeader.serviceResult));
-        client->connectStatus = ar->responseHeader.serviceResult;
-        closeSecureChannel(client);
+        setConnectStatus(client, ar->responseHeader.serviceResult);
         return;
     }
 
-    /* Check the nonce length */
-    if(ar->serverNonce.length < client->utpSp->nonceLength) {
+    /* Check the (session) nonce length. The session nonce is the application
+     * nonce (>= 32 bytes), independent of the SecurityPolicy's SecureChannel
+     * nonce length (e.g. the 64-byte ECC ephemeral key). */
+    if(ar->serverNonce.length < 32) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Session cannot be activated with a nonce "
                      "that is too short");
-        client->connectStatus = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        closeSecureChannel(client);
+        setConnectStatus(client, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
         return;
     }
 
@@ -92493,15 +93685,19 @@ matchUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
     if(utp->tokenType == UA_USERTOKENTYPE_ANONYMOUS)
         return true;
 
-    /* Get the SecurityPolicy */
+    /* Get the SecurityPolicy for the UserIdentityToken (see
+     * initUserTokenPolicy for the authSecurityPolicies/securityPolicies
+     * lookup rationale). */
     UA_SecurityPolicy *utsp;
     if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
         UA_X509IdentityToken *token = (UA_X509IdentityToken*)
             client->config.userIdentityToken.content.decoded.data;
         utsp = getAuthSecurityPolicy(client, tokenPolicyUri,
-                                     token->certificateData);
+                                     &token->certificateData);
     } else {
-        utsp = getSecurityPolicy(client, tokenPolicyUri);
+        utsp = getAuthSecurityPolicy(client, tokenPolicyUri, NULL);
+        if(!utsp)
+            utsp = getSecurityPolicy(client, tokenPolicyUri);
     }
     if(!utsp) {
         if(logPrefix) {
@@ -92592,11 +93788,10 @@ responseGetEndpoints(UA_Client *client, void *userdata,
          * If the SecureChannel is (intentionally or unintentionally) closed,
          * the connectStatus should come from there. */
         if(UA_SecureChannel_isConnected(&client->channel)) {
-           client->connectStatus = resp->responseHeader.serviceResult;
-           closeSecureChannel(client);
            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                         "GetEndpointRequest failed with error code %s",
-                        UA_StatusCode_name(client->connectStatus));
+                        UA_StatusCode_name(resp->responseHeader.serviceResult));
+           setConnectStatus(client, resp->responseHeader.serviceResult);
         }
 
         UA_GetEndpointsResponse_clear(resp);
@@ -92658,8 +93853,7 @@ responseGetEndpoints(UA_Client *client, void *userdata,
     if(bestEndpointIndex == notFound) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "No suitable endpoint found");
-        client->connectStatus = UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
-        closeSecureChannel(client);
+        setConnectStatus(client, UA_STATUSCODE_BADIDENTITYTOKENREJECTED);
         return;
     }
 
@@ -92911,8 +94105,10 @@ createSessionCallback(UA_Client *client, void *userdata,
     UA_NodeId_clear(&client->sessionId);
     res |= UA_NodeId_copy(&csr->sessionId, &client->sessionId);
 
-    /* Check the nonce length */
-    if(csr->serverNonce.length < client->utpSp->nonceLength) {
+    /* Check the (session) nonce length. The session nonce is the application
+     * nonce (>= 32 bytes), independent of the SecurityPolicy's SecureChannel
+     * nonce length (e.g. the 64-byte ECC ephemeral key). */
+    if(csr->serverNonce.length < 32) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Session cannot be created with a nonce "
                      "that is too short");
@@ -92936,9 +94132,44 @@ createSessionCallback(UA_Client *client, void *userdata,
     client->sessionState = UA_SESSIONSTATE_CREATED;
 
  cleanup:
-    client->connectStatus = res;
+    setConnectStatus(client, res);
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         client->sessionState = UA_SESSIONSTATE_CLOSED;
+}
+
+/* OPC UA Part 6 ECC: request an ephemeral ECDH key from the server by adding an
+ * "ECDHPolicyUri" entry (value = the user-token SecurityPolicy URI) to the
+ * request's AdditionalHeader. The server returns its ephemeral public key under
+ * "ECDHKey" in the response AdditionalHeader, which the client needs to encrypt
+ * an ECC UserIdentityToken. For non-ECC user-token policies this is a no-op.
+ * The caller must clear the AdditionalHeader after sending. */
+static UA_StatusCode
+requestServerEphemeralKey(UA_Client *client, UA_RequestHeader *rh) {
+    UA_SecurityPolicy *utpSp = client->utpSp;
+    if(!UA_SecurityPolicy_isEcc(utpSp))
+        return UA_STATUSCODE_GOOD;
+
+    UA_AdditionalParametersType *ap = UA_AdditionalParametersType_new();
+    if(!ap)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    ap->parameters = (UA_KeyValuePair*)
+        UA_Array_new(1, &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    if(!ap->parameters) {
+        UA_AdditionalParametersType_delete(ap);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    ap->parametersSize = 1;
+    ap->parameters[0].key = UA_QUALIFIEDNAME_ALLOC(0, "ECDHPolicyUri");
+    UA_StatusCode res =
+        UA_Variant_setScalarCopy(&ap->parameters[0].value, &utpSp->policyUri,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_AdditionalParametersType_delete(ap);
+        return res;
+    }
+    UA_ExtensionObject_setValue(&rh->additionalHeader, ap,
+                                &UA_TYPES[UA_TYPES_ADDITIONALPARAMETERSTYPE]);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -92952,35 +94183,32 @@ createSessionAsync(UA_Client *client) {
     UA_StatusCode res = initUserTokenPolicy(client, &utp, "CreateSession");
     if(res != UA_STATUSCODE_GOOD)
         return res;
+    (void)utp;
 
-    UA_SecurityPolicy *utpSp = client->utpSp;
-    UA_assert(utpSp);
-
-    /* Create the nonce. Trigger the ephemeral key generation for ECC. */
-    size_t nonceLength = utpSp->nonceLength;
-    if(nonceLength > 0) {
-        /* Create a nonce of at least 32 byte */
-        if(nonceLength < 32)
-            nonceLength = 32;
-
-        /* Allocate memory */
+    /* Create the CreateSession ClientNonce: a 32-byte random nonce when the
+     * SecureChannel is secured. For ECC SecurityPolicies the ClientNonce is
+     * NOT the session ephemeral key — the ephemeral keys are exchanged
+     * separately (the server's arrives in the response AdditionalHeader; the
+     * client's, when needed for UserIdentityToken encryption, is carried in
+     * the EccEncryptedSecret). Sending the ephemeral key as the nonce is
+     * rejected by conformant servers with BadNonceInvalid. */
+    UA_SecurityPolicy *sp = client->channel.securityPolicy;
+    if(sp && client->channel.securityMode != UA_MESSAGESECURITYMODE_NONE) {
+        size_t nonceLength = 32;
         if(client->clientSessionNonce.length != nonceLength) {
             UA_ByteString_clear(&client->clientSessionNonce);
             res = UA_ByteString_allocBuffer(&client->clientSessionNonce, nonceLength);
             if(res != UA_STATUSCODE_GOOD)
                 return res;
         }
-
-        /* Create the nonce / ephemeral key */
-        client->clientSessionNonce.data[0] = 'e';
-        client->clientSessionNonce.data[1] = 'p';
-        client->clientSessionNonce.data[2] = 'h';
-        res = utpSp->generateNonce(utpSp, client->utpSpContext,
-                                   &client->clientSessionNonce);
+        /* Ensure data[0] is not the 'e' of the "eph" ECC ephemeral-key
+         * trigger, so generateNonce produces plain random data. */
+        client->clientSessionNonce.data[0] = 0;
+        res = sp->generateNonce(sp, client->channel.channelContext,
+                                &client->clientSessionNonce);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                         "UserTokenPolicy %S could not create the nonce",
-                         utpSp->policyUri);
+                         "CreateSession could not create the client nonce");
             return res;
         }
     }
@@ -92996,14 +94224,25 @@ createSessionAsync(UA_Client *client) {
     request.sessionName = client->config.sessionName;
 
     /* Send the certificate that is used for the UserIdentiyToken as the
-     * ApplicationCertificate */
-    request.clientCertificate = client->channel.securityPolicy->localCertificate;
+     * ApplicationCertificate. (sp == client->channel.securityPolicy; guarded
+     * so static analysis sees it cannot be a NULL dereference.) */
+    if(sp)
+        request.clientCertificate = sp->localCertificate;
+
+    /* For ECC policies, request the server's ephemeral ECDH key (needed to
+     * encrypt the UserIdentityToken in ActivateSession). */
+    res = requestServerEphemeralKey(client, &request.requestHeader);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Send the request */
     res = __Client_AsyncService(client, &request,
                                 &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
                                 (UA_ClientAsyncServiceCallback)createSessionCallback,
                                 &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, NULL);
+
+    /* The request is encoded+sent synchronously; release the AdditionalHeader. */
+    UA_ExtensionObject_clear(&request.requestHeader.additionalHeader);
 
     if(res == UA_STATUSCODE_GOOD)
         client->sessionState = UA_SESSIONSTATE_CREATE_REQUESTED;
@@ -93107,12 +94346,12 @@ connectActivity(UA_Client *client) {
 
         /* Send HEL */
     case UA_SECURECHANNELSTATE_CONNECTED:
-        client->connectStatus = sendHELMessage(client);
+        setConnectStatus(client, sendHELMessage(client));
         return;
 
         /* ACK receieved. Send OPN. */
     case UA_SECURECHANNELSTATE_ACK_RECEIVED:
-        sendOPNAsync(client, false); /* Send OPN */
+        setConnectStatus(client, sendOPNAsync(client, false)); /* Send OPN */
         return;
 
         /* The channel is open -> continue with the Session handling */
@@ -93123,14 +94362,14 @@ connectActivity(UA_Client *client) {
          * connection */
     case UA_SECURECHANNELSTATE_CLOSED:
         if(client->config.noReconnect)
-            client->connectStatus = UA_STATUSCODE_BADNOTCONNECTED;
+            setConnectStatus(client, UA_STATUSCODE_BADNOTCONNECTED);
         else
             initConnect(client); /* Sets the connectStatus internally */
         return;
 
         /* These states should never occur for the client */
     default:
-        client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
+        setConnectStatus(client, UA_STATUSCODE_BADINTERNALERROR);
         return;
     }
 
@@ -93146,14 +94385,14 @@ connectActivity(UA_Client *client) {
      * endpoints may depend on the EndpointUrl used during the initial HEL/ACK
      * handshake. */
     if(client->discoveryUrl.length == 0) {
-        client->connectStatus = requestFindServers(client);
+        setConnectStatus(client, requestFindServers(client));
         return;
     }
 
     /* GetEndpoints to identify the remote side and/or reset the SecureChannel
      * with encryption */
     if(endpointUnconfigured(&client->endpoint)) {
-        client->connectStatus = requestGetEndpoints(client);
+        setConnectStatus(client, requestGetEndpoints(client));
         return;
     }
 
@@ -93165,12 +94404,12 @@ connectActivity(UA_Client *client) {
     switch(client->sessionState) {
         /* Send a CreateSessionRequest */
     case UA_SESSIONSTATE_CLOSED:
-        client->connectStatus = createSessionAsync(client);
+        setConnectStatus(client, createSessionAsync(client));
         return;
 
         /* Activate the Session */
     case UA_SESSIONSTATE_CREATED:
-        client->connectStatus = activateSessionAsync(client);
+        setConnectStatus(client, activateSessionAsync(client));
         return;
 
     case UA_SESSIONSTATE_CREATE_REQUESTED:
@@ -93181,7 +94420,7 @@ connectActivity(UA_Client *client) {
 
         /* These states should never occur for the client */
     default:
-        client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
+        setConnectStatus(client, UA_STATUSCODE_BADINTERNALERROR);
         break;
     }
 }
@@ -93295,7 +94534,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
            client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "Cannot open a connection, the SecureChannel is already used");
-            client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
+            setConnectStatus(client, UA_STATUSCODE_BADINTERNALERROR);
             notifyClientState(client);
             unlockClient(client);
             return;
@@ -93335,7 +94574,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * fails. Try to fall back on the initial EndpointUrl. */
         if(oldState == UA_SECURECHANNELSTATE_CONNECTING &&
            client->connectStatus == UA_STATUSCODE_GOOD)
-            client->connectStatus = fallbackEndpointUrl(client);
+            setConnectStatus(client, fallbackEndpointUrl(client));
 
         /* Try to reconnect. Duplicate the code instead of continue_connect to
          * pacify compiler warnings. */
@@ -93404,7 +94643,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * then the client cannot recover. Set the connectStatus to reflect
          * this. The application is notified when the socket has closed. */
         if(client->channel.state != UA_SECURECHANNELSTATE_OPEN)
-            client->connectStatus = res;
+            setConnectStatus(client, res);
 
         /* Close the SecureChannel, but don't notify the client right away.
          * Return immediately. notifyClientState will be called in the next
@@ -93448,17 +94687,22 @@ initConnect(UA_Client *client) {
         return;
     }
 
+    UA_StatusCode res;
+
     /* An exact endpoint was configured. Use it. */
     if(!endpointUnconfigured(&client->config.endpoint)) {
         UA_EndpointDescription_clear(&client->endpoint);
-        client->connectStatus =
-            UA_EndpointDescription_copy(&client->config.endpoint, &client->endpoint);
-        UA_CHECK_STATUS(client->connectStatus, return);
+        res = UA_EndpointDescription_copy(&client->config.endpoint, &client->endpoint);
+        if(res != UA_STATUSCODE_GOOD) {
+            setConnectStatus(client, res);
+            return;
+        }
     }
 
     /* Start the EventLoop if not already started */
-    client->connectStatus = __UA_Client_startup(client);
-    UA_CHECK_STATUS(client->connectStatus, return);
+    setConnectStatus(client, __UA_Client_startup(client));
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return;
 
     /* Consistency check the client's own ApplicationUri.
      * Problems are only logged. */
@@ -93471,7 +94715,7 @@ initConnect(UA_Client *client) {
     client->channel.processOPNHeaderApplication = client;
 
     /* Initialize the SecurityPolicy */
-    client->connectStatus = initSecurityPolicy(client);
+    setConnectStatus(client, initSecurityPolicy(client));
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return;
 
@@ -93480,11 +94724,11 @@ initConnect(UA_Client *client) {
     UA_String path = UA_STRING_NULL;
     UA_UInt16 port = 4840;
 
-    client->connectStatus =
-        UA_parseEndpointUrl(&client->config.endpointUrl, &hostname, &port, &path);
-    if(client->connectStatus != UA_STATUSCODE_GOOD) {
+    res = UA_parseEndpointUrl(&client->config.endpointUrl, &hostname, &port, &path);
+    if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
                        "Endpoint URL is invalid: %S", client->config.endpointUrl);
+        setConnectStatus(client, res);
         return;
     }
 
@@ -93514,22 +94758,21 @@ initConnect(UA_Client *client) {
         paramMap.mapSize = 3;
 
         /* Open the client TCP connection */
-        UA_StatusCode res = cm->openConnection(cm, &paramMap, client,
-                                               NULL, __Client_networkCallback);
+        res = cm->openConnection(cm, &paramMap, client, NULL, __Client_networkCallback);
         if(res == UA_STATUSCODE_GOOD)
             break;
     }
 
     /* The channel has not opened */
     if(client->channel.state == UA_SECURECHANNELSTATE_CLOSED)
-        client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
+        res = UA_STATUSCODE_BADINTERNALERROR;
 
     /* Opening the TCP connection failed */
-    if(client->connectStatus != UA_STATUSCODE_GOOD) {
+    if(res != UA_STATUSCODE_GOOD || client->connectStatus != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Could not open a TCP connection to %S",
                        client->config.endpointUrl);
-        client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
+        setConnectStatus(client, UA_STATUSCODE_BADCONNECTIONCLOSED);
     }
 }
 
@@ -93550,31 +94793,26 @@ connectSync(UA_Client *client) {
     UA_DateTime now = el->dateTime_nowMonotonic(el);
     UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
-    /* Run the EventLoop until connected, connect fail or timeout. Write the
-     * iterate result to the connectStatus. So we do not attempt to restore a
-     * failed connection during the sync connect. */
-    while(client->connectStatus == UA_STATUSCODE_GOOD &&
-          !isFullyConnected(client)) {
-
+    /* Run the EventLoop until connected, connect fail or timeout. Continue
+     * to iterate when the channel is in CLOSING state so that the pending
+     * close callback is processed and the channel fully transitions to CLOSED
+     * before returning to the caller. */
+    while((client->connectStatus == UA_STATUSCODE_GOOD && !isFullyConnected(client)) ||
+          client->channel.state == UA_SECURECHANNELSTATE_CLOSING) {
         /* Timeout -> abort */
         now = el->dateTime_nowMonotonic(el);
         if(maxDate < now) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "The connection has timed out before it could be fully opened");
-            client->connectStatus = UA_STATUSCODE_BADTIMEOUT;
-            closeSecureChannel(client);
-            /* Continue to run. So the SecureChannel is fully closed in the next
-             * EventLoop iteration. */
+            setConnectStatus(client, UA_STATUSCODE_BADTIMEOUT);
+            /* Continue to run. The loop continues while the channel is
+             * CLOSING so the close callback is processed. */
         }
 
         /* Drop into the EventLoop */
         UA_StatusCode res = el->run(el, (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
-        if(res != UA_STATUSCODE_GOOD) {
-            client->connectStatus = res;
-            closeSecureChannel(client);
-        }
-
-        notifyClientState(client);
+        if(res != UA_STATUSCODE_GOOD)
+            setConnectStatus(client, res);
     }
 }
 
@@ -93637,28 +94875,25 @@ activateSessionSync(UA_Client *client) {
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    while(client->sessionState != UA_SESSIONSTATE_ACTIVATED &&
-          client->connectStatus == UA_STATUSCODE_GOOD) {
-
+    /* Continue iterating while the session is being activated or the
+     * channel is draining (CLOSING) after a timeout. */
+    while((client->sessionState != UA_SESSIONSTATE_ACTIVATED &&
+          client->connectStatus == UA_STATUSCODE_GOOD) ||
+          client->channel.state == UA_SECURECHANNELSTATE_CLOSING) {
         /* Timeout -> abort */
         now = el->dateTime_nowMonotonic(el);
         if(maxDate < now) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "The connection has timed out before it could be fully opened");
-            client->connectStatus = UA_STATUSCODE_BADTIMEOUT;
-            closeSecureChannel(client);
-            /* Continue to run. So the SecureChannel is fully closed in the next
-             * EventLoop iteration. */
+            setConnectStatus(client, UA_STATUSCODE_BADTIMEOUT);
+            /* Continue to run. The loop continues while the channel is
+             * CLOSING so the close callback is processed. */
         }
 
         /* Drop into the EventLoop */
         res = el->run(el, (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
-        if(res != UA_STATUSCODE_GOOD) {
-            client->connectStatus = res;
-            closeSecureChannel(client);
-        }
-
-        notifyClientState(client);
+        if(res != UA_STATUSCODE_GOOD)
+            setConnectStatus(client, res);
     }
 
     return client->connectStatus;
@@ -93882,7 +95117,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     client->channel.processOPNHeaderApplication = client;
     client->channel.connectionId = 0;
 
-    client->connectStatus = initSecurityPolicy(client);
+    setConnectStatus(client, initSecurityPolicy(client));
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return client->connectStatus;
 
@@ -94053,7 +95288,8 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
     /* Close the SecureChannel */
     closeSecureChannel(client);
 
-    /* Manually set the status to closed to prevent an automatic reconnection */
+    /* Manually set the status to closed to prevent an automatic reconnection.
+     * Notify the client at the end. */
     if(client->connectStatus == UA_STATUSCODE_GOOD)
         client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
 
@@ -94759,6 +95995,7 @@ UA_Client_browse(UA_Client *client, const UA_ViewDescription *view,
     UA_BrowseResult res;
     UA_BrowseRequest request;
     UA_BrowseResponse response;
+    UA_BrowseResponse_init(&response);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!nodesToBrowse) {
         retval = UA_STATUSCODE_BADINTERNALERROR;
@@ -94830,6 +96067,7 @@ UA_Client_translateBrowsePathToNodeIds(UA_Client *client,
     UA_BrowsePathResult res;
     UA_TranslateBrowsePathsToNodeIdsRequest request;
     UA_TranslateBrowsePathsToNodeIdsResponse response;
+    UA_TranslateBrowsePathsToNodeIdsResponse_init(&response);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!browsePath) {
         retval = UA_STATUSCODE_BADINTERNALERROR;
@@ -96311,15 +97549,31 @@ static enum ZIP_CMP
 UA_ClientHandle_cmp(const void *a, const void *b) {
     const UA_Client_MonitoredItem *aa = (const UA_Client_MonitoredItem *)a;
     const UA_Client_MonitoredItem *bb = (const UA_Client_MonitoredItem *)b;
-    if(aa->clientHandle < bb->clientHandle)
+    if(aa->parameters.clientHandle < bb->parameters.clientHandle)
         return ZIP_CMP_LESS;
-    if(aa->clientHandle > bb->clientHandle)
+    if(aa->parameters.clientHandle > bb->parameters.clientHandle)
         return ZIP_CMP_MORE;
     return ZIP_CMP_EQ;
 }
 
 ZIP_FUNCTIONS(MonitorItemsTree, UA_Client_MonitoredItem, zipfields,
               UA_Client_MonitoredItem, zipfields, UA_ClientHandle_cmp)
+
+static UA_Client_MonitoredItem *
+findMonitoredItemByHandle(UA_Client_Subscription *sub, UA_UInt32 clientHandle) {
+    UA_Client_MonitoredItem dummy;
+    memset(&dummy, 0, sizeof(dummy));
+    dummy.parameters.clientHandle = clientHandle;
+    return ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
+}
+
+static void *
+MonitoredItem_findPendingByHandle(void *data, UA_Client_MonitoredItem *mon) {
+    UA_UInt32 clientHandle = *(UA_UInt32*)data;
+    if(mon->pendingParameters.clientHandle == clientHandle)
+        return mon;
+    return NULL;
+}
 
 static void
 MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
@@ -96671,7 +97925,8 @@ Subscriptions_delete_handler(UA_Client *client, void *data,
     __Client_Subscription_processDelete(client, &dsc->request, response);
 
     /* Userland Callback */
-    dsc->userCallback(client, dsc->userData, requestId, response);
+    if(dsc->userCallback)
+        dsc->userCallback(client, dsc->userData, requestId, response);
 
     /* Cleanup */
     UA_DeleteSubscriptionsRequest_clear(&dsc->request);
@@ -96760,6 +98015,15 @@ UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId
 /******************/
 
 static void
+EventFields_clear(UA_KeyValueMap *eventFields) {
+    /* The values are borrowed from the PublishResponse. Detach them before
+     * clearing the map-owned field-name keys. */
+    for(size_t i = 0; i < eventFields->mapSize; i++)
+        UA_Variant_init(&eventFields->map[i].value);
+    UA_KeyValueMap_clear(eventFields);
+}
+
+static void
 MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
                      UA_Client_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&client->clientMutex);
@@ -96768,15 +98032,14 @@ MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
     if(mon->deleteCallback)
         mon->deleteCallback(client, sub->subscriptionId, sub->context,
                             mon->monitoredItemId, mon->context);
-    for(size_t i = 0; i < mon->eventFields.mapSize; i++) {
-        UA_Variant_init(&mon->eventFields.map[i].value);
-    }
-    UA_KeyValueMap_clear(&mon->eventFields);
+    EventFields_clear(&mon->eventFields);
+    UA_MonitoringParameters_clear(&mon->parameters);
+    UA_MonitoringParameters_clear(&mon->pendingParameters);
     UA_free(mon);
 }
 
 static UA_StatusCode
-prepareEventFieldsMap(UA_Client_MonitoredItem *newMon,
+prepareEventFieldsMap(UA_KeyValueMap *eventFields,
                       UA_MonitoringParameters *params) {
     /* Get the EventFilter */
     UA_ExtensionObject *eo = &params->filter;
@@ -96790,16 +98053,16 @@ prepareEventFieldsMap(UA_Client_MonitoredItem *newMon,
         return UA_STATUSCODE_GOOD;
 
     /* Allocate the map */
-    newMon->eventFields.map = (UA_KeyValuePair*)
+    eventFields->map = (UA_KeyValuePair*)
         UA_calloc(ef->selectClausesSize, sizeof(UA_KeyValuePair));
-    if(!newMon->eventFields.map)
+    if(!eventFields->map)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    newMon->eventFields.mapSize = ef->selectClausesSize;
+    eventFields->mapSize = ef->selectClausesSize;
 
     /* Create the key-strings for the fields */
-    for(size_t i = 0; i < newMon->eventFields.mapSize; i++) {
+    for(size_t i = 0; i < eventFields->mapSize; i++) {
         res |= UA_SimpleAttributeOperand_print(&ef->selectClauses[i],
-                                               &newMon->eventFields.map[i].key.name);
+                                               &eventFields->map[i].key.name);
     }
 
     return res;
@@ -96817,22 +98080,20 @@ MonitoredItem_createBegin(UA_Client *client, UA_Client_Subscription *sub,
     if(!mon)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Cache the field name map */
-    mon->isEventMonitoredItem =
-        (item->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
-    if(mon->isEventMonitoredItem) {
-        UA_StatusCode res = prepareEventFieldsMap(mon, &item->requestedParameters);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_free(mon);
-            return res;
-        }
+    /* Set a unique ClientHandle and retain the active parameters. */
+    item->requestedParameters.clientHandle = ++client->monitoredItemHandles;
+    UA_StatusCode res =
+        UA_MonitoringParameters_copy(&item->requestedParameters,
+                                     &mon->parameters);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(mon);
+        return res;
     }
 
-    /* Set a unique ClientHandle */
-    item->requestedParameters.clientHandle = ++client->monitoredItemHandles;
+    mon->isEventMonitoredItem =
+        (item->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Fill in members and add to the client  */
-    mon->clientHandle = item->requestedParameters.clientHandle;
     mon->context = context;
     mon->deleteCallback = deleteCallback;
     mon->handler.dataChangeCallback =
@@ -96841,7 +98102,7 @@ MonitoredItem_createBegin(UA_Client *client, UA_Client_Subscription *sub,
 
     UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
                  "Subscription %" PRIu32 " | Added a MonitoredItem with handle %" PRIu32,
-                 sub->subscriptionId, mon->clientHandle);
+                 sub->subscriptionId, mon->parameters.clientHandle);
 
     *outMon = mon;
     return UA_STATUSCODE_GOOD;
@@ -97069,12 +98330,10 @@ MonitoredItems_create_async_handler(UA_Client *client, void *data,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
     /* Update the MonitoredItems */
-    UA_Client_MonitoredItem dummy;
     for(size_t i = 0; sub && i < monSize; i++) {
         /* Get the MonitoredItem from the ClientHandle */
-        dummy.clientHandle = monHandles[i];
         UA_Client_MonitoredItem *mon =
-            ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
+            findMonitoredItemByHandle(sub, monHandles[i]);
         if(!mon)
             continue;
 
@@ -97178,7 +98437,7 @@ Client_MonitoredItems_createAsync(UA_Client *client,
     handles[0] = sub->subscriptionId;
     handles[1] = (UA_UInt32)request.itemsToCreateSize;
     for(size_t i = 0; i < request.itemsToCreateSize; i++) {
-        handles[i+2] = mons[i]->clientHandle;
+        handles[i+2] = mons[i]->parameters.clientHandle;
     }
     cc->clientData = handles;
     cc->userCallback = createCallback;
@@ -97410,15 +98669,70 @@ findMonitoredItemById(UA_Client_Subscription *sub, UA_UInt32 monitoredItemId) {
                  MonitoredItem_findByID, &monitoredItemId);
 }
 
-static void
-setExistingClientHandles(UA_Client_Subscription *sub,
-                         UA_ModifyMonitoredItemsRequest *request) {
+static UA_StatusCode
+MonitoredItems_prepareModify(UA_Client *client, UA_Client_Subscription *sub,
+                             UA_ModifyMonitoredItemsRequest *request) {
+    UA_STACKARRAY(UA_Client_MonitoredItem*, mons, request->itemsToModifySize);
+    UA_STACKARRAY(UA_MonitoringParameters, preparedParameters,
+                  request->itemsToModifySize);
+    memset(mons, 0, sizeof(UA_Client_MonitoredItem*) *
+           request->itemsToModifySize);
+    memset(preparedParameters, 0, sizeof(UA_MonitoringParameters) *
+           request->itemsToModifySize);
+
+    /* Prepare every settings slot before changing the MonitoredItems. So an
+     * allocation failure leaves all active and pending settings untouched. */
     for(size_t i = 0; i < request->itemsToModifySize; ++i) {
         UA_MonitoredItemModifyRequest *mimr = &request->itemsToModify[i];
+        mimr->requestedParameters.clientHandle = 0;
+        mons[i] = findMonitoredItemById(sub, mimr->monitoredItemId);
+        if(!mons[i])
+            continue;
+
+        mimr->requestedParameters.clientHandle = ++client->monitoredItemHandles;
+        UA_StatusCode res =
+            UA_MonitoringParameters_copy(&mimr->requestedParameters,
+                                         &preparedParameters[i]);
+        if(res != UA_STATUSCODE_GOOD) {
+            for(size_t j = 0; j <= i; j++)
+                UA_MonitoringParameters_clear(&preparedParameters[j]);
+            return res;
+        }
+    }
+
+    /* Commit the prepared settings. A newer modification supersedes a pending
+     * generation that has not produced a notification yet. */
+    for(size_t i = 0; i < request->itemsToModifySize; ++i) {
+        UA_Client_MonitoredItem *mon = mons[i];
+        if(!mon)
+            continue;
+        UA_MonitoringParameters_clear(&mon->pendingParameters);
+        mon->pendingParameters = preparedParameters[i];
+        memset(&preparedParameters[i], 0, sizeof(UA_MonitoringParameters));
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+MonitoredItems_reconcileModify(UA_Client_Subscription *sub,
+                               const UA_ModifyMonitoredItemsRequest *request,
+                               UA_ModifyMonitoredItemsResponse *response) {
+    UA_Boolean validResponse = response &&
+        response->responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
+        response->resultsSize == request->itemsToModifySize;
+    if(response && response->responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
+       !validResponse)
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+
+    for(size_t i = 0; i < request->itemsToModifySize; ++i) {
+        if(validResponse && response->results[i].statusCode == UA_STATUSCODE_GOOD)
+            continue;
+        const UA_MonitoredItemModifyRequest *mimr = &request->itemsToModify[i];
         UA_Client_MonitoredItem *mon =
             findMonitoredItemById(sub, mimr->monitoredItemId);
-        if(mon)
-            mimr->requestedParameters.clientHandle = mon->clientHandle;
+        if(mon && mon->pendingParameters.clientHandle ==
+                  mimr->requestedParameters.clientHandle)
+            UA_MonitoringParameters_clear(&mon->pendingParameters);
     }
 }
 
@@ -97432,7 +98746,7 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
     UA_ModifyMonitoredItemsRequest modifiedRequest;
     UA_StatusCode res = UA_ModifyMonitoredItemsRequest_copy(&request, &modifiedRequest);
     if(res != UA_STATUSCODE_GOOD) {
-        response.responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        response.responseHeader.serviceResult = res;
         return response;
     }
 
@@ -97447,13 +98761,20 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
         return response;
     }
 
-    /* Reuse the existing ClientHandles for the MonitoredItems */
-    setExistingClientHandles(sub, &modifiedRequest);
+    res = MonitoredItems_prepareModify(client, sub, &modifiedRequest);
+    if(res != UA_STATUSCODE_GOOD) {
+        response.responseHeader.serviceResult = res;
+        unlockClient(client);
+        UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
+        return response;
+    }
 
     /* Call the service */
     __Client_Service(client, &modifiedRequest,
                      &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST], &response,
                      &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
+
+    MonitoredItems_reconcileModify(sub, &modifiedRequest, &response);
 
     unlockClient(client);
 
@@ -97462,16 +98783,47 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
     return response;
 }
 
+static void
+MonitoredItems_modify_async_handler(UA_Client *client, void *data,
+                                    UA_UInt32 requestId, void *resp) {
+    CustomCallback *cc = (CustomCallback*)data;
+    UA_ModifyMonitoredItemsRequest *request =
+        (UA_ModifyMonitoredItemsRequest*)cc->clientData;
+    UA_ModifyMonitoredItemsResponse *response =
+        (UA_ModifyMonitoredItemsResponse*)resp;
+
+    lockClient(client);
+    UA_Client_Subscription *sub =
+        findSubscriptionById(client, request->subscriptionId);
+    if(sub)
+        MonitoredItems_reconcileModify(sub, request, response);
+
+    if(cc->userCallback) {
+        UA_ClientAsyncModifyMonitoredItemsCallback cb =
+            (UA_ClientAsyncModifyMonitoredItemsCallback)cc->userCallback;
+        cb(client, cc->userData, requestId, response);
+    }
+
+    UA_ModifyMonitoredItemsRequest_delete(request);
+    UA_free(cc);
+    unlockClient(client);
+}
+
 UA_StatusCode
 UA_Client_MonitoredItems_modify_async(UA_Client *client,
                                       const UA_ModifyMonitoredItemsRequest request,
                                       UA_ClientAsyncModifyMonitoredItemsCallback callback,
                                       void *userdata, UA_UInt32 *requestId) {
-    /* Make a modifiable copy of the request */
-    UA_ModifyMonitoredItemsRequest modifiedRequest;
-    UA_StatusCode res = UA_ModifyMonitoredItemsRequest_copy(&request, &modifiedRequest);
-    if(res != UA_STATUSCODE_GOOD)
+    UA_ModifyMonitoredItemsRequest *requestCopy =
+        UA_ModifyMonitoredItemsRequest_new();
+    if(!requestCopy)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode res =
+        UA_ModifyMonitoredItemsRequest_copy(&request, requestCopy);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ModifyMonitoredItemsRequest_delete(requestCopy);
         return res;
+    }
 
     lockClient(client);
 
@@ -97479,23 +98831,41 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
     UA_Client_Subscription *sub = findSubscriptionById(client, request.subscriptionId);
     if(!sub) {
         unlockClient(client);
-        UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
+        UA_ModifyMonitoredItemsRequest_delete(requestCopy);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
-    /* Reuse the existing ClientHandles for the MonitoredItems */
-    setExistingClientHandles(sub, &modifiedRequest);
+    res = MonitoredItems_prepareModify(client, sub, requestCopy);
+    if(res != UA_STATUSCODE_GOOD) {
+        unlockClient(client);
+        UA_ModifyMonitoredItemsRequest_delete(requestCopy);
+        return res;
+    }
+
+    CustomCallback *cc = (CustomCallback*)UA_calloc(1, sizeof(CustomCallback));
+    if(!cc) {
+        MonitoredItems_reconcileModify(sub, requestCopy, NULL);
+        unlockClient(client);
+        UA_ModifyMonitoredItemsRequest_delete(requestCopy);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    cc->clientData = requestCopy;
+    cc->userCallback = (UA_ClientAsyncServiceCallback)callback;
+    cc->userData = userdata;
 
     /* Call the service */
     UA_StatusCode statusCode = __Client_AsyncService(
-        client, &modifiedRequest, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST],
-        (UA_ClientAsyncServiceCallback)callback,
-        &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE], userdata, requestId);
+        client, requestCopy, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST],
+        MonitoredItems_modify_async_handler,
+        &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE], cc, requestId);
+
+    if(statusCode != UA_STATUSCODE_GOOD) {
+        MonitoredItems_reconcileModify(sub, requestCopy, NULL);
+        UA_ModifyMonitoredItemsRequest_delete(requestCopy);
+        UA_free(cc);
+    }
 
     unlockClient(client);
-
-    /* Clean up */
-    UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
     return statusCode;
 }
 
@@ -97593,6 +98963,32 @@ __nextSequenceNumber(UA_UInt32 sequenceNumber) {
     return nextSequenceNumber;
 }
 
+static UA_Client_MonitoredItem *
+findMonitoredItemForNotification(UA_Client_Subscription *sub,
+                                 UA_UInt32 clientHandle) {
+    UA_Client_MonitoredItem *mon =
+        findMonitoredItemByHandle(sub, clientHandle);
+    if(mon)
+        return mon;
+
+    /* A notification is the authoritative signal that the server has started
+     * to use the modified settings. Promote the embedded pending slot and
+     * re-key the existing tree node. */
+    mon = (UA_Client_MonitoredItem*)
+        ZIP_ITER(MonitorItemsTree, &sub->monitoredItems,
+                 MonitoredItem_findPendingByHandle, &clientHandle);
+    if(!mon)
+        return NULL;
+
+    ZIP_REMOVE(MonitorItemsTree, &sub->monitoredItems, mon);
+    UA_MonitoringParameters_clear(&mon->parameters);
+    mon->parameters = mon->pendingParameters;
+    UA_MonitoringParameters_init(&mon->pendingParameters);
+    EventFields_clear(&mon->eventFields);
+    ZIP_INSERT(MonitorItemsTree, &sub->monitoredItems, mon);
+    return mon;
+}
+
 static void
 processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
                               UA_DataChangeNotification *dataChangeNotification) {
@@ -97602,10 +98998,8 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
         UA_MonitoredItemNotification *min = &dataChangeNotification->monitoredItems[j];
 
         /* Find the MonitoredItem */
-        UA_Client_MonitoredItem *mon;
-        UA_Client_MonitoredItem dummy;
-        dummy.clientHandle = min->clientHandle;
-        mon = ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
+        UA_Client_MonitoredItem *mon =
+            findMonitoredItemForNotification(sub, min->clientHandle);
 
         if(!mon) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -97640,10 +99034,8 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
         UA_EventFieldList *efl = &eventNotificationList->events[j];
 
         /* Find the MonitoredItem */
-        UA_Client_MonitoredItem *mon;
-        UA_Client_MonitoredItem dummy;
-        dummy.clientHandle = efl->clientHandle;
-        mon = ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
+        UA_Client_MonitoredItem *mon =
+            findMonitoredItemForNotification(sub, efl->clientHandle);
 
         if(!mon) {
             UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -97660,6 +99052,21 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
             continue;
         }
 
+        /* Build the callback metadata from the active filter only when it is
+         * first needed. After a promotion the cache is empty and rebuilt from
+         * the newly active parameters. */
+        if(mon->eventFields.mapSize == 0) {
+            UA_StatusCode res =
+                prepareEventFieldsMap(&mon->eventFields, &mon->parameters);
+            if(res != UA_STATUSCODE_GOOD) {
+                EventFields_clear(&mon->eventFields);
+                UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                               "Could not prepare event fields: %s",
+                               UA_StatusCode_name(res));
+                continue;
+            }
+        }
+
         if(mon->eventFields.mapSize != efl->eventFieldsSize) {
             UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "MonitoredItem received a EventNotification with the "
@@ -97667,12 +99074,12 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
             continue;
         }
 
-        /* Prepare the key-value map and call the callback  */
-        for(size_t i = 0; i < mon->eventFields.mapSize; i++) {
+        /* Add the borrowed notification values to the cached field names. */
+        for(size_t i = 0; i < mon->eventFields.mapSize; i++)
             mon->eventFields.map[i].value = efl->eventFields[i];
-        }
         mon->handler.eventCallback(client, sub->subscriptionId, sub->context,
-                                   mon->monitoredItemId, mon->context, mon->eventFields);
+                                   mon->monitoredItemId, mon->context,
+                                   mon->eventFields);
     }
 }
 
@@ -97719,7 +99126,7 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
                    "Unknown notification message type");
 }
 
-static void
+void
 __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
                                               UA_PublishResponse *response) {
     UA_LOCK_ASSERT(&client->clientMutex);
@@ -98281,6 +99688,11 @@ UA_Client_getRemoteDataTypes(UA_Client *client,
  */
 
 
+/* Maximum nesting depth of the operand tree. Bounds the recursion when
+ * resolving references and walking the tree, so that deeply nested expressions
+ * (e.g. long operator chains) cannot overflow the native stack. */
+#define UA_EVENTFILTER_MAXDEPTH 64
+
 void
 pos2lines(const UA_ByteString content, size_t pos,
           unsigned *outLine, unsigned *outCol) {
@@ -98327,7 +99739,7 @@ findOperand(EFParseContext *ctx, char *ref) {
 
 static Operand *
 resolveOperandRef(EFParseContext *ctx, Operand *op, size_t depth) {
-    if(depth > ctx->operandsSize)
+    if(depth > UA_EVENTFILTER_MAXDEPTH || depth > ctx->operandsSize)
         return NULL; /* prevent infinite recursion */
     if(!op)
         return NULL;
@@ -98366,8 +99778,9 @@ void append_select(EFParseContext *ctx, Operand *on) {
 
 char *
 save_string(char *str) {
-    char *local_str = (char*) UA_calloc(strlen(str)+1, sizeof(char));
-    strcpy(local_str, str);
+    size_t strLen = strlen(str);
+    char *local_str = (char*) UA_calloc(strLen + 1, sizeof(char));
+    memcpy(local_str, str, strLen + 1);
     return local_str;
 }
 
@@ -98388,8 +99801,11 @@ create_operator(EFParseContext *ctx, UA_FilterOperator fo) {
 void
 append_operand(Operand *op, Operand *on) {
     Operator *optr = &op->operand.op;
-    optr->children = (Operand**)
+    Operand **children_tmp = (Operand **)
         UA_realloc(optr->children, (optr->childrenSize + 1) * sizeof(Operand*));
+    if(!children_tmp)
+        return;
+    optr->children = children_tmp;
     optr->children[optr->childrenSize] = on;
     optr->childrenSize++;
 }
@@ -98397,7 +99813,11 @@ append_operand(Operand *op, Operand *on) {
 /* Count the number of elements for the filter. Mark all required elements that
  * appear in the hierarchy from the top element. */
 static size_t
-markPrinted(EFParseContext *ctx, Operand *top, UA_StatusCode *res) {
+markPrinted(EFParseContext *ctx, Operand *top, size_t depth, UA_StatusCode *res) {
+    if(depth > UA_EVENTFILTER_MAXDEPTH) {
+        *res |= UA_STATUSCODE_BADINTERNALERROR; /* prevent stack overflow */
+        return 0;
+    }
     top = resolveOperandRef(ctx, top, 0);
     if(!top) {
         *res |= UA_STATUSCODE_BADINTERNALERROR;
@@ -98410,7 +99830,7 @@ markPrinted(EFParseContext *ctx, Operand *top, UA_StatusCode *res) {
     top->operand.op.required = true;
     size_t count = 1;
     for(size_t i = 0; i < top->operand.op.childrenSize; i++)
-        count += markPrinted(ctx, top->operand.op.children[i], res);
+        count += markPrinted(ctx, top->operand.op.children[i], depth+1, res);
     return count;
 }
 
@@ -98530,7 +99950,7 @@ create_filter(EFParseContext *ctx, UA_EventFilter *filter) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    size_t count = markPrinted(ctx, top, &res); /* Count relevant filter elements */
+    size_t count = markPrinted(ctx, top, 0, &res); /* Count relevant filter elements */
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -109163,17 +110583,24 @@ cj5_error_code
 cj5_get_str(const cj5_result *r, unsigned int tok_index,
             char *buf, unsigned int *buflen) {
     const cj5_token *token = &r->tokens[tok_index];
-    if(token->type != CJ5_TOKEN_STRING)
+    if(token->type != CJ5_TOKEN_STRING) {
+        buf[0] = 0;
+        if(buflen)
+            *buflen = 0;
         return CJ5_ERROR_INVALID;
+    }
 
     const char *pos = &r->json5[token->start];
     const char *end = &r->json5[token->end + 1];
     unsigned int outpos = 0;
+    cj5_error_code error = CJ5_ERROR_NONE;
     for(; pos < end; pos++) {
         uint8_t c = (uint8_t)*pos;
         // Unprintable ascii characters must be escaped
-        if(c < ' ' || c == 127)
-            return CJ5_ERROR_INVALID;
+        if(c < ' ' || c == 127) {
+            error = CJ5_ERROR_INVALID;
+            goto done;
+        }
 
         // Unescaped Ascii character or utf8 byte
         if(c != '\\') {
@@ -109182,8 +110609,10 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
         }
 
         // End of input before the escaped character
-        if(pos + 1 >= end)
-            return CJ5_ERROR_INCOMPLETE;
+        if(pos + 1 >= end) {
+            error = CJ5_ERROR_INCOMPLETE;
+            goto done;
+        }
 
         // Process escaped character
         pos++;
@@ -109197,26 +110626,32 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
         default:  buf[outpos++] = (char)c; break;
         case 'u': {
             // Parse a unicode code point
-            if(pos + 4 >= end)
-                return CJ5_ERROR_INCOMPLETE;
+            if(pos + 4 >= end) {
+                error = CJ5_ERROR_INCOMPLETE;
+                goto done;
+            }
             pos++;
             uint32_t utf;
-            cj5_error_code err = parse_codepoint(pos, &utf);
-            if(err != CJ5_ERROR_NONE)
-                return err;
+            error = parse_codepoint(pos, &utf);
+            if(error != CJ5_ERROR_NONE)
+                goto done;
             pos += 3;
 
             // Parse a surrogate pair
             if(0xd800 <= utf && utf <= 0xdfff) {
-                if(pos + 6 >= end)
-                    return CJ5_ERROR_INVALID;
-                if(pos[1] != '\\' && pos[2] != 'u')
-                    return CJ5_ERROR_INVALID;
+                if(pos + 6 >= end) {
+                    error = CJ5_ERROR_INVALID;
+                    goto done;
+                }
+                if(pos[1] != '\\' && pos[2] != 'u') {
+                    error = CJ5_ERROR_INVALID;
+                    goto done;
+                }
                 pos += 3;
                 uint32_t utf2;
-                err = parse_codepoint(pos, &utf2);
-                if(err != CJ5_ERROR_NONE)
-                    return err;
+                error = parse_codepoint(pos, &utf2);
+                if(error != CJ5_ERROR_NONE)
+                    goto done;
                 pos += 3;
                 // High or low surrogate pair
                 utf = (utf <= 0xdbff) ?
@@ -109226,21 +110661,25 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
 
             // Write the utf8 bytes of the code point
             unsigned len = utf8_from_codepoint((unsigned char*)buf + outpos, utf);
-            if(len == 0)
-                return CJ5_ERROR_INVALID; // Not a utf8 string
+            if(len == 0) {
+                error = CJ5_ERROR_INVALID; // Not a utf8 string
+                goto done;
+            }
             outpos += len;
             break;
         }
         }
     }
 
-    // Terminate with \0
+ done:
+    // Always leave buf as a valid, NUL-terminated string, even when decoding
+    // fails midway. Callers still must check the returned error code.
     buf[outpos] = 0;
 
     // Set the output length
     if(buflen)
         *buflen = outpos;
-    return CJ5_ERROR_NONE;
+    return error;
 }
 
 void
@@ -109656,18 +111095,14 @@ ENCODE_JSON(Int64) {
 ENCODE_JSON(Float) {
     char buffer[32];
     size_t len;
-    if(*src != *src) {
-        strcpy(buffer, "\"NaN\"");
-        len = strlen(buffer);
-    } else if(*src == INFINITY) {
-        strcpy(buffer, "\"Infinity\"");
-        len = strlen(buffer);
-    } else if(*src == -INFINITY) {
-        strcpy(buffer, "\"-Infinity\"");
-        len = strlen(buffer);
-    } else {
-        len = dtoa((UA_Double)*src, buffer);
-    }
+    if(*src != *src)
+        return writeChars(ctx, "\"NaN\"", 5);
+    if(*src == INFINITY)
+        return writeChars(ctx, "\"Infinity\"", 10);
+    if(*src == -INFINITY)
+        return writeChars(ctx, "\"-Infinity\"", 11);
+
+    len = dtoa((UA_Double)*src, buffer);
 
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -109681,18 +111116,14 @@ ENCODE_JSON(Float) {
 ENCODE_JSON(Double) {
     char buffer[32];
     size_t len;
-    if(*src != *src) {
-        strcpy(buffer, "\"NaN\"");
-        len = strlen(buffer);
-    } else if(*src == INFINITY) {
-        strcpy(buffer, "\"Infinity\"");
-        len = strlen(buffer);
-    } else if(*src == -INFINITY) {
-        strcpy(buffer, "\"-Infinity\"");
-        len = strlen(buffer);
-    } else {
-        len = dtoa(*src, buffer);
-    }
+    if(*src != *src)
+        return writeChars(ctx, "\"NaN\"", 5);
+    if(*src == INFINITY)
+        return writeChars(ctx, "\"Infinity\"", 10);
+    if(*src == -INFINITY)
+        return writeChars(ctx, "\"-Infinity\"", 11);
+
+    len = dtoa(*src, buffer);
 
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -110090,6 +111521,9 @@ ENCODE_JSON(LocalizedText) {
 }
 
 ENCODE_JSON(QualifiedName) {
+    if(src->namespaceIndex == 0 && src->name.data == NULL)
+        return writeChars(ctx, "null", 4);
+
     status ret = writeJsonObjStart(ctx);
     ret |= writeJsonKey(ctx, UA_JSONKEY_NAME);
     ret |= ENCODE_DIRECT_JSON(&src->name, String);
@@ -112355,18 +113789,14 @@ ENCODE_JSON(Int64) {
 ENCODE_JSON(Float) {
     char buffer[32];
     size_t len;
-    if(*src != *src) {
-        strcpy(buffer, "\"NaN\"");
-        len = strlen(buffer);
-    } else if(*src == INFINITY) {
-        strcpy(buffer, "\"Infinity\"");
-        len = strlen(buffer);
-    } else if(*src == -INFINITY) {
-        strcpy(buffer, "\"-Infinity\"");
-        len = strlen(buffer);
-    } else {
-        len = dtoa((UA_Double)*src, buffer);
-    }
+    if(*src != *src)
+        return writeChars(ctx, "\"NaN\"", 5);
+    if(*src == INFINITY)
+        return writeChars(ctx, "\"Infinity\"", 10);
+    if(*src == -INFINITY)
+        return writeChars(ctx, "\"-Infinity\"", 11);
+
+    len = dtoa((UA_Double)*src, buffer);
 
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -112380,18 +113810,14 @@ ENCODE_JSON(Float) {
 ENCODE_JSON(Double) {
     char buffer[32];
     size_t len;
-    if(*src != *src) {
-        strcpy(buffer, "\"NaN\"");
-        len = strlen(buffer);
-    } else if(*src == INFINITY) {
-        strcpy(buffer, "\"Infinity\"");
-        len = strlen(buffer);
-    } else if(*src == -INFINITY) {
-        strcpy(buffer, "\"-Infinity\"");
-        len = strlen(buffer);
-    } else {
-        len = dtoa(*src, buffer);
-    }
+    if(*src != *src)
+        return writeChars(ctx, "\"NaN\"", 5);
+    if(*src == INFINITY)
+        return writeChars(ctx, "\"Infinity\"", 10);
+    if(*src == -INFINITY)
+        return writeChars(ctx, "\"-Infinity\"", 11);
+
+    len = dtoa(*src, buffer);
 
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -112583,6 +114009,8 @@ ENCODE_JSON(LocalizedText) {
 }
 
 ENCODE_JSON(QualifiedName) {
+    if(src->namespaceIndex == 0 && src->name.data == NULL)
+        return writeChars(ctx, "null", 4);
     UA_String out = UA_STRING_NULL;
     UA_StatusCode ret = UA_QualifiedName_printEx(src, &out, ctx->namespaceMapping);
     ret |= ENCODE_DIRECT_JSON(&out, String);
@@ -112761,7 +114189,11 @@ encodeVariantInner(CtxJson *ctx, const UA_Variant *src) {
 }
 
 ENCODE_JSON(Variant) {
-    return writeJsonObjStart(ctx) | encodeVariantInner(ctx, src) | writeJsonObjEnd(ctx);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= writeJsonObjStart(ctx);
+    res |= encodeVariantInner(ctx, src);
+    res |= writeJsonObjEnd(ctx);
+    return res;
 }
 
 /* DataValue */
@@ -112878,7 +114310,11 @@ encodeJsonStructureContent(CtxJson *ctx, const void *src, const UA_DataType *typ
 
 static status
 encodeJsonStructure(CtxJson *ctx, const void *src, const UA_DataType *type) {
-    return writeJsonObjStart(ctx) | encodeJsonStructureContent(ctx, src, type) | writeJsonObjEnd(ctx);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= writeJsonObjStart(ctx);
+    res |= encodeJsonStructureContent(ctx, src, type);
+    res |= writeJsonObjEnd(ctx);
+    return res;
 }
 
 static status
@@ -114094,6 +115530,10 @@ DECODE_JSON(ExtensionObject) {
     /* No need to keep the TypeId */
     UA_NodeId_clear(&typeId);
 
+    /* Disallow directly nested ExtensionObjects */
+    if(type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     /* Allocate memory for the decoded data */
     dst->content.decoded.data = UA_new(type);
     if(!dst->content.decoded.data)
@@ -114821,6 +116261,9 @@ DataSetPayload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, void *data, const UA
     /* The number of key-value pairs */
     UA_assert(ctx->ctx.tokens[ctx->ctx.index].size % 2 == 0);
     size_t length = (size_t)(ctx->ctx.tokens[ctx->ctx.index].size) / 2;
+
+    if(length > UA_UINT16_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     dsm->data.keyFrameFields = (UA_DataValue *)
         UA_Array_new(length, &UA_TYPES[UA_TYPES_DATAVALUE]);
@@ -115710,12 +117153,16 @@ UA_SecurityHeader_decodeBinary(PubSubDecodeCtx *ctx,
  * DataSetMessages. This can be used to inject an a-priori known number of
  * NetworkMessages and their DataSetWriterIds if the payload header is
  * disabled. */
-void
+UA_StatusCode
 UA_NetworkMessage_makeSyntheticPayloadHeader(const UA_NetworkMessage_EncodingOptions *eo,
                                              UA_NetworkMessage *nm) {
     UA_assert(nm->payloadHeaderEnabled == false);
 
     if(eo->metaDataSize > 0) {
+        /* Validate bounds and pointer before writing into the fixed-size array */
+        if(eo->metaDataSize > UA_NETWORKMESSAGE_MAXMESSAGECOUNT ||
+           eo->metaData == NULL)
+            return UA_STATUSCODE_BADDECODINGERROR;
         nm->messageCount = (UA_Byte)eo->metaDataSize;
         for(size_t i = 0; i < nm->messageCount; i++)
             nm->dataSetWriterIds[i] = eo->metaData[i].dataSetWriterId;
@@ -115726,6 +117173,7 @@ UA_NetworkMessage_makeSyntheticPayloadHeader(const UA_NetworkMessage_EncodingOpt
          * payload. */
         nm->messageCount = 1;
     }
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -115781,11 +117229,11 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
         if(nm->payloadHeaderEnabled) {
             /* Decode from the message */
             for(size_t i = 0; i < nm->messageCount; i++) {
-                rv |= _DECODE_BINARY(&dataSetMessageSizes[i], UINT16);
+                rv = _DECODE_BINARY(&dataSetMessageSizes[i], UINT16);
+                UA_CHECK_STATUS(rv, return rv);
                 if(dataSetMessageSizes[i] == 0)
                     return UA_STATUSCODE_BADDECODINGERROR;
             }
-            UA_CHECK_STATUS(rv, return rv);
         } else {
             /* If no PayloadHeader is defined, then assume the EncodingOptions
              * reflect the DataSetMessages */
@@ -115864,8 +117312,10 @@ UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
     UA_CHECK_STATUS(rv, goto cleanup);
 
     /* Handle missing payload header and "inject" metadata */
-    if(!nm->payloadHeaderEnabled)
-        UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+    if(!nm->payloadHeaderEnabled) {
+        rv = UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+        UA_CHECK_STATUS(rv, goto cleanup);
+    }
 
     /* Decode the payload */
     rv = UA_NetworkMessage_decodePayload(&ctx, nm);
@@ -115911,8 +117361,14 @@ UA_NetworkMessage_decodeBinaryHeaders(const UA_ByteString *src,
     }
 
     /* Handle missing payload header and "inject" metadata */
-    if(!dst->payloadHeaderEnabled)
-        UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, dst);
+    if(!dst->payloadHeaderEnabled) {
+        rv = UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, dst);
+        if(rv != UA_STATUSCODE_GOOD) {
+            if(!ctx.ctx.opts.calloc)
+                UA_NetworkMessage_clear(dst);
+            return rv;
+        }
+    }
 
     /* Set the offset */
     if(payloadOffset)
@@ -117041,7 +118497,9 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "Could not create the PubSubConnection. "
                      "The connection parameters did not validate.");
-        UA_PubSubConnection_delete(psm, c);
+        /* The lifecycle callback has not run yet; free without invoking it. */
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, c, UA_PUBSUBCOMPONENT_CONNECTION);
         return ret;
     }
 
@@ -117058,7 +118516,10 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
             componentLifecycleCallback(server, c->head.identifier,
                                        UA_PUBSUBCOMPONENT_CONNECTION, false);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_PubSubConnection_delete(psm, c);
+            /* The app refused the component; free without re-asking the
+             * lifecycle callback (it would re-reject and leak the node). */
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, c, UA_PUBSUBCOMPONENT_CONNECTION);
             return res;
         }
     }
@@ -117453,7 +118914,7 @@ UA_PubSubConnection_attachRecvConnection(UA_PubSubManager *psm,
 }
 
 static void
-UA_PubSubConnection_disconnect(UA_PubSubConnection *c) {   
+UA_PubSubConnection_disconnect(UA_PubSubConnection *c) {
     if(!c->cm)
         return;
     if(c->sendChannel != 0)
@@ -119098,7 +120559,10 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
             componentLifecycleCallback(server, dsw->head.identifier,
                                        UA_PUBSUBCOMPONENT_DATASETWRITER, false);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_DataSetWriter_remove(psm, dsw);
+            /* The app refused the component; free without re-asking the
+             * lifecycle callback (it would re-reject and leak the writer). */
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, dsw, UA_PUBSUBCOMPONENT_DATASETWRITER);
             return res;
         }
     }
@@ -119693,8 +121157,8 @@ static UA_StatusCode
 generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
                        UA_ExtensionObject *messageSettings,
-                       UA_ExtensionObject *transportSettings,
-                       UA_NetworkMessage *networkMessage);
+                        UA_ExtensionObject *transportSettings,
+                         UA_NetworkMessage *networkMessage);
 
 static void
 UA_WriterGroup_disconnect(UA_WriterGroup *wg);
@@ -119856,7 +121320,8 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     res = addWriterGroupRepresentation(psm->sc.server, wg);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_WriterGroup_remove(psm, wg);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, wg, UA_PUBSUBCOMPONENT_WRITERGROUP);
         return res;
     }
 #else
@@ -119874,7 +121339,8 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg,
                             "Could not validate the connection parameters");
-        UA_WriterGroup_remove(psm, wg);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, wg, UA_PUBSUBCOMPONENT_WRITERGROUP);
         return res;
     }
 
@@ -119884,7 +121350,8 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
         res = writerGroupAttachSKSKeystorage(psm, wg);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Attaching the SKS KeyStorage failed");
-            UA_WriterGroup_remove(psm, wg);
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, wg, UA_PUBSUBCOMPONENT_WRITERGROUP);
             return res;
         }
     }
@@ -119898,7 +121365,10 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
             componentLifecycleCallback(server, wg->head.identifier,
                                        UA_PUBSUBCOMPONENT_WRITERGROUP, false);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_WriterGroup_remove(psm, wg);
+            /* The app refused the component; free without re-asking the
+             * lifecycle callback (it would re-reject and leak the group). */
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, wg, UA_PUBSUBCOMPONENT_WRITERGROUP);
             return res;
         }
     }
@@ -121646,7 +123116,8 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     UA_StatusCode retVal =
         UA_DataSetReaderConfig_copy(dataSetReaderConfig, &dsr->config);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_DataSetReader_remove(psm, dsr);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, dsr, UA_PUBSUBCOMPONENT_DATASETREADER);
         return retVal;
     }
 
@@ -121655,7 +123126,8 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, rg,
                             "Adding the DataSetReader to the information model failed");
-        UA_DataSetReader_remove(psm, dsr);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, dsr, UA_PUBSUBCOMPONENT_DATASETREADER);
         return retVal;
     }
 #else
@@ -121673,14 +123145,16 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
      * StandaloneSubscribedDataSet. */
     retVal = connectDSR2Standalone(psm, dsr);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_DataSetReader_remove(psm, dsr);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, dsr, UA_PUBSUBCOMPONENT_DATASETREADER);
         return retVal;
     }
 
     /* Validate the config */
     retVal = validateDSRConfig(psm, dsr);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_DataSetReader_remove(psm, dsr);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, dsr, UA_PUBSUBCOMPONENT_DATASETREADER);
         return retVal;
     }
 
@@ -121692,7 +123166,10 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
             componentLifecycleCallback(server, dsr->head.identifier,
                                        UA_PUBSUBCOMPONENT_DATASETREADER, false);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_DataSetReader_remove(psm, dsr);
+            /* The app refused the component; free without re-asking the
+             * lifecycle callback (it would re-reject and leak the reader). */
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, dsr, UA_PUBSUBCOMPONENT_DATASETREADER);
             return res;
         }
     }
@@ -122623,7 +124100,8 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, newGroup,
                             "Could not validate the connection parameters");
-        UA_ReaderGroup_remove(psm, newGroup);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, newGroup, UA_PUBSUBCOMPONENT_READERGROUP);
         return retval;
     }
 
@@ -122635,7 +124113,8 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(psm->logging, newGroup,
                                 "Attaching the SKS KeyStorage failed");
-            UA_ReaderGroup_remove(psm, newGroup);
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, newGroup, UA_PUBSUBCOMPONENT_READERGROUP);
             return retval;
         }
     }
@@ -122645,7 +124124,8 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     retval |= addReaderGroupRepresentation(psm->sc.server, newGroup);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ReaderGroup_remove(psm, newGroup);
+        UA_PubSubComponent_freeWithoutLifecycleCallback(
+            psm, newGroup, UA_PUBSUBCOMPONENT_READERGROUP);
         return retval;
     }
 #else
@@ -122660,7 +124140,10 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
             componentLifecycleCallback(server, newGroup->head.identifier,
                                        UA_PUBSUBCOMPONENT_READERGROUP, false);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_ReaderGroup_remove(psm, newGroup);
+            /* The app refused the component; free without re-asking the
+             * lifecycle callback (it would re-reject and leak the group). */
+            UA_PubSubComponent_freeWithoutLifecycleCallback(
+                psm, newGroup, UA_PUBSUBCOMPONENT_READERGROUP);
             return retval;
         }
     }
@@ -123016,8 +124499,13 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
     }
 
     /* Handle missing payload header and "inject" metadata */
-    if(!nm->payloadHeaderEnabled)
-        UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+    if(!nm->payloadHeaderEnabled) {
+        rv = UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_NetworkMessage_clear(nm);
+            return rv;
+        }
+    }
 
     /* Decrypt */
     rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx.ctx, nm, rg);
@@ -123171,6 +124659,11 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
     /* Validate the signature */
     if(doValidate) {
         size_t sigSize = sp->getSignatureSize(sp, cc);
+        if(buffer.length < sigSize) {
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                           "PubSub receive. Message too short for signature");
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        }
         UA_ByteString toBeVerified = {buffer.length - sigSize, buffer.data};
         UA_ByteString signature = {sigSize, buffer.data + buffer.length - sigSize};
 
@@ -123323,9 +124816,10 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
-    if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
+    if (rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
+        rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
-                              "Received a messaage for a non-operational ReaderGroup");
+            "Received a message for a disabled ReaderGroup");
         unlockServer(server);
         return;
     }
@@ -123725,6 +125219,38 @@ UA_PubSubComponentHead_clear(UA_PubSubComponentHead *psch) {
     UA_NodeId_clear(&psch->identifier);
     UA_String_clear(&psch->logIdString);
     memset(psch, 0, sizeof(UA_PubSubComponentHead));
+}
+
+/* See declaration in ua_pubsub_internal.h for full documentation. */
+void
+UA_PubSubComponent_freeWithoutLifecycleCallback(UA_PubSubManager *psm,
+                                                void *component,
+                                                UA_PubSubComponentType type) {
+    UA_Server *server = psm->sc.server;
+    UA_StatusCode (*savedCb)(UA_Server*, const UA_NodeId,
+                             const UA_PubSubComponentType, UA_Boolean) =
+        server->config.pubSubConfig.componentLifecycleCallback;
+    server->config.pubSubConfig.componentLifecycleCallback = NULL;
+    switch(type) {
+    case UA_PUBSUBCOMPONENT_CONNECTION:
+        UA_PubSubConnection_delete(psm, (UA_PubSubConnection*)component);
+        break;
+    case UA_PUBSUBCOMPONENT_WRITERGROUP:
+        UA_WriterGroup_remove(psm, (UA_WriterGroup*)component);
+        break;
+    case UA_PUBSUBCOMPONENT_READERGROUP:
+        UA_ReaderGroup_remove(psm, (UA_ReaderGroup*)component);
+        break;
+    case UA_PUBSUBCOMPONENT_DATASETWRITER:
+        UA_DataSetWriter_remove(psm, (UA_DataSetWriter*)component);
+        break;
+    case UA_PUBSUBCOMPONENT_DATASETREADER:
+        UA_DataSetReader_remove(psm, (UA_DataSetReader*)component);
+        break;
+    default:
+        break;
+    }
+    server->config.pubSubConfig.componentLifecycleCallback = savedCb;
 }
 
 UA_StatusCode
@@ -124580,7 +126106,24 @@ findPubSubComponentFromStatus(UA_Server *server, const UA_NodeId *statusObjectId
                               void **component, UA_Boolean *isPublishSubscribeObject) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     *isPublishSubscribeObject = false;
+
+    /* Enable/Disable on the root PubSub Status (PUBLISHSUBSCRIBE_STATUS,
+     * NS0 id 17405) cannot be resolved via the inverse HasComponent browse
+     * below; match the well-known Status ID and route to the PubSubManager. */
+    UA_NodeId statusId = UA_NS0ID(PUBLISHSUBSCRIBE_STATUS);
+    if(UA_NodeId_equal(statusObjectId, &statusId)) {
+        *componentNodeId = UA_NS0ID(PUBLISHSUBSCRIBE);
+        *componentType = UA_PUBSUBCOMPONENT_CONNECTION;
+        *component = psm;
+        *isPublishSubscribeObject = true;
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Find the parent PubSub component by browsing up from the Status object */
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -124601,9 +126144,16 @@ findPubSubComponentFromStatus(UA_Server *server, const UA_NodeId *statusObjectId
     UA_NodeId parentTypeId = br.references[0].typeDefinition.nodeId;
     UA_BrowseResult_clear(&br);
 
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    /* The top-level PublishSubscribe node's Status child resolves directly to
+     * the PubSubManager. Match it explicitly so Enable/Disable route to the
+     * manager instead of relying on the browse fallback below. */
+    UA_NodeId publishSubscribeId = UA_NS0ID(PUBLISHSUBSCRIBE);
+    if(UA_NodeId_equal(componentNodeId, &publishSubscribeId)) {
+        *isPublishSubscribeObject = true;
+        *componentType = UA_PUBSUBCOMPONENT_CONNECTION;
+        *component = psm;
+        return UA_STATUSCODE_GOOD;
+    }
 
     /* Identify component type and find the component */
     UA_NodeId pubsubconnectionTypeId = UA_NS0ID(PUBSUBCONNECTIONTYPE);
@@ -129487,12 +131037,14 @@ generatePubSubConfigurationDataType(UA_PubSubManager *psm,
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubConfigurationDataType_init(configDT);
-    configDT->publishedDataSets = (UA_PublishedDataSetDataType*)
-        UA_calloc(psm->publishedDataSetsSize,
-                  sizeof(UA_PublishedDataSetDataType));
-    if(configDT->publishedDataSets == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
     configDT->publishedDataSetsSize = psm->publishedDataSetsSize;
+    if(configDT->publishedDataSetsSize > 0) {
+        configDT->publishedDataSets = (UA_PublishedDataSetDataType*)
+            UA_calloc(configDT->publishedDataSetsSize,
+                      sizeof(UA_PublishedDataSetDataType));
+        if(configDT->publishedDataSets == NULL)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     UA_PublishedDataSet *pds;
     UA_UInt32 pdsIndex = 0;
@@ -129509,11 +131061,14 @@ generatePubSubConfigurationDataType(UA_PubSubManager *psm,
         pdsIndex++;
     }
 
-    configDT->connections = (UA_PubSubConnectionDataType*)
-        UA_calloc(psm->connectionsSize, sizeof(UA_PubSubConnectionDataType));
-    if(configDT->connections == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
     configDT->connectionsSize = psm->connectionsSize;
+    if(configDT->connectionsSize > 0) {
+        configDT->connections = (UA_PubSubConnectionDataType*)
+            UA_calloc(configDT->connectionsSize,
+                      sizeof(UA_PubSubConnectionDataType));
+        if(configDT->connections == NULL)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     UA_UInt32 connectionIndex = 0;
     UA_PubSubConnection *connection;
@@ -130716,6 +132271,8 @@ xml_tokenize(const char *xml, unsigned int len,
             break;
         case YXML_ELEMEND:
         case YXML_ATTREND:
+            if(top == 0)
+                goto errout; /* more closes than opens */
             if(val_begin > 0) {
                 stack[top]->content.data = (UA_Byte*)(uintptr_t)xml + val_begin;
                 stack[top]->content.length = stack[top]->end + 1 - val_begin;
@@ -130905,18 +132462,14 @@ ENCODE_XML(UInt64) {
 ENCODE_XML(Float) {
     char buffer[32];
     size_t len;
-    if(*src != *src) {
-        strcpy(buffer, "NaN");
-        len = strlen(buffer);
-    } else if(*src == INFINITY) {
-        strcpy(buffer, "INF");
-        len = strlen(buffer);
-    } else if(*src == -INFINITY) {
-        strcpy(buffer, "-INF");
-        len = strlen(buffer);
-    } else {
-        len = dtoa((UA_Double)*src, buffer);
-    }
+    if(*src != *src)
+        return xmlEncodeWriteChars(ctx, "NaN", 3);
+    if(*src == INFINITY)
+        return xmlEncodeWriteChars(ctx, "INF", 3);
+    if(*src == -INFINITY)
+        return xmlEncodeWriteChars(ctx, "-INF", 4);
+
+    len = dtoa((UA_Double)*src, buffer);
     return xmlEncodeWriteChars(ctx, buffer, len);
 }
 
@@ -130924,18 +132477,14 @@ ENCODE_XML(Float) {
 ENCODE_XML(Double) {
     char buffer[32];
     size_t len;
-    if(*src != *src) {
-        strcpy(buffer, "NaN");
-        len = strlen(buffer);
-    } else if(*src == INFINITY) {
-        strcpy(buffer, "INF");
-        len = strlen(buffer);
-    } else if(*src == -INFINITY) {
-        strcpy(buffer, "-INF");
-        len = strlen(buffer);
-    } else {
-        len = dtoa(*src, buffer);
-    }
+    if(*src != *src)
+        return xmlEncodeWriteChars(ctx, "NaN", 3);
+    if(*src == INFINITY)
+        return xmlEncodeWriteChars(ctx, "INF", 3);
+    if(*src == -INFINITY)
+        return xmlEncodeWriteChars(ctx, "-INF", 4);
+
+    len = dtoa(*src, buffer);
     return xmlEncodeWriteChars(ctx, buffer, len);
 }
 
@@ -132375,6 +133924,12 @@ UA_DiscoveryManager_stop(struct UA_ServerComponent *sc) {
         return;
 
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
+
+    /* Set STOPPING early so that CLOSING callbacks (fired by stopMulticast
+     * below) do not trigger UA_DiscoveryManager_startMulticast and re-open
+     * connections that would prevent the DM from reaching STOPPED. */
+    sc->state = UA_LIFECYCLESTATE_STOPPING;
+
     removeCallback(dm->sc.server, dm->discoveryCallbackId);
 
     /* Cancel all outstanding register requests */
@@ -132476,6 +134031,10 @@ registerAsyncResponse(UA_Client *client, void *userdata,
     UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
                    "%s failed with statuscode %s", regtype,
                    UA_StatusCode_name(response->responseHeader.serviceResult));
+
+    /* RegisterServer already failed. Do not retry indefinitely. */
+    if(!ar->register2)
+        goto done;
 
     /* Try RegisterServer next */
     ar->register2 = false;
@@ -133040,6 +134599,23 @@ UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
                                     UA_ByteString *data,
                                     UA_Boolean decryptData);
 
+/* AES-128-GCM AEAD encrypt/decrypt.
+ * If encryptData/decryptData is true, the data part is encrypted or decrypted.
+ * Otherwise, only the authentication tag is computed/verified. */
+UA_StatusCode
+UA_OpenSSL_AES_128_GCM_Encrypt(const UA_ByteString *iv,
+                               const UA_ByteString *key,
+                               const UA_ByteString *aad,
+                               UA_ByteString *data,
+                               UA_Boolean encryptData);
+
+UA_StatusCode
+UA_OpenSSL_AES_128_GCM_Decrypt(const UA_ByteString *iv,
+                               const UA_ByteString *key,
+                               const UA_ByteString *aad,
+                               UA_ByteString *data,
+                               UA_Boolean decryptData);
+
 
 /* EdDSA Ed448 signing and verification */
 UA_StatusCode
@@ -133471,6 +135047,15 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         /* Anonymous login */
         if(!context->allowAnonymous)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        if(context->loginCallback) {
+            UA_StatusCode res =
+                context->loginCallback(&UA_STRING_NULL, &UA_BYTESTRING_NULL,
+                                       context->usernamePasswordLoginSize,
+                                       context->usernamePasswordLogin,
+                                       sessionContext, context->loginContext);
+            if(res != UA_STATUSCODE_GOOD)
+                return UA_STATUSCODE_BADUSERACCESSDENIED;
+        }
     } else if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
         /* Username and password */
         const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
@@ -133607,7 +135192,7 @@ allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *oldSessionId, void *oldSessionContext,
                                   const UA_NodeId *newSessionId, void *newSessionContext) {
     if(!oldSessionId)
-        return true;
+        return false;
     
     /* Get clientUserId for both sessions */
     UA_Variant session1UserId;
@@ -134591,7 +136176,7 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 #define APPLICATION_URI "urn:open62541.unconfigured.application"
 
 /* Upper bound */
-#define SECURITY_POLICY_SIZE 12
+#define SECURITY_POLICY_SIZE 14
 
 #define STRINGIFY(arg) #arg
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
@@ -134864,6 +136449,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     conf->maxNotificationsPerPublish = 1000;
     conf->enableRetransmissionQueue = true;
     conf->maxRetransmissionQueueSize = 0; /* unlimited */
+    conf->maxPublishReqPerSession = 512; /* limit outstanding publish requests per session */
 # ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     conf->maxEventsPerNode = 0; /* unlimited */
 # endif
@@ -135044,7 +136630,10 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
-    /* Set the TCP settings */
+    /* Set the TCP settings. Only recvBufferSize is stored; it drives both
+     * connConfig.recvBufferSize and connConfig.sendBufferSize. sendBufferSize is
+     * intentionally ignored (see the doxygen note on the declaration). */
+    (void)sendBufferSize;
     config->tcpBufSize = recvBufferSize;
 
     /* Allocate the SecurityPolicies */
@@ -135281,6 +136870,80 @@ UA_ServerConfig_addSecurityPolicyEccNistP256(UA_ServerConfig *config,
     return UA_STATUSCODE_GOOD;
 }
 
+/* The AEAD ECC policies (AesGcm / ChaChaPoly) are only implemented in the
+ * OpenSSL backend; their constructors do not exist for mbedTLS. */
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP256AesGcm(UA_ServerConfig *config,
+                                                    const UA_ByteString *certificate,
+                                                    const UA_ByteString *privateKey) {
+    /* Allocate the SecurityPolicies */
+    UA_SecurityPolicy *tmp = (UA_SecurityPolicy *)
+        UA_realloc(config->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (1 + config->securityPoliciesSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    config->securityPolicies = tmp;
+
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
+    UA_StatusCode retval =
+        UA_SecurityPolicy_EccNistP256AesGcm(&config->securityPolicies[config->securityPoliciesSize],
+                                              UA_APPLICATIONTYPE_SERVER, localCertificate,
+                                              localPrivateKey, config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
+        return retval;
+    }
+
+    config->securityPoliciesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP256ChaChaPoly(UA_ServerConfig *config,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey) {
+    /* Allocate the SecurityPolicies */
+    UA_SecurityPolicy *tmp = (UA_SecurityPolicy *)
+        UA_realloc(config->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (1 + config->securityPoliciesSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    config->securityPolicies = tmp;
+
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
+    UA_StatusCode retval =
+        UA_SecurityPolicy_EccNistP256ChaChaPoly(&config->securityPolicies[config->securityPoliciesSize],
+                                                UA_APPLICATIONTYPE_SERVER, localCertificate,
+                                                localPrivateKey, config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
+        return retval;
+    }
+
+    config->securityPoliciesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+#endif /* UA_ENABLE_ENCRYPTION_OPENSSL (AEAD ECC policies) */
+
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyEccNistP384(UA_ServerConfig *config,
                                              const UA_ByteString *certificate,
@@ -135483,50 +137146,31 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
                        UA_StatusCode_name(retval));
     }
 
-#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || \
-    (defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && MBEDTLS_VERSION_NUMBER >= 0x03000000)
-    /* EccNistP256 */
-    retval = UA_SecurityPolicy_EccNistP256(sp + *length, applicationType,
-                                           certificate, privateKey, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#EccNistP256 with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    /* EccNistP384 */
-    retval = UA_SecurityPolicy_EccNistP384(sp + *length, applicationType,
-                                           certificate, privateKey, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#EccNistP384 with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    /* EccBrainpoolP256r1 */
-    retval = UA_SecurityPolicy_EccBrainpoolP256r1(sp + *length, applicationType,
-                                                   certificate, privateKey, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#EccBrainpoolP256r1 with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    /* EccBrainpoolP384r1 */
-    retval = UA_SecurityPolicy_EccBrainpoolP384r1(sp + *length, applicationType,
-                                                   certificate, privateKey, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#EccBrainpoolP384r1 with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-#endif /* UA_ENABLE_ENCRYPTION_OPENSSL || mbedTLS ECC */
-
+    /* The non-deprecated ECC SecurityPolicies are the AEAD profiles, which are
+     * implemented only in the OpenSSL backend. The deprecated non-AEAD ECC
+     * policies (EccNistP256/P384, EccBrainpoolP256r1/P384r1) are not part of the
+     * default set; add them explicitly via UA_ServerConfig_addSecurityPolicyEcc*. */
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+    /* EccNistP256AesGcm */
+    retval = UA_SecurityPolicy_EccNistP256AesGcm(sp + *length, applicationType,
+                                                  certificate, privateKey, logging);
+    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
+                       "Could not add SecurityPolicy#EccNistP256_AesGcm with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    /* EccNistP256ChaChaPoly */
+    retval = UA_SecurityPolicy_EccNistP256ChaChaPoly(sp + *length, applicationType,
+                                                     certificate, privateKey, logging);
+    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
+                       "Could not add SecurityPolicy#EccNistP256_ChaChaPoly with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
     /* EccCurve25519 */
     retval = UA_SecurityPolicy_EccCurve25519(sp + *length, applicationType,
                                              certificate, privateKey, logging);
@@ -135580,6 +137224,12 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
                        UA_StatusCode_name(retval));
     }
 #endif
+
+    /* The non-AEAD ECC SecurityPolicies (EccNistP256/P384,
+     * EccBrainpoolP256r1/P384r1) are deprecated (OPC UA Part 7), superseded by
+     * their *_AesGcm / *_ChaChaPoly variants. They are not part of the default
+     * policy set; use the UA_ServerConfig_addSecurityPolicyEcc* functions to add
+     * them explicitly. */
 }
 
 static UA_StatusCode
@@ -136166,116 +137816,41 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
         }
     }
 
-#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || \
-    (defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && MBEDTLS_VERSION_NUMBER >= 0x03000000)
-    /* EccNistP256 */
-    UA_SecurityPolicy *eccnistp256Policy =
+    /* EccNistP256AesGcm (OpenSSL-only AEAD policy) */
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+    UA_SecurityPolicy *eccnistp256AesGcmPolicy =
         (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
-    if(!eccnistp256Policy) {
+    if(!eccnistp256AesGcmPolicy) {
         UA_ByteString_memZero(&decryptedPrivateKey);
         UA_ByteString_clear(&decryptedPrivateKey);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    retval = UA_SecurityPolicy_EccNistP256(eccnistp256Policy, UA_APPLICATIONTYPE_SERVER,
-                                        localCertificate, decryptedPrivateKey,
-                                        config->logging);
+    retval = UA_SecurityPolicy_EccNistP256AesGcm(eccnistp256AesGcmPolicy,
+                                                  UA_APPLICATIONTYPE_SERVER,
+                                                  localCertificate, decryptedPrivateKey,
+                                                  config->logging);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#ECC_nistP256 with error code %s",
+                       "Could not add SecurityPolicy#ECC_nistP256_AesGcm with error code %s",
                        UA_StatusCode_name(retval));
-        eccnistp256Policy->clear(eccnistp256Policy);
-        UA_free(eccnistp256Policy);
-        eccnistp256Policy = NULL;
+        eccnistp256AesGcmPolicy->clear(eccnistp256AesGcmPolicy);
+        UA_free(eccnistp256AesGcmPolicy);
+        eccnistp256AesGcmPolicy = NULL;
     } else {
-        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccnistp256Policy, storePath);
+        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccnistp256AesGcmPolicy, storePath);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                           "Could not add SecurityPolicy#ECC_nistP256 with error code %s",
-                           UA_StatusCode_name(retval));
-        }
-    }
-
-    /* EccNistP384 */
-    UA_SecurityPolicy *eccnistp384Policy =
-        (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
-    if(!eccnistp384Policy) {
-        UA_ByteString_memZero(&decryptedPrivateKey);
-        UA_ByteString_clear(&decryptedPrivateKey);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    retval = UA_SecurityPolicy_EccNistP384(eccnistp384Policy, UA_APPLICATIONTYPE_SERVER,
-                                        localCertificate, decryptedPrivateKey,
-                                        config->logging);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#ECC_nistP384 with error code %s",
-                       UA_StatusCode_name(retval));
-        eccnistp384Policy->clear(eccnistp384Policy);
-        UA_free(eccnistp384Policy);
-        eccnistp384Policy = NULL;
-    } else {
-        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccnistp384Policy, storePath);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                           "Could not add SecurityPolicy#ECC_nistP384 with error code %s",
-                           UA_StatusCode_name(retval));
-        }
-    }
-
-    /* EccBrainpoolP256r1 */
-    UA_SecurityPolicy *eccbrainpoolp256r1Policy =
-        (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
-    if(!eccbrainpoolp256r1Policy) {
-        UA_ByteString_memZero(&decryptedPrivateKey);
-        UA_ByteString_clear(&decryptedPrivateKey);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    retval = UA_SecurityPolicy_EccBrainpoolP256r1(eccbrainpoolp256r1Policy, UA_APPLICATIONTYPE_SERVER,
-                                        localCertificate, decryptedPrivateKey,
-                                        config->logging);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#ECC_brainpoolP256r1 with error code %s",
-                       UA_StatusCode_name(retval));
-        eccbrainpoolp256r1Policy->clear(eccbrainpoolp256r1Policy);
-        UA_free(eccbrainpoolp256r1Policy);
-        eccbrainpoolp256r1Policy = NULL;
-    } else {
-        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccbrainpoolp256r1Policy, storePath);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                           "Could not add SecurityPolicy#ECC_brainpoolP256r1 with error code %s",
-                           UA_StatusCode_name(retval));
-        }
-    }
-
-    /* EccBrainpoolP384r1 */
-    UA_SecurityPolicy *eccbrainpoolp384r1Policy =
-        (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
-    if(!eccbrainpoolp384r1Policy) {
-        UA_ByteString_memZero(&decryptedPrivateKey);
-        UA_ByteString_clear(&decryptedPrivateKey);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    retval = UA_SecurityPolicy_EccBrainpoolP384r1(eccbrainpoolp384r1Policy, UA_APPLICATIONTYPE_SERVER,
-                                        localCertificate, decryptedPrivateKey,
-                                        config->logging);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#ECC_brainpoolP384r1 with error code %s",
-                       UA_StatusCode_name(retval));
-        eccbrainpoolp384r1Policy->clear(eccbrainpoolp384r1Policy);
-        UA_free(eccbrainpoolp384r1Policy);
-        eccbrainpoolp384r1Policy = NULL;
-    } else {
-        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccbrainpoolp384r1Policy, storePath);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                           "Could not add SecurityPolicy#ECC_brainpoolP384r1 with error code %s",
+                           "Could not add SecurityPolicy#ECC_nistP256_AesGcm with error code %s",
                            UA_StatusCode_name(retval));
         }
     }
 #endif
+
+    /* The non-AEAD ECC SecurityPolicies (EccNistP256/P384,
+     * EccBrainpoolP256r1/P384r1) are deprecated (OPC UA Part 7), superseded by
+     * their *_AesGcm / *_ChaChaPoly variants. They are not part of the default
+     * policy set; use the UA_ServerConfig_addSecurityPolicyEcc* functions to add
+     * them explicitly. */
 
     UA_ByteString_memZero(&decryptedPrivateKey);
     UA_ByteString_clear(&decryptedPrivateKey);
@@ -136487,18 +138062,18 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
             UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
         config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)udpCM);
 #endif
-    }
 
 #if !defined(UA_ARCHITECTURE_ZEPHYR) && !defined(UA_ARCHITECTURE_LWIP)
-    /* Add the interrupt manager */
-    UA_InterruptManager *im = UA_InterruptManager_new_POSIX(UA_STRING("interrupt manager"));
-    if(im) {
-        config->eventLoop->registerEventSource(config->eventLoop, &im->eventSource);
-    } else {
-        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_APPLICATION,
-                     "Cannot create the Interrupt Manager (only relevant if used)");
-    }
+        /* Add the interrupt manager */
+        UA_InterruptManager *im = UA_InterruptManager_new_POSIX(UA_STRING("interrupt manager"));
+        if(im) {
+            config->eventLoop->registerEventSource(config->eventLoop, &im->eventSource);
+        } else {
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_APPLICATION,
+                         "Cannot create the Interrupt Manager (only relevant if used)");
+        }
 #endif
+    }
 
     if(config->localConnectionConfig.recvBufferSize == 0)
         config->localConnectionConfig = UA_ConnectionConfig_default;
@@ -136538,6 +138113,27 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
             return retval;
         }
         config->securityPoliciesSize = 1;
+    }
+
+    /* Initialize authSecurityPolicies with the None policy as a fallback.
+     * This is needed so that non-X509 token types (e.g. username/password,
+     * anonymous) can look up a matching SecurityPolicy for authentication.
+     * When UA_ClientConfig_setAuthenticationCert is called later, this gets
+     * replaced with the full set of authentication SecurityPolicies. */
+    if(config->authSecurityPoliciesSize == 0) {
+        config->authSecurityPolicies =
+            (UA_SecurityPolicy*)UA_malloc(sizeof(UA_SecurityPolicy));
+        if(!config->authSecurityPolicies)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_StatusCode retval =
+            UA_SecurityPolicy_None(config->authSecurityPolicies,
+                                   UA_BYTESTRING_NULL, config->logging);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_free(config->authSecurityPolicies);
+            config->authSecurityPolicies = NULL;
+            return retval;
+        }
+        config->authSecurityPoliciesSize = 1;
     }
 
     if(config->requestedSessionTimeout == 0)
@@ -136838,6 +138434,23 @@ UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #endif
 
+#ifndef UA_ENABLE_ENCRYPTION
+/* The URI-derived SecurityPolicy property helpers are normally provided by the
+ * crypto backend's securitypolicy_common.c. With no crypto backend the only
+ * SecurityPolicy is #None, so they reduce to constants. */
+UA_Boolean
+UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy) {
+    (void)policy;
+    return false;
+}
+
+UA_Boolean
+UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy) {
+    (void)policy;
+    return true;
+}
+#endif
+
 static UA_StatusCode
 verify_none(const UA_SecurityPolicy *policy, void *channelContext,
             const UA_ByteString *message, const UA_ByteString *signature) {
@@ -136938,12 +138551,40 @@ compareCertificate_none(const UA_SecurityPolicy *policy,
 }
 
 static UA_StatusCode
+setLocalCertificate_none(UA_SecurityPolicy *policy,
+                         const UA_ByteString certificate) {
+    UA_ByteString_clear(&policy->localCertificate);
+    /* #None does no crypto, so an empty certificate is valid and a no-op. */
+    if(certificate.length == 0)
+        return UA_STATUSCODE_GOOD;
+
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) || defined(UA_ENABLE_ENCRYPTION_OPENSSL) || \
+    defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    /* Use the crypto backend to convert the certificate to DER for the wire */
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+    UA_StatusCode retval =
+        UA_mbedTLS_LoadLocalCertificate(&certificate, &policy->localCertificate);
+#else
+    UA_StatusCode retval =
+        UA_OpenSSL_LoadLocalCertificate(&certificate, &policy->localCertificate,
+                                        EVP_PKEY_NONE);
+#endif
+    if(retval == UA_STATUSCODE_GOOD)
+        return retval;
+    /* #None never uses the certificate cryptographically. Store a certificate
+     * the backend cannot parse (e.g. EdDSA) verbatim instead of failing. */
+    UA_LOG_WARNING(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "SecurityPolicy#None: The local certificate could not be "
+                   "parsed by the crypto backend. Storing it unmodified.");
+#endif
+    return UA_ByteString_copy(&certificate, &policy->localCertificate);
+}
+
+static UA_StatusCode
 updateCertificate_none(UA_SecurityPolicy *policy,
                        const UA_ByteString certificate,
                        const UA_ByteString privateKey) {
-    UA_ByteString_clear(&policy->localCertificate);
-    UA_ByteString_copy(&certificate, &policy->localCertificate);
-    return UA_STATUSCODE_GOOD;
+    return setLocalCertificate_none(policy, certificate);
 }
 
 
@@ -137011,16 +138652,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *sp, const UA_ByteString localCertifica
     sp->createSigningRequest = NULL;
     sp->clear = policy_clear_none;
 
-#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-    UA_mbedTLS_LoadLocalCertificate(&localCertificate, &sp->localCertificate);
-#elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
-    UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate,
-                                    EVP_PKEY_NONE);
-#else
-    UA_ByteString_copy(&localCertificate, &sp->localCertificate);
-#endif
-
-    return UA_STATUSCODE_GOOD;
+    return setLocalCertificate_none(sp, localCertificate);
 }
 
 /**** amalgamated original file "/arch/posix/clock_posix.c" ****/
@@ -137610,6 +139242,16 @@ UA_KeyValueRestriction_validate(const UA_Logger *logger,
                                 size_t restrictionsSize,
                                 const UA_KeyValueMap *map);
 
+/* (Re)allocate a static network buffer sized by the UInt32 parameter `name`.
+ * If the parameter is not set, use defaultSize and write it back into the
+ * params so that readers of the params (e.g. the SecureChannel constraint
+ * logic in ua_server_binary.c) see the size that was actually allocated. */
+UA_StatusCode
+UA_EventLoopCommon_allocStaticBuffer(UA_KeyValueMap *params,
+                                     UA_QualifiedName name,
+                                     UA_UInt32 defaultSize,
+                                     UA_ByteString *buf);
+
 _UA_END_DECLS
 
 
@@ -137668,6 +139310,30 @@ UA_KeyValueRestriction_validate(const UA_Logger *logger, const char *logprefix,
     }
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_EventLoopCommon_allocStaticBuffer(UA_KeyValueMap *params,
+                                     UA_QualifiedName name,
+                                     UA_UInt32 defaultSize,
+                                     UA_ByteString *buf) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_UInt32 bufSize = defaultSize;
+    const UA_UInt32 *configBufSize = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(params, name, &UA_TYPES[UA_TYPES_UINT32]);
+    if(configBufSize)
+        bufSize = *configBufSize;
+    else
+        /* Write the resolved default back into the params so the
+         * SecureChannel constraint logic in ua_server_binary.c caps the
+         * channel to the actual static-buffer size. */
+        res = UA_KeyValueMap_setScalar(params, name, &bufSize,
+                                       &UA_TYPES[UA_TYPES_UINT32]);
+    if(buf->length != bufSize) {
+        UA_ByteString_clear(buf);
+        res |= UA_ByteString_allocBuffer(buf, bufSize);
+    }
+    return res;
 }
 
 /**** amalgamated original file "/arch/posix/eventloop_posix.h" ****/
@@ -137943,11 +139609,9 @@ typedef int SOCKET;
 #endif /* __linux__ */
 #include <sys/stat.h>
 
-#ifndef __ANDROID__
-#ifndef __APPLE__
+#if !defined(__ANDROID__) && !defined(__APPLE__) && !defined(__OpenBSD__)
 #include <bits/stdio_lim.h>
-#endif /* !__APPLE__ */
-#endif /* !__ANDROID__ */
+#endif
 
 #define UA_STAT stat
 #define UA_DIR DIR
@@ -138643,7 +140307,7 @@ UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
 #if defined(UA_ARCHITECTURE_POSIX)
     UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
     struct timespec ts;
-    int res = clock_gettime(pel->clockSource, &ts);
+    int res = clock_gettime((clockid_t)pel->clockSource, &ts);
     if(UA_UNLIKELY(res != 0))
         return 0;
     return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
@@ -138657,7 +140321,7 @@ UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
 #if defined(UA_ARCHITECTURE_POSIX)
     UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
     struct timespec ts;
-    int res = clock_gettime(pel->clockSourceMonotonic, &ts);
+    int res = clock_gettime((clockid_t)pel->clockSourceMonotonic, &ts);
     if(UA_UNLIKELY(res != 0))
         return 0;
     /* Also add the unix epoch for the monotonic clock. So we get a "normal"
@@ -138803,10 +140467,9 @@ UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
                                      UA_ByteString *buf,
                                      size_t bufSize) {
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
-    if(pcm->txBuffer.length == 0)
-        return UA_ByteString_allocBuffer(buf, bufSize);
+    /* Reuse the static tx buffer; fall back to allocation for larger messages. */
     if(pcm->txBuffer.length < bufSize)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        return UA_ByteString_allocBuffer(buf, bufSize);
     *buf = pcm->txBuffer;
     buf->length = bufSize;
     return UA_STATUSCODE_GOOD;
@@ -138825,27 +140488,19 @@ UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
 
 UA_StatusCode
 UA_EventLoopPOSIX_allocateStaticBuffers(UA_POSIXConnectionManager *pcm) {
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
-    const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
-        UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
-                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
-                                 &UA_TYPES[UA_TYPES_UINT32]);
-    if(configRxBufSize)
-        rxBufSize = *configRxBufSize;
-    if(pcm->rxBuffer.length != rxBufSize) {
-        UA_ByteString_clear(&pcm->rxBuffer);
-        res = UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
-    }
+    UA_StatusCode res =
+        UA_EventLoopCommon_allocStaticBuffer(&pcm->cm.eventSource.params,
+                                             UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                             1u << 16, /* The default is 64 kb */
+                                             &pcm->rxBuffer);
 
-    const UA_UInt32 *txBufSize = (const UA_UInt32 *)
-        UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
-                                 UA_QUALIFIEDNAME(0, "send-bufsize"),
-                                 &UA_TYPES[UA_TYPES_UINT32]);
-    if(txBufSize && pcm->txBuffer.length != *txBufSize) {
-        UA_ByteString_clear(&pcm->txBuffer);
-        res |= UA_ByteString_allocBuffer(&pcm->txBuffer, *txBufSize);
-    }
+    /* Default the tx buffer to the rx size so a dedicated static send buffer
+     * always exists. This avoids a malloc/free on every send without reusing
+     * the rx buffer (which may still hold unprocessed received data). */
+    res |= UA_EventLoopCommon_allocStaticBuffer(&pcm->cm.eventSource.params,
+                                                UA_QUALIFIEDNAME(0, "send-bufsize"),
+                                                (UA_UInt32)pcm->rxBuffer.length,
+                                                &pcm->txBuffer);
     return res;
 }
 
@@ -139237,7 +140892,7 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
 
     struct sockaddr_storage addr;
     memset(&addr, 0, sizeof(addr));
-    int len = sizeof(addr);
+    socklen_t len = sizeof(addr);
     getsockname(lst, (struct sockaddr*)&addr, &len);
 
     fds[0] = socket(AF_INET, SOCK_STREAM, 0);
@@ -139579,9 +141234,9 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
 
     /* Receive has failed */
     if(ret <= 0) {
-        if(UA_ERRNO == UA_INTERRUPTED ||
-           UA_ERRNO == UA_WOULDBLOCK ||
-           UA_ERRNO == UA_AGAIN)
+        if(ret < 0 && (UA_ERRNO == UA_INTERRUPTED ||
+                        UA_ERRNO == UA_WOULDBLOCK ||
+                        UA_ERRNO == UA_AGAIN))
             return; /* Temporary error on an non-blocking socket */
 
         /* Orderly shutdown of the socket */
@@ -140792,20 +142447,26 @@ setMulticastInterface(const char *netif, struct addrinfo *info,
             break;
     }
 
-    freeifaddrs(ifaddr);
-    if(!ifa)
+    if(!ifa) {
+        freeifaddrs(ifaddr);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Write the interface index */
     if(info->ai_family == AF_INET) {
 #if defined(__linux__)
         req->ipv4.imr_ifindex = idx;
+#elif defined(__APPLE__)
+        struct sockaddr_in *sin = (struct sockaddr_in*)ifa->ifa_addr;
+        req->ipv4.imr_interface = sin->sin_addr;
 #endif
 #if UA_IPV6
     } else { /* if(info->ai_family == AF_INET6) */
         req->ipv6.ipv6mr_interface = idx;
 #endif
     }
+
+    freeifaddrs(ifaddr);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -141126,6 +142787,9 @@ setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params
         result = UA_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
                             (const char *)&req.ipv4.imr_interface,
                             sizeof(struct in_addr));
+#elif defined(__APPLE__)
+        result = UA_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
+                            &req.ipv4.imr_interface, sizeof(struct in_addr));
 #else
         result = UA_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
                             &req.ipv4, sizeof(req.ipv4));
@@ -141260,7 +142924,7 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
 
     /* Receive has failed */
     if(ret <= 0) {
-        if(UA_ERRNO == UA_INTERRUPTED)
+        if(ret < 0 && UA_ERRNO == UA_INTERRUPTED)
             return;
 
         /* Orderly shutdown of the socket. We can immediately close as no method
@@ -141746,6 +143410,7 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
     if(!conn) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "UDP\t| Error allocating memory for the socket, closing");
+        UA_freeaddrinfo(info);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -142386,7 +144051,7 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
 
     /* Receive has failed */
     if(ret <= 0) {
-        if(UA_ERRNO == UA_INTERRUPTED)
+        if(ret < 0 && UA_ERRNO == UA_INTERRUPTED)
             return;
 
         /* Orderly shutdown of the socket. We can immediately close as no method
@@ -143641,6 +145306,22 @@ getJsonPart(cj5_token tok, const char *json) {
     }
 }
 
+/* Advances ctx->index and returns the next token, or a zeroed size-0
+ * sentinel once the stream is exhausted. A field's declared child count
+ * can desync from the actual token count, so this stays in bounds of
+ * `tokens[MAX_TOKENS]` even then. */
+static cj5_token
+nextToken(ParsingCtx *ctx) {
+    if(!ctx->tokens || ctx->index + 1 >= ctx->tokensSize) {
+        ctx->index = ctx->tokensSize;
+        cj5_token empty;
+        memset(&empty, 0, sizeof(empty));
+        return empty;
+    }
+    ctx->index++;
+    return ctx->tokens[ctx->index];
+}
+
 /* Forward declarations*/
 #define PARSE_JSON(TYPE) static UA_StatusCode                   \
     TYPE##_parseJson(ParsingCtx *ctx, void *configField, size_t *configFieldSize)
@@ -143693,7 +145374,7 @@ extern const parseJsonSignature parseJsonJumpTable[UA_SERVERCONFIGFIELDKINDS];
 
 /*----------------------Basic Types------------------------*/
 PARSE_JSON(Int64Field) {
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
     UA_Int64 out;
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_INT64], NULL);
@@ -143704,7 +145385,7 @@ PARSE_JSON(Int64Field) {
     return retval;
 }
 PARSE_JSON(UInt16Field) {
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
     UA_UInt16 out;
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_UINT16], NULL);
@@ -143715,7 +145396,7 @@ PARSE_JSON(UInt16Field) {
     return retval;
 }
 PARSE_JSON(UInt32Field) {
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
     UA_UInt32 out;
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_UINT32], NULL);
@@ -143726,7 +145407,7 @@ PARSE_JSON(UInt32Field) {
     return retval;
 }
 PARSE_JSON(UInt64Field) {
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
     UA_UInt64 out;
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_UINT64], NULL);
@@ -143737,7 +145418,7 @@ PARSE_JSON(UInt64Field) {
     return retval;
 }
 PARSE_JSON(StringField) {
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
     UA_String out;
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_STRING], NULL);
@@ -143757,19 +145438,19 @@ PARSE_JSON(LocalizedTextField) {
         text: "Test text"
     }
      */
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_String locale = {.length = 0, .data = NULL};
     UA_String text = {.length = 0, .data = NULL};
     for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->tokens[++ctx->index];
+        tok = nextToken(ctx);
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field = (char*)UA_malloc(tok.size + 1);
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field, &str_len);
 
-            tok = ctx->tokens[++ctx->index];
+            tok = nextToken(ctx);
             UA_ByteString buf = getJsonPart(tok, ctx->json);
             if(strcmp(field, "locale") == 0)
                 retval |= UA_decodeJson(&buf, &locale, &UA_TYPES[UA_TYPES_STRING], NULL);
@@ -143798,7 +145479,7 @@ PARSE_JSON(LocalizedTextField) {
     return retval;
 }
 PARSE_JSON(DoubleField) {
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
     UA_Double out;
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_DOUBLE], NULL);
@@ -143809,7 +145490,7 @@ PARSE_JSON(DoubleField) {
     return retval;
 }
 PARSE_JSON(BooleanField) {
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
     UA_Boolean out;
     if(tok.type != CJ5_TOKEN_BOOL) {
@@ -143838,9 +145519,9 @@ PARSE_JSON(DurationField) {
 }
 PARSE_JSON(DurationRangeField) {
     UA_DurationRange *field = (UA_DurationRange*)configField;
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->tokens[++ctx->index];
+        tok = nextToken(ctx);
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
@@ -143864,9 +145545,9 @@ PARSE_JSON(DurationRangeField) {
 }
 PARSE_JSON(UInt32RangeField) {
     UA_UInt32Range *field = (UA_UInt32Range*)configField;
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->tokens[++ctx->index];
+        tok = nextToken(ctx);
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
@@ -143892,9 +145573,9 @@ PARSE_JSON(UInt32RangeField) {
 /*----------------------Advanced Types------------------------*/
 PARSE_JSON(BuildInfo) {
     UA_BuildInfo *field = (UA_BuildInfo*)configField;
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->tokens[++ctx->index];
+        tok = nextToken(ctx);
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
@@ -143926,9 +145607,9 @@ PARSE_JSON(BuildInfo) {
 }
 PARSE_JSON(ApplicationDescriptionField) {
     UA_ApplicationDescription *field = (UA_ApplicationDescription*)configField;
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->tokens[++ctx->index];
+        tok = nextToken(ctx);
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
@@ -143965,7 +145646,7 @@ PARSE_JSON(StringArrayField) {
         UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Pointer to the array size is not set.");
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     }
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     UA_String *stringArray = (UA_String*)UA_malloc(sizeof(UA_String) * tok.size);
     size_t stringArraySize = 0;
     for(size_t j = tok.size; j > 0; j--) {
@@ -143996,7 +145677,7 @@ PARSE_JSON(UInt32ArrayField) {
         UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Pointer to the array size is not set.");
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     }
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     UA_UInt32 *numberArray = (UA_UInt32*)UA_malloc(sizeof(UA_UInt32) * tok.size);
     size_t numberArraySize = 0;
     for(size_t j = tok.size; j > 0; j--) {
@@ -144025,7 +145706,7 @@ PARSE_JSON(UInt32ArrayField) {
     return retval;
 }
 PARSE_JSON(DateTimeField) {
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
     UA_DateTime out;
     UA_DateTime_init(&out);
@@ -144040,9 +145721,9 @@ PARSE_JSON(DateTimeField) {
 PARSE_JSON(MdnsConfigurationField) {
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_ServerConfig *config = (UA_ServerConfig*)configField;
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->tokens[++ctx->index];
+        tok = nextToken(ctx);
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
@@ -144078,9 +145759,9 @@ PARSE_JSON(MdnsConfigurationField) {
 PARSE_JSON(SubscriptionConfigurationField) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_ServerConfig *config = (UA_ServerConfig*)configField;
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->tokens[++ctx->index];
+        tok = nextToken(ctx);
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
@@ -144132,9 +145813,9 @@ PARSE_JSON(SubscriptionConfigurationField) {
 
 PARSE_JSON(TcpConfigurationField) {
     UA_ServerConfig *config = (UA_ServerConfig*)configField;
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->tokens[++ctx->index];
+        tok = nextToken(ctx);
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
@@ -144162,9 +145843,9 @@ PARSE_JSON(TcpConfigurationField) {
 PARSE_JSON(PubsubConfigurationField) {
 #ifdef UA_ENABLE_PUBSUB
     UA_PubSubConfiguration *field = (UA_PubSubConfiguration*)configField;
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->tokens[++ctx->index];
+        tok = nextToken(ctx);
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
@@ -144193,9 +145874,9 @@ PARSE_JSON(PubsubConfigurationField) {
 PARSE_JSON(HistorizingConfigurationField) {
 #ifdef UA_ENABLE_HISTORIZING
     UA_ServerConfig *config = (UA_ServerConfig*)configField;
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->tokens[++ctx->index];
+        tok = nextToken(ctx);
         switch (tok.type) {
         case CJ5_TOKEN_STRING: {
             char *field_str = (char*)UA_malloc(tok.size + 1);
@@ -144254,16 +145935,16 @@ PARSE_JSON(SecurityPolciesField) {
     UA_String aes128sha256rsaoaepuri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
     UA_String aes256sha256rsapssuri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss");
 
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     for(size_t j = tok.size; j > 0; j--) {
 
         UA_String policy = {.length = 0, .data = NULL};
         UA_ByteString certificate = {.length = 0, .data = NULL};
         UA_ByteString privateKey = {.length = 0, .data = NULL};
 
-        tok = ctx->tokens[++ctx->index];
+        tok = nextToken(ctx);
         for(size_t i = tok.size / 2; i > 0; i--) {
-            tok = ctx->tokens[++ctx->index];
+            tok = nextToken(ctx);
             switch(tok.type) {
             case CJ5_TOKEN_STRING: {
                 char *field_str = (char *)UA_malloc(tok.size + 1);
@@ -144378,18 +146059,14 @@ PARSE_JSON(SecurityPkiField) {
     UA_ServerConfig *config = (UA_ServerConfig*)configField;
     UA_String pkiFolder = {.length = 0, .data = NULL};
 
-    cj5_token tok = ctx->tokens[++ctx->index];
+    cj5_token tok = nextToken(ctx);
     UA_ByteString buf = getJsonPart(tok, ctx->json);
     UA_StatusCode retval = UA_decodeJson(&buf, &pkiFolder, &UA_TYPES[UA_TYPES_STRING], NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
-    /* Currently not supported! */
-    (void)config;
-    return UA_STATUSCODE_GOOD;
-#else
-    /* Set up the parameters */
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__) || defined(__OpenBSD__)
+    /* Set up the parameters for the filestore certificate store */
     UA_KeyValuePair params[2];
     size_t paramsSize = 2;
 
@@ -144423,7 +146100,16 @@ PARSE_JSON(SecurityPkiField) {
 
     /* Clean up */
     UA_String_clear(&pkiFolder);
+#else
+    (void)config;
+    UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                   "pkiFolder is not supported on this platform. "
+                   "Trusted clients will not be verified.");
 #endif
+#else
+    UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                   "pkiFolder is set in the config but UA_ENABLE_ENCRYPTION "
+                   "is not enabled. Trusted clients will not be verified.");
 #endif
     return UA_STATUSCODE_GOOD;
 }
@@ -144517,17 +146203,29 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 
     ctx.logging = config->logging;
 
+    /* Buffer for the field name */
+    char field[256];
+
     size_t serverConfigSize = 0;
     if(ctx.tokens)
         serverConfigSize = (ctx.tokens[ctx.index-1].size/2);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for (size_t j = serverConfigSize; j > 0; j--) {
+    for (size_t j = serverConfigSize; j > 0 && ctx.index < ctx.tokensSize; j--) {
         cj5_token tok = ctx.tokens[ctx.index];
         switch (tok.type) {
             case CJ5_TOKEN_STRING: {
-                char *field = (char*)UA_malloc(tok.size + 1);
+                if(tok.size >= 255) {
+                    UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
+                                   "Configuration field name too long");
+                    continue;
+                }
                 unsigned int str_len = 0;
-                cj5_get_str(&ctx.result, (unsigned int)ctx.index, field, &str_len);
+                cj5_error_code res = cj5_get_str(&ctx.result, (unsigned int)ctx.index, field, &str_len);
+                if(res != CJ5_ERROR_NONE) {
+                    UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
+                                   "Configuration field name not a valid string");
+                    continue;
+                }
                 if(strcmp(field, "buildInfo") == 0)
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BUILDINFO](&ctx, &config->buildInfo, NULL);
                 else if(strcmp(field, "applicationDescription") == 0)
@@ -144623,7 +146321,7 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 #endif
                 else {
                     UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
-                                   "Field name '%s' unknown or misspelled. Maybe the feature is not enabled either.", field);
+                                   "Field name '%s' unknown or misspelled. Maybe the feature is not enabled.", field);
                     /* skip the name of item */
                     ++ctx.index;
                     /* skip value of unknown item */
@@ -144633,9 +146331,9 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                        still set index to the right position (name of the following item) */
                     --ctx.index;
                 }
-                UA_free(field);
                 if(retval != UA_STATUSCODE_GOOD) {
-                    UA_LOG_ERROR(ctx.logging, UA_LOGCATEGORY_APPLICATION, "An error occurred while parsing the configuration file.");
+                    UA_LOG_ERROR(ctx.logging, UA_LOGCATEGORY_APPLICATION,
+                                 "An error occurred while parsing the configuration field %s", field);
                     return retval;
                 }
                 break;
@@ -146647,7 +148345,11 @@ writeByteStringToFile(const char *const path,
  * implementation working with correct input data. */
 char *
 _UA_dirname_minimal(char *path) {
+    if(path == NULL || *path == '\0')
+        return ".";
     char *lastSlash = strrchr(path, '/');
+    if(lastSlash == NULL)
+        return ".";
     *lastSlash = 0;
     return path;
 }
@@ -146665,7 +148367,12 @@ readFileToByteString(const char *const path, UA_ByteString *data) {
 
     /* Get the file length, allocate the data and read */
     UA_fseek(fp, 0, UA_SEEK_END);
-    UA_StatusCode retval = UA_ByteString_allocBuffer(data, (size_t)UA_ftell(fp));
+    long fileSize = UA_ftell(fp);
+    if(fileSize < 0) {
+        UA_fclose(fp);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_StatusCode retval = UA_ByteString_allocBuffer(data, (size_t)fileSize);
     if(retval == UA_STATUSCODE_GOOD) {
         UA_fseek(fp, 0, UA_SEEK_SET);
         size_t read = UA_fread(data->data, sizeof(UA_Byte), data->length * sizeof(UA_Byte), fp);
@@ -146717,12 +148424,20 @@ writeByteStringToFile(const char *const path, const UA_ByteString *data) {
 
 #ifdef UA_ENABLE_ENCRYPTION
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__) || defined(__OpenBSD__)
 
 #ifdef __linux__
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define BUF_LEN (1024 * ( EVENT_SIZE + 16 ))
 #endif /* __linux__ */
+
+static size_t
+UA_strnlen(const char *s, size_t maxlen) {
+	    size_t len = 0;
+	        while(len < maxlen && s[len] != '\0')
+			        len++;
+		    return len;
+}
 
 typedef struct {
     /* Memory cert store as a base */
@@ -146747,33 +148462,35 @@ mkpath(char *dir, UA_MODE mode) {
     if(dir == NULL)
         return 1;
 
-    if(UA_mkdir(dir, mode) == 0)
-        return 0;
-
-    if(errno == EEXIST)
-        return 0; /* Directory already exists */
-
-    if(errno != ENOENT)
+    size_t dirLen = strlen(dir);
+    char *path = (char*)UA_malloc(dirLen + 1);
+    if(!path)
         return 1;
+    memcpy(path, dir, dirLen + 1);
 
-    size_t len = strlen(dir) + 1;
-    char *tmp_dir = (char*)UA_malloc(len);
-    if(!tmp_dir)
+    char *pos = path;
+    if(pos[0] == '/')
+        pos++;
+
+    for(; *pos; pos++) {
+        if(*pos != '/')
+            continue;
+
+        *pos = '\0';
+        if(path[0] != '\0' && UA_mkdir(path, mode) != 0 && errno != EEXIST) {
+            UA_free(path);
+            return 1;
+        }
+        *pos = '/';
+    }
+
+    if(UA_mkdir(path, mode) != 0 && errno != EEXIST) {
+        UA_free(path);
         return 1;
-    memcpy(tmp_dir, dir, len);
+    }
 
-    /* Before the actual target directory is created, the recursive call ensures
-     * that all parent directories are created or already exist. */
-    int retval = mkpath(UA_dirname(tmp_dir), mode);
-    UA_free(tmp_dir);
-
-    if(retval != 0)
-        return retval;
-
-    if(UA_mkdir(dir, mode) == 0 || errno == EEXIST)
-        return 0;
-
-    return 1;
+    UA_free(path);
+    return 0;
 }
 
 static UA_StatusCode
@@ -146854,8 +148571,16 @@ getCertFileName(const char *path, const UA_ByteString *certificate,
 
     if(ptr != NULL) {
         subName = ptr + 3;
+        char *endName = strchr(subName, ',');
+        if(endName != NULL)
+            *endName = '\0';
     } else {
         subName = subjectNameBuffer;
+    }
+
+    for(char *c = subName; *c; c++) {
+        if(*c == '/' || *c == '\\')
+            *c = '_';
     }
 
     if(mp_snprintf(fileNameBuf, fileNameLen, "%s/%s[%s]", path, subName,
@@ -146870,23 +148595,50 @@ getCertFileName(const char *path, const UA_ByteString *certificate,
     return retval;
 }
 
+static bool
+isRegularFile(const char *path, const struct UA_DIRENT *dirent) {
+    if(dirent->d_type == UA_DT_DIR)
+        return false;
+    if(dirent->d_type == UA_DT_REG)
+        return true;
+
+#ifndef UA_ARCHITECTURE_WIN32
+    char filename[UA_PATH_MAX] = {0};
+    int len = mp_snprintf(filename, UA_PATH_MAX, "%s/%s", path, dirent->d_name);
+    if(len < 0 || len >= UA_PATH_MAX)
+        return false;
+
+    struct UA_STAT statBuf;
+    return (UA_stat(filename, &statBuf) == 0 && S_ISREG(statBuf.st_mode));
+#else
+    return false;
+#endif
+}
+
 static UA_StatusCode
 readCertificates(UA_ByteString **list, size_t *listSize, const UA_String path) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     char listPath[UA_PATH_MAX] = {0};
-    mp_snprintf(listPath, UA_PATH_MAX, "%.*s",
-                (int)path.length, (char*)path.data);
+    int pathLen = mp_snprintf(listPath, UA_PATH_MAX, "%.*s",
+                              (int)path.length, (char*)path.data);
+    if(pathLen < 0 || pathLen >= UA_PATH_MAX)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Determine number of certificates */
     size_t numCerts = 0;
     UA_DIR *dir = UA_opendir(listPath);
-    if(!dir)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(!dir) {
+        if(mkpath(listPath, 0777) != 0)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        dir = UA_opendir(listPath);
+        if(!dir)
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     struct UA_DIRENT *dirent;
     while((dirent = UA_readdir(dir)) != NULL) {
-        if(dirent->d_type != UA_DT_REG)
+        if(!isRegularFile(listPath, dirent))
             continue;
         numCerts++;
     }
@@ -146902,7 +148654,7 @@ readCertificates(UA_ByteString **list, size_t *listSize, const UA_String path) {
     UA_rewinddir(dir);
 
     while((dirent = UA_readdir(dir)) != NULL) {
-        if(dirent->d_type != UA_DT_REG)
+        if(!isRegularFile(listPath, dirent))
             continue;
         if(numActCerts < numCerts) {
             /* Create filename to load */
@@ -147084,19 +148836,23 @@ writeTrustStore(UA_CertificateGroup *certGroup, const UA_UInt32 trustListMask) {
 
 static UA_StatusCode
 FileCertStore_setupStorePath(char *directory, char *rootDirectory,
-                             size_t rootDirectorySize, UA_String *out) {
+                             size_t rootDirectorySize, UA_String *out,
+                             const UA_Logger *logger) {
     char path[UA_PATH_MAX] = {0};
-    size_t pathSize = 0;
-
-    strncpy(path, rootDirectory, UA_PATH_MAX - 1);
-    path[UA_PATH_MAX - 1] = '\0';
-    pathSize = strnlen(path, UA_PATH_MAX);
-
-    strncpy(&path[pathSize], directory, UA_PATH_MAX - pathSize);
+    int pathLen = mp_snprintf(path, UA_PATH_MAX, "%.*s%s",
+                              (int)rootDirectorySize, rootDirectory, directory);
+    if(pathLen < 0 || pathLen >= UA_PATH_MAX)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     *out = UA_STRING_ALLOC(path);
+    if(out->data == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    mkpath(path, 0777);
+    if(mkpath(path, 0777) != 0) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_APPLICATION,
+                     "Could not create PKI directory %s (errno %i)", path, errno);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -147116,7 +148872,7 @@ FileCertStore_createPkiDirectory(UA_CertificateGroup *certGroup, const UA_String
         return UA_STATUSCODE_BADINTERNALERROR;
 
     memcpy(rootDirectory, directory.data, directory.length);
-    rootDirectorySize = strnlen(rootDirectory, UA_PATH_MAX);
+    rootDirectorySize = UA_strnlen(rootDirectory, UA_PATH_MAX);
 
     /* Add Certificate Group Id */
     UA_NodeId applCertGroup =
@@ -147139,25 +148895,32 @@ FileCertStore_createPkiDirectory(UA_CertificateGroup *certGroup, const UA_String
         strncpy(&rootDirectory[rootDirectorySize], (char *)nodeIdStr.data, UA_PATH_MAX - rootDirectorySize);
         UA_String_clear(&nodeIdStr);
     }
-    rootDirectorySize = strnlen(rootDirectory, UA_PATH_MAX);
+    rootDirectorySize = UA_strnlen(rootDirectory, UA_PATH_MAX);
 
     context->rootFolder = UA_STRING_ALLOC(rootDirectory);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= FileCertStore_setupStorePath("/trusted/certs", rootDirectory,
-                                           rootDirectorySize, &context->trustedCertFolder);
+                                           rootDirectorySize, &context->trustedCertFolder,
+                                           certGroup->logging);
     retval |= FileCertStore_setupStorePath("/trusted/crl", rootDirectory,
-                                           rootDirectorySize, &context->trustedCrlFolder);
+                                           rootDirectorySize, &context->trustedCrlFolder,
+                                           certGroup->logging);
     retval |= FileCertStore_setupStorePath("/issuer/certs", rootDirectory,
-                                           rootDirectorySize, &context->issuerCertFolder);
+                                           rootDirectorySize, &context->issuerCertFolder,
+                                           certGroup->logging);
     retval |= FileCertStore_setupStorePath("/issuer/crl", rootDirectory,
-                                           rootDirectorySize, &context->issuerCrlFolder);
+                                           rootDirectorySize, &context->issuerCrlFolder,
+                                           certGroup->logging);
     retval |= FileCertStore_setupStorePath("/rejected/certs", rootDirectory,
-                                           rootDirectorySize, &context->rejectedCertFolder);
+                                           rootDirectorySize, &context->rejectedCertFolder,
+                                           certGroup->logging);
     retval |= FileCertStore_setupStorePath("/own/certs", rootDirectory,
-                                           rootDirectorySize, &context->ownCertFolder);
+                                           rootDirectorySize, &context->ownCertFolder,
+                                           certGroup->logging);
     retval |= FileCertStore_setupStorePath("/own/private", rootDirectory,
-                                           rootDirectorySize, &context->ownKeyFolder);
+                                           rootDirectorySize, &context->ownKeyFolder,
+                                           certGroup->logging);
 
     return retval;
 }
@@ -147397,12 +149160,16 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
 
     retval = FileCertStore_createPkiDirectory(certGroup, storePath);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_APPLICATION,
+                     "Could not create the PKI directory structure");
         goto cleanup;
     }
 
     context->store = (UA_CertificateGroup*)UA_calloc(1, sizeof(UA_CertificateGroup));
     retval = UA_CertificateGroup_Memorystore(context->store, certificateGroupId, NULL, logger, params);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_APPLICATION,
+                     "Could not initialize the PKI memory store");
         goto cleanup;
     }
 
@@ -147415,6 +149182,8 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
 
     retval = reloadAndWriteTrustStore(certGroup);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_APPLICATION,
+                     "Could not load the PKI trust store from the filestore");
         goto cleanup;
     }
 
@@ -148174,6 +149943,95 @@ swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB) {
     *bufB = tmp;
 }
 
+/* Substring search on a (not necessarily null-terminated) UA_String. */
+static UA_Boolean
+policyUriContains(const UA_String *uri, const char *token) {
+    size_t n = strlen(token);
+    if(uri->length < n)
+        return false;
+    for(size_t i = 0; i + n <= uri->length; i++) {
+        if(memcmp(uri->data + i, token, n) == 0)
+            return true;
+    }
+    return false;
+}
+
+/* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
+ * leaf, DER) with the hash of the policy's elliptic curve - SHA-256 for the
+ * nistP256 curve, SHA-384 for nistP384. Used to build the channel-bound
+ * CreateSession / ActivateSession SignatureData.
+ *
+ * This is NOT the OPN-header Certificate thumbprint: that thumbprint uses the
+ * policy's CertificateThumbprintAlgorithm (SHA-1 by default) and is produced by
+ * makeCertThumbprint. The digest here is selected from the policy URI's curve. */
+UA_StatusCode
+UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
+                                  const UA_ByteString *certificate,
+                                  UA_ByteString *hash) {
+    if(policy == NULL || certificate == NULL || hash == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Select the digest from the policy's elliptic curve, not a fixed
+     * algorithm. */
+    mbedtls_md_type_t mdType;
+    size_t hashLen;
+    if(policyUriContains(&policy->policyUri, "P384")) {
+        mdType = MBEDTLS_MD_SHA384;
+        hashLen = 48;
+    } else if(policyUriContains(&policy->policyUri, "P256")) {
+        mdType = MBEDTLS_MD_SHA256;
+        hashLen = 32;
+    } else {
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    }
+
+    const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(mdType);
+    if(mdInfo == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_StatusCode ret = UA_ByteString_allocBuffer(hash, hashLen);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+    if(mbedtls_md(mdInfo, certificate->data, certificate->length,
+                  hash->data) != 0) {
+        UA_ByteString_clear(hash);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Backend-agnostic SecurityPolicy properties derived from the policy URI. Kept
+ * out of the UA_SecurityPolicy struct (so its layout stays stable across the
+ * 1.5 release family); see the #None fallback in ua_securitypolicy_none.c used
+ * when no crypto backend is built. */
+
+/* True if the policy requires the OPC UA Part 6 v1.05.07
+ * SecureChannelEnhancements behavior (the ECC_nistP256_* policies). */
+UA_Boolean
+UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy) {
+    if(!policy)
+        return false;
+    static const UA_String eccNistP256AesGcm =
+        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm");
+    static const UA_String eccNistP256ChaChaPoly =
+        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly");
+    return UA_String_equal(&policy->policyUri, &eccNistP256AesGcm) ||
+           UA_String_equal(&policy->policyUri, &eccNistP256ChaChaPoly);
+}
+
+/* In the OPC UA reference stack the SequenceNumber handling depends on a
+ * SecurityPolicy property `LegacySequenceNumbers`: false for all ECC policies
+ * (and RSA-DH, which open62541 does not implement), true for None / RSA
+ * (Basic*, Aes*_RsaOaep/RsaPss). Non-legacy starts the channel SequenceNumber
+ * at 0 and wraps UA_UINT32_MAX -> 0; legacy starts at 1 with the "< 1024"
+ * rollover. Detected from the policy URI (all ECC URIs carry the "ECC_"
+ * fragment). A NULL policy is treated as legacy. */
+UA_Boolean
+UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy) {
+    if(!policy)
+        return true;
+    return !policyUriContains(&policy->policyUri, "ECC_");
+}
+
 UA_StatusCode
 mbedtls_hmac(mbedtls_md_context_t *context, const UA_ByteString *key,
              const UA_ByteString *in, unsigned char *out) {
@@ -148249,12 +150107,16 @@ mbedtls_generateKey(mbedtls_md_context_t *context,
         if(retval != UA_STATUSCODE_GOOD){
             UA_ByteString_clear(&A_and_seed);
             UA_ByteString_clear(&ANext_and_seed);
+            if(bufferAllocated)
+                UA_ByteString_clear(&outSegment);
             return retval;
         }
         retval = mbedtls_hmac(context, secret, &A, ANext.data);
         if(retval != UA_STATUSCODE_GOOD){
             UA_ByteString_clear(&A_and_seed);
             UA_ByteString_clear(&ANext_and_seed);
+            if(bufferAllocated)
+                UA_ByteString_clear(&outSegment);
             return retval;
         }
 
@@ -154033,9 +155895,12 @@ encrypt_pubsub_aes128ctr(const UA_PubSubSecurityPolicy *policy, void *gContext,
     /* Keylength in bits */
     unsigned int keylength = (unsigned int)(UA_AES128CTR_KEY_LENGTH * 8);
     mbedtls_aes_context aesContext;
+    mbedtls_aes_init(&aesContext);
     int mbedErr = mbedtls_aes_setkey_enc(&aesContext, gc->encryptingKey, keylength);
-    if(mbedErr)
+    if(mbedErr) {
+        mbedtls_aes_free(&aesContext);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Prepare the counterBlock required for encryption/decryption 
      * Block counter starts at 1 according to part 14 (7.2.2.4.3.2)*/
@@ -154051,6 +155916,7 @@ encrypt_pubsub_aes128ctr(const UA_PubSubSecurityPolicy *policy, void *gContext,
     UA_Byte aesBuffer[UA_AES128CTR_ENCRYPTION_BLOCK_SIZE];
     mbedErr = mbedtls_aes_crypt_ctr(&aesContext, data->length, &counterblockoffset,
                                     counterBlockCopy, aesBuffer, data->data, data->data);
+    mbedtls_aes_free(&aesContext);
     if(mbedErr)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
@@ -154384,10 +156250,13 @@ encrypt_pubsub_aes256ctr(const UA_PubSubSecurityPolicy *policy, void *gContext,
     /* Keylength in bits */
     unsigned int keylength = (unsigned int)(UA_AES256CTR_KEY_LENGTH * 8);
     mbedtls_aes_context aesContext;
+    mbedtls_aes_init(&aesContext);
     int mbedErr =
         mbedtls_aes_setkey_enc(&aesContext, gc->encryptingKey, keylength);
-    if(mbedErr)
+    if(mbedErr) {
+        mbedtls_aes_free(&aesContext);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Prepare the counterBlock required for encryption/decryption
      * Block counter starts at 1 according to part 14 (7.2.2.4.3.2)*/
@@ -154403,6 +156272,7 @@ encrypt_pubsub_aes256ctr(const UA_PubSubSecurityPolicy *policy, void *gContext,
     UA_Byte aesBuffer[UA_AES256CTR_ENCRYPTION_BLOCK_SIZE];
     mbedErr = mbedtls_aes_crypt_ctr(&aesContext, data->length, &counterblockoffset,
                                     counterBlockCopy, aesBuffer, data->data, data->data);
+    mbedtls_aes_free(&aesContext);
     if(mbedErr)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
@@ -155226,6 +157096,9 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
                               const UA_Logger *logger) {
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "SecurityPolicy ECC_nistP256 is deprecated (OPC UA Part 7); "
+                   "use ECC_nistP256_AesGcm or ECC_nistP256_ChaChaPoly instead");
     sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256\0");
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
@@ -155924,6 +157797,9 @@ UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *sp,
                               const UA_Logger *logger) {
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "SecurityPolicy ECC_nistP384 is deprecated (OPC UA Part 7); "
+                   "use ECC_nistP384_AesGcm or ECC_nistP384_ChaChaPoly instead");
     sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384\0");
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
@@ -156623,6 +158499,9 @@ UA_SecurityPolicy_EccBrainpoolP256r1(UA_SecurityPolicy *sp,
                               const UA_Logger *logger) {
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "SecurityPolicy ECC_brainpoolP256r1 is deprecated (OPC UA Part 7); "
+                   "use ECC_brainpoolP256r1_AesGcm or ECC_brainpoolP256r1_ChaChaPoly instead");
     sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1\0");
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
@@ -157321,6 +159200,9 @@ UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *sp,
                               const UA_Logger *logger) {
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "SecurityPolicy ECC_brainpoolP384r1 is deprecated (OPC UA Part 7); "
+                   "use ECC_brainpoolP384r1_AesGcm or ECC_brainpoolP384r1_ChaChaPoly instead");
     sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1\0");
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
@@ -157653,9 +159535,9 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
         /* split into SAN type and value */
         char *sanType = NULL;
-        for(char *pos = subAlt; *pos != 0; pos++) {
-            if(*pos == ':') {
-                *pos = '\0';
+        for(char *char_pos = subAlt; *char_pos != 0; char_pos++) {
+            if(*char_pos == ':') {
+                *char_pos = '\0';
                 sanType = subAlt;
                 break;
             }
@@ -157680,16 +159562,22 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         } else if(strcmp(sanType, "URI") == 0) {
             cur_tmp->node.type = MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER;
         } else if(strcmp(sanType, "IP") == 0) {
-            uint8_t ip[4] = {0};
+            uint8_t *ip = (uint8_t *)mbedtls_calloc(1, 4);
+            if(!ip) {
+                mbedtls_free(cur_tmp);
+                UA_free(subAlt);
+                continue;
+            }
             if(musl_inet_pton(AF_INET, sanValue, ip) <= 0) {
                 UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "IP SAN preparation failed");
+                mbedtls_free(ip);
                 mbedtls_free(cur_tmp);
                 UA_free(subAlt);
                 continue;
             }
             cur_tmp->node.type = MBEDTLS_X509_SAN_IP_ADDRESS;
             cur_tmp->node.host = (char *)ip;
-            cur_tmp->node.hostlen = sizeof(ip);
+            cur_tmp->node.hostlen = 4;
         } else if(strcmp(sanType, "RFC822") == 0) {
             cur_tmp->node.type = MBEDTLS_X509_SAN_RFC822_NAME;
         } else {
@@ -157716,6 +159604,8 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         errRet = UA_STATUSCODE_BADINTERNALERROR;
         while(head != NULL) {
             cur_tmp = head->next;
+            if(head->node.type == MBEDTLS_X509_SAN_IP_ADDRESS)
+                mbedtls_free(head->node.host);
             mbedtls_free(head);
             head = cur_tmp;
         }
@@ -157724,6 +159614,8 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
     while(head != NULL) {
         cur_tmp = head->next;
+        if(head->node.type == MBEDTLS_X509_SAN_IP_ADDRESS)
+            mbedtls_free(head->node.host);
         mbedtls_free(head);
         head = cur_tmp;
     }
@@ -159107,7 +160999,12 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
 
     /* Write the DER-encoded key into a local buffer */
     unsigned char buf[1 << 14];
-    size_t pos = (size_t)mbedtls_pk_write_key_der(&ctx, buf, sizeof(buf));
+    int written = mbedtls_pk_write_key_der(&ctx, buf, sizeof(buf));
+    if(written <= 0) {
+        mbedtls_pk_free(&ctx);
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+    size_t pos = (size_t)written;
 
     /* Allocate memory */
     UA_StatusCode res = UA_ByteString_allocBuffer(outDerKey, pos);
@@ -159341,6 +161238,100 @@ UA_Openssl_X509_GetCertificateThumbprint(const UA_ByteString *certficate,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Substring search on a (not necessarily null-terminated) UA_String. */
+static UA_Boolean
+policyUriContains(const UA_String *uri, const char *token) {
+    size_t n = strlen(token);
+    if(uri->length < n)
+        return false;
+    for(size_t i = 0; i + n <= uri->length; i++) {
+        if(memcmp(uri->data + i, token, n) == 0)
+            return true;
+    }
+    return false;
+}
+
+/* OPC UA Part 6 v1.05.07 (SecureChannelEnhancements): hash a certificate (the
+ * leaf, DER) with the hash of the policy's elliptic curve - SHA-256 for the
+ * nistP256 curve, SHA-384 for nistP384. Used to build the channel-bound
+ * CreateSession / ActivateSession SignatureData.
+ *
+ * This is NOT the OPN-header Certificate thumbprint: that thumbprint uses the
+ * policy's CertificateThumbprintAlgorithm (SHA-1 by default) and is produced by
+ * makeCertThumbprint / UA_Openssl_X509_GetCertificateThumbprint. The digest
+ * here is selected from the policy URI's curve. */
+UA_StatusCode
+UA_SecurityPolicy_hashCertificate(const UA_SecurityPolicy *policy,
+                                  const UA_ByteString *certificate,
+                                  UA_ByteString *hash) {
+    if(policy == NULL || certificate == NULL || hash == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Select the digest from the policy's elliptic curve, not a fixed
+     * algorithm. */
+    const EVP_MD *md;
+    size_t hashLen;
+    if(policyUriContains(&policy->policyUri, "P384")) {
+        md = EVP_sha384();
+        hashLen = 48;
+    } else if(policyUriContains(&policy->policyUri, "P256")) {
+        md = EVP_sha256();
+        hashLen = 32;
+    } else {
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    }
+
+    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
+    if(x509 == NULL)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    UA_StatusCode ret = UA_ByteString_allocBuffer(hash, hashLen);
+    if(ret != UA_STATUSCODE_GOOD) {
+        X509_free(x509);
+        return ret;
+    }
+    unsigned int len = 0;
+    if(X509_digest(x509, md, hash->data, &len) != 1 || len != hashLen) {
+        UA_ByteString_clear(hash);
+        X509_free(x509);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    X509_free(x509);
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Backend-agnostic SecurityPolicy properties derived from the policy URI. Kept
+ * out of the UA_SecurityPolicy struct (so its layout stays stable across the
+ * 1.5 release family); see the #None fallback in ua_securitypolicy_none.c used
+ * when no crypto backend is built. */
+
+/* True if the policy requires the OPC UA Part 6 v1.05.07
+ * SecureChannelEnhancements behavior (the ECC_nistP256_* policies). */
+UA_Boolean
+UA_SecurityPolicy_isEnhancedSecurity(const UA_SecurityPolicy *policy) {
+    if(!policy)
+        return false;
+    static const UA_String eccNistP256AesGcm =
+        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm");
+    static const UA_String eccNistP256ChaChaPoly =
+        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly");
+    return UA_String_equal(&policy->policyUri, &eccNistP256AesGcm) ||
+           UA_String_equal(&policy->policyUri, &eccNistP256ChaChaPoly);
+}
+
+/* In the OPC UA reference stack the SequenceNumber handling depends on a
+ * SecurityPolicy property `LegacySequenceNumbers`: false for all ECC policies
+ * (and RSA-DH, which open62541 does not implement), true for None / RSA
+ * (Basic*, Aes*_RsaOaep/RsaPss). Non-legacy starts the channel SequenceNumber
+ * at 0 and wraps UA_UINT32_MAX -> 0; legacy starts at 1 with the "< 1024"
+ * rollover. Detected from the policy URI (all ECC URIs carry the "ECC_"
+ * fragment). A NULL policy is treated as legacy. */
+UA_Boolean
+UA_SecurityPolicy_useLegacySequenceNumbers(const UA_SecurityPolicy *policy) {
+    if(!policy)
+        return true;
+    return !policyUriContains(&policy->policyUri, "ECC_");
+}
+
 static UA_StatusCode
 UA_Openssl_RSA_Private_Decrypt(UA_ByteString *data, EVP_PKEY *privateKey,
                                UA_Int16 padding, UA_Boolean withSha256) {
@@ -159350,6 +161341,13 @@ UA_Openssl_RSA_Private_Decrypt(UA_ByteString *data, EVP_PKEY *privateKey,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     size_t keySize = (size_t) UA_OpenSSL_RSA_Key_Size(privateKey);
+    /* The buffer must consist of an integral number of RSA blocks. Without
+     * this check, EVP_PKEY_decrypt is called with keySize bytes from an
+     * undersized buffer, which reads past the end of data->data. Also guard
+     * against keySize == 0 (e.g. unexpected key type / error from the helper),
+     * which would otherwise raise a division-by-zero / undefined behaviour. */
+    if(data->length == 0 || keySize == 0 || (data->length % keySize) != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
     size_t cipherOffset = 0;
     size_t outOffset = 0;
     unsigned char buf[RSA_DECRYPT_BUFFER_LENGTH];
@@ -160785,13 +162783,15 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
 
     UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
     UA_ByteString salt = UA_BYTESTRING_NULL;
+    UA_ByteString ikm = UA_BYTESTRING_NULL;
+    UA_ByteString ikmPrev = UA_BYTESTRING_NULL;
+    UA_ByteString *secret = NULL; /* points to either &sharedSecret or &ikm */
 
-    /* The order of ephemeral public keys (key1 and key2) tells us whether we
-     * need to generate the local keys or the remote keys. To figure that out,
-     * we compare the public part of localEphemeralKeyPair with key1 and
-     * key2. */
-
-    /* Get the local ephemeral public key to use in comparison */
+    /* Get the local ephemeral public key to use in comparison. The
+     * encoded form begins with a single 0x04 byte (for uncompressed
+     * points) followed by the X and Y coordinates. The comparison
+     * below uses &keyPubEnc[1] as the start, so the expected length
+     * of `key1` is (keyPubEncSize - 1). */
     UA_Byte *keyPubEnc = NULL;
 #if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
     size_t keyPubEncSize =
@@ -160802,6 +162802,28 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
 #endif
     if(keyPubEncSize <= 0)
         return UA_STATUSCODE_BADINTERNALERROR;
+    size_t expectedKey1Len = keyPubEncSize - 1;
+
+    /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 "Extract" (IKM chaining
+     * on renewal): the SecureChannel may prepend the previous IKM
+     * accumulator to `key1`. Detect this by checking if `key1` is
+     * longer than expected. The prepend length is `key1->length -
+     * expectedKey1Len` and the IKM is a chain of XORs with the
+     * shared secret. */
+    UA_ByteString key1Effective = *key1;
+    size_t ikmPrependLength = 0;
+    if(key1->length > expectedKey1Len) {
+        ikmPrependLength = key1->length - expectedKey1Len;
+        ikmPrev.data = (UA_Byte*)(uintptr_t)key1->data;
+        ikmPrev.length = ikmPrependLength;
+        key1Effective.data += ikmPrependLength;
+        key1Effective.length -= ikmPrependLength;
+    }
+
+    /* The order of ephemeral public keys (key1 and key2) tells us whether we
+     * need to generate the local keys or the remote keys. To figure that out,
+     * we compare the public part of localEphemeralKeyPair with key1 and
+     * key2. */
 
     /* Determine the label for salt generation, remote ephemeral public key for
      * ECDH, and info for HKDF */
@@ -160819,11 +162841,11 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
         if(applicationType == UA_APPLICATIONTYPE_SERVER) {
             remoteEphPubKey = key2;
         } else {
-            remoteEphPubKey = key1; 
+            remoteEphPubKey = &key1Effective;
         }
     }
     /* Comparing from the second byte since the first byte has 0x04 from the encoding */
-    else if(memcmp(&keyPubEnc[1], key1->data, key1->length) == 0) {
+    else if(memcmp(&keyPubEnc[1], key1Effective.data, key1Effective.length) == 0) {
         /* Key 1 is local ephemeral public key => generating remote keys */
         remoteEphPubKey = key2;
         if(applicationType == UA_APPLICATIONTYPE_SERVER) {
@@ -160834,7 +162856,7 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
     }
     else if(memcmp(&keyPubEnc[1], key2->data, key2->length) == 0) {
         /* Key 2 is local ephemeral public key => generating local keys */
-        remoteEphPubKey = key1;
+        remoteEphPubKey = &key1Effective;
         if(applicationType == UA_APPLICATIONTYPE_SERVER) {
             label = &serverLabel;
         } else {
@@ -160853,13 +162875,40 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
         goto errout;
     }
 
+    /* IKM chaining: when the SecureChannel provided a previous
+     * accumulator, XOR it with the raw shared secret to form the new
+     * IKM. The new IKM is then written back into the prefix slot of
+     * `key1` so the SecureChannel can pick it up after this call. */
+    if(ikmPrependLength > 0) {
+        if(ikmPrev.length != sharedSecret.length) {
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            goto errout;
+        }
+        UA_StatusCode alloc = UA_ByteString_allocBuffer(&ikm, sharedSecret.length);
+        if(alloc != UA_STATUSCODE_GOOD) {
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            goto errout;
+        }
+        for(size_t i = 0; i < sharedSecret.length; i++)
+            ikm.data[i] = (UA_Byte)(ikmPrev.data[i] ^ sharedSecret.data[i]);
+        /* Write the new accumulator back into the prefix slot. The
+         * SecureChannel reads it from there to update its own
+         * channel->currentIKM. */
+        memcpy(ikmPrev.data, ikm.data, ikm.length);
+        secret = &ikm;
+    } else {
+        secret = &sharedSecret;
+    }
+
     /* Calculate salt. The order of the (ephemeral public) keys (key1, key2) is
      * reversed because the caller sends [remote, local] for local key
      * computation and [local, remote] for remote key computation. According to
      * 6.8.1., the local salt computation appends the keys in order [local |
      * remote] and the remote salt computation [remote | local]. Therefore, no
-     * additional logic is required, reversing the order is sufficient. */
-    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, key2, key1, &salt);
+     * additional logic is required, reversing the order is sufficient. The
+     * `key1` argument here is the un-prefixed nonce (key1Effective) so the
+     * salt only contains the actual nonce data. */
+    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, key2, &key1Effective, &salt);
     if(ret != UA_STATUSCODE_GOOD) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -160867,7 +162916,7 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
 
     /* Call HKDF to derive keys */
     /* Salt is given as the info argument (check 6.8.1., tables 66 and 67) */
-    ret = UA_OpenSSL_HKDF(hashAlgorithm, &sharedSecret, &salt, &salt, out);
+    ret = UA_OpenSSL_HKDF(hashAlgorithm, secret, &salt, &salt, out);
     if(ret != UA_STATUSCODE_GOOD) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -160877,6 +162926,7 @@ errout:
     OPENSSL_free(keyPubEnc);
     UA_ByteString_clear(&sharedSecret);
     UA_ByteString_clear(&salt);
+    UA_ByteString_clear(&ikm);
 
     return ret;
 }
@@ -161459,6 +163509,9 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
                             UA_ByteString *out) {
     UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
     UA_ByteString salt = UA_BYTESTRING_NULL;
+    UA_ByteString ikm = UA_BYTESTRING_NULL;
+    UA_ByteString ikmPrev = UA_BYTESTRING_NULL;
+    UA_ByteString *secret = NULL;
 
     /* Get the local ephemeral public key for comparison */
     size_t pubKeyLen = 0;
@@ -161470,6 +163523,20 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
         return UA_STATUSCODE_BADINTERNALERROR;
     if(EVP_PKEY_get_raw_public_key(localEphemeralKeyPair, keyPubEnc, &pubKeyLen) != 1)
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* OPC UA Part 6 v1.05.07 §6.8.1 step 2 IKM chaining. See the
+     * matching comment in UA_OpenSSL_ECC_DeriveKeys. The prepend is
+     * detected by `key1` being longer than the expected ephemeral
+     * public key length. */
+    UA_ByteString key1Effective = *key1;
+    size_t ikmPrependLength = 0;
+    if(key1->length > pubKeyLen) {
+        ikmPrependLength = key1->length - pubKeyLen;
+        ikmPrev.data = (UA_Byte*)(uintptr_t)key1->data;
+        ikmPrev.length = ikmPrependLength;
+        key1Effective.data += ikmPrependLength;
+        key1Effective.length -= ikmPrependLength;
+    }
 
     /* Determine label and remote ephemeral public key */
     UA_ByteString *label = NULL;
@@ -161484,10 +163551,10 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
         if(applicationType == UA_APPLICATIONTYPE_SERVER) {
             remoteEphPubKey = key2;
         } else {
-            remoteEphPubKey = key1;
+            remoteEphPubKey = &key1Effective;
         }
-    } else if(pubKeyLen == key1->length &&
-              memcmp(keyPubEnc, key1->data, key1->length) == 0) {
+    } else if(pubKeyLen == key1Effective.length &&
+              memcmp(keyPubEnc, key1Effective.data, key1Effective.length) == 0) {
         /* Key 1 is local ephemeral public key => generating remote keys */
         remoteEphPubKey = key2;
         if(applicationType == UA_APPLICATIONTYPE_SERVER)
@@ -161497,7 +163564,7 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
     } else if(pubKeyLen == key2->length &&
               memcmp(keyPubEnc, key2->data, key2->length) == 0) {
         /* Key 2 is local ephemeral public key => generating local keys */
-        remoteEphPubKey = key1;
+        remoteEphPubKey = &key1Effective;
         if(applicationType == UA_APPLICATIONTYPE_SERVER)
             label = &serverLabel;
         else
@@ -161511,17 +163578,37 @@ UA_OpenSSL_XDHE_DeriveKeys(int keyType,
     if(ret != UA_STATUSCODE_GOOD)
         goto errout;
 
+    /* IKM chaining */
+    if(ikmPrependLength > 0) {
+        if(ikmPrev.length != sharedSecret.length) {
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            goto errout;
+        }
+        UA_StatusCode alloc = UA_ByteString_allocBuffer(&ikm, sharedSecret.length);
+        if(alloc != UA_STATUSCODE_GOOD) {
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            goto errout;
+        }
+        for(size_t i = 0; i < sharedSecret.length; i++)
+            ikm.data[i] = (UA_Byte)(ikmPrev.data[i] ^ sharedSecret.data[i]);
+        memcpy(ikmPrev.data, ikm.data, ikm.length);
+        secret = &ikm;
+    } else {
+        secret = &sharedSecret;
+    }
+
     /* Generate salt */
-    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, key2, key1, &salt);
+    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, key2, &key1Effective, &salt);
     if(ret != UA_STATUSCODE_GOOD)
         goto errout;
 
     /* HKDF to derive keys */
-    ret = UA_OpenSSL_HKDF((char*)(uintptr_t)hashAlgorithm, &sharedSecret, &salt, &salt, out);
+    ret = UA_OpenSSL_HKDF((char*)(uintptr_t)hashAlgorithm, secret, &salt, &salt, out);
 
 errout:
     UA_ByteString_clear(&sharedSecret);
     UA_ByteString_clear(&salt);
+    UA_ByteString_clear(&ikm);
     return ret;
 }
 
@@ -161702,6 +163789,219 @@ UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
 
     UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
     if(EVP_DecryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
+        goto d_errout;
+
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
+        goto d_errout;
+
+    if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
+        goto d_errout;
+
+    /* Set the expected tag */
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, tagPos) != 1)
+        goto d_errout;
+
+    /* Process AAD */
+    int outl = 0;
+    if(aad && aad->length > 0) {
+        if(EVP_DecryptUpdate(ctx, NULL, &outl, aad->data, (int)aad->length) != 1)
+            goto d_errout;
+    }
+
+    /* Decrypt in-place */
+    if(EVP_DecryptUpdate(ctx, data->data, &outl, data->data, (int)cipherLen) != 1)
+        goto d_errout;
+
+    int tmpLen = 0;
+    if(EVP_DecryptFinal_ex(ctx, data->data + outl, &tmpLen) != 1) {
+        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto d_errout;
+    }
+
+    /* Strip the tag from the output length */
+    data->length = cipherLen;
+    ret = UA_STATUSCODE_GOOD;
+d_errout:
+    EVP_CIPHER_CTX_free(ctx);
+    return ret;
+}
+
+/* AES-128-GCM AEAD Encrypt */
+
+UA_StatusCode
+UA_OpenSSL_AES_128_GCM_Encrypt(const UA_ByteString *iv,
+                               const UA_ByteString *key,
+                               const UA_ByteString *aad,
+                               UA_ByteString *data,
+                               UA_Boolean encryptData) {
+    if(iv->length != 12 || key->length != 16)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* The last 16 bytes of data are reserved for the GCM tag */
+    if(data->length < 16)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    size_t plainLen = data->length - 16;
+    UA_Byte *tagPos = data->data + plainLen;
+
+    if(!encryptData) {
+        /* Sign-only mode: use AES-128-GCM AEAD to compute the GCM tag.
+         * Treat all data (AAD + plaintext) as AAD so nothing is encrypted,
+         * but the AEAD still produces a proper authentication tag. */
+        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+        if(!ctx)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+        if(EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(),
+                              NULL, NULL, NULL) != 1)
+            goto so_errout;
+        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
+            goto so_errout;
+        if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
+            goto so_errout;
+
+        int outl = 0;
+        /* Include AAD header */
+        if(aad && aad->length > 0) {
+            if(EVP_EncryptUpdate(ctx, NULL, &outl,
+                                 aad->data, (int)aad->length) != 1)
+                goto so_errout;
+        }
+        /* Include plaintext as additional AAD (not encrypted) */
+        if(plainLen > 0) {
+            if(EVP_EncryptUpdate(ctx, NULL, &outl,
+                                 data->data, (int)plainLen) != 1)
+                goto so_errout;
+        }
+
+        UA_Byte dummy;
+        if(EVP_EncryptFinal_ex(ctx, &dummy, &outl) != 1)
+            goto so_errout;
+        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, tagPos) != 1)
+            goto so_errout;
+
+        ret = UA_STATUSCODE_GOOD;
+    so_errout:
+        EVP_CIPHER_CTX_free(ctx);
+        return ret;
+    }
+
+    /* SignAndEncrypt mode: full AES-128-GCM AEAD */
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), NULL, NULL, NULL) != 1)
+        goto errout;
+
+    /* Set IV length to 12 (the GCM spec default; explicit for clarity) */
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
+        goto errout;
+
+    if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
+        goto errout;
+
+    /* Process AAD */
+    int outl = 0;
+    if(aad && aad->length > 0) {
+        if(EVP_EncryptUpdate(ctx, NULL, &outl, aad->data, (int)aad->length) != 1)
+            goto errout;
+    }
+
+    /* Encrypt the plaintext in-place */
+    if(EVP_EncryptUpdate(ctx, data->data, &outl, data->data, (int)plainLen) != 1)
+        goto errout;
+
+    int tmpLen = 0;
+    if(EVP_EncryptFinal_ex(ctx, data->data + outl, &tmpLen) != 1)
+        goto errout;
+
+    /* Get the 16-byte authentication tag */
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, tagPos) != 1)
+        goto errout;
+
+    ret = UA_STATUSCODE_GOOD;
+errout:
+    EVP_CIPHER_CTX_free(ctx);
+    return ret;
+}
+
+/* AES-128-GCM AEAD Decrypt */
+
+UA_StatusCode
+UA_OpenSSL_AES_128_GCM_Decrypt(const UA_ByteString *iv,
+                               const UA_ByteString *key,
+                               const UA_ByteString *aad,
+                               UA_ByteString *data,
+                               UA_Boolean decryptData) {
+    if(iv->length != 12 || key->length != 16)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* The last 16 bytes are the GCM tag */
+    if(data->length < 16)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    size_t cipherLen = data->length - 16;
+    UA_Byte *tagPos = data->data + cipherLen;
+
+    if(!decryptData) {
+        /* Verify-only mode: use AES-128-GCM AEAD to verify the GCM tag.
+         * All data is treated as AAD (not decrypted). */
+        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+        if(!ctx)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+        if(EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(),
+                              NULL, NULL, NULL) != 1)
+            goto vo_errout;
+        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
+            goto vo_errout;
+        if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
+            goto vo_errout;
+
+        /* Set the expected tag for verification */
+        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, tagPos) != 1)
+            goto vo_errout;
+
+        int outl = 0;
+        /* Include AAD header */
+        if(aad && aad->length > 0) {
+            if(EVP_DecryptUpdate(ctx, NULL, &outl,
+                                 aad->data, (int)aad->length) != 1)
+                goto vo_errout;
+        }
+        /* Include data as additional AAD (not decrypted) */
+        if(cipherLen > 0) {
+            if(EVP_DecryptUpdate(ctx, NULL, &outl,
+                                 data->data, (int)cipherLen) != 1)
+                goto vo_errout;
+        }
+
+        /* Finalize triggers tag verification */
+        UA_Byte dummy;
+        if(EVP_DecryptFinal_ex(ctx, &dummy, &outl) != 1) {
+            ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+            goto vo_errout;
+        }
+
+        /* Strip the tag from the output */
+        data->length = cipherLen;
+        ret = UA_STATUSCODE_GOOD;
+    vo_errout:
+        EVP_CIPHER_CTX_free(ctx);
+        return ret;
+    }
+
+    /* SignAndEncrypt mode: full AES-128-GCM AEAD decrypt */
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), NULL, NULL, NULL) != 1)
         goto d_errout;
 
     if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
@@ -162130,7 +164430,11 @@ UA_AsymEn_Basic128Rsa15_getRemotePlainTextBlockSize(const UA_SecurityPolicy *pol
     const Channel_Context_Basic128Rsa15 *cc =
         (const Channel_Context_Basic128Rsa15 *) channelContext;
     UA_Int32 keyLen = 0;
-    UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    UA_StatusCode retval =
+        UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    if(retval != UA_STATUSCODE_GOOD ||
+       keyLen <= (UA_Int32)UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN)
+        return 0;
     return (size_t) keyLen - UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
 }
 
@@ -162753,7 +165057,11 @@ UA_AsymEn_Basic256_getRemotePlainTextBlockSize(const UA_SecurityPolicy *policy,
     const Channel_Context_Basic256 *cc =
         (const Channel_Context_Basic256 *) channelContext;
     UA_Int32 keyLen = 0;
-    UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    UA_StatusCode retval =
+        UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    if(retval != UA_STATUSCODE_GOOD ||
+       keyLen <= (UA_Int32)UA_SECURITYPOLICY_BASIC256SHA1_RSAPADDING_LEN)
+        return 0;
     return (size_t) keyLen - UA_SECURITYPOLICY_BASIC256SHA1_RSAPADDING_LEN;
 }
 
@@ -163305,7 +165613,11 @@ UA_AsymEn_Basic256Sha256_getRemotePlainTextBlockSize(const UA_SecurityPolicy *po
     const Channel_Context_Basic256Sha256 *cc =
         (const Channel_Context_Basic256Sha256 *) channelContext;
     UA_Int32 keyLen = 0;
-    UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    UA_StatusCode retval =
+        UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    if(retval != UA_STATUSCODE_GOOD ||
+       keyLen <= (UA_Int32)UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN)
+        return 0;
     return (size_t) keyLen - UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN;
 }
 
@@ -163957,7 +166269,11 @@ UA_AsymEn_Aes128Sha256RsaOaep_getRemotePlainTextBlockSize(const UA_SecurityPolic
     const Channel_Context_Aes128Sha256RsaOaep *cc =
         (const Channel_Context_Aes128Sha256RsaOaep *)channelContext;
     UA_Int32 keyLen = 0;
-    UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    UA_StatusCode retval =
+        UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    if(retval != UA_STATUSCODE_GOOD ||
+       keyLen <= (UA_Int32)UA_SECURITYPOLICY_AES128SHA256RSAOAEP_RSAPADDING_LEN)
+        return 0;
     return (size_t)keyLen - UA_SECURITYPOLICY_AES128SHA256RSAOAEP_RSAPADDING_LEN;
 }
 
@@ -164610,7 +166926,11 @@ UA_AsymEn_Aes256Sha256RsaPss_getRemotePlainTextBlockSize(const UA_SecurityPolicy
     const Channel_Context_Aes256Sha256RsaPss *cc =
         (const Channel_Context_Aes256Sha256RsaPss *)channelContext;
     UA_Int32 keyLen = 0;
-    UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    UA_StatusCode retval =
+        UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
+    if(retval != UA_STATUSCODE_GOOD ||
+       keyLen <= (UA_Int32)UA_SECURITYPOLICY_AES256SHA256RSAPSS_RSAPADDING_LEN)
+        return 0;
     return (size_t)keyLen - UA_SECURITYPOLICY_AES256SHA256RSAPSS_RSAPADDING_LEN;
 }
 
@@ -165512,6 +167832,9 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
                               const UA_Logger *logger) {
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "SecurityPolicy ECC_nistP256 is deprecated (OPC UA Part 7); "
+                   "use ECC_nistP256_AesGcm or ECC_nistP256_ChaChaPoly instead");
     sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256\0");
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
@@ -165594,6 +167917,1636 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
 
     /* Create the policy context */
     res = UA_Policy_EccNistP256_New_Context(sp, localPrivateKey, applicationType, logger);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&sp->localCertificate);
+        return res;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+#endif
+
+/**** amalgamated original file "/plugins/crypto/openssl/securitypolicy_eccnistp256_aesgcm.c" ****/
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *
+ * SecurityPolicy [ECC A] – ECC-nistP256-AesGcm Profile
+ *   http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm
+ *
+ * This is the new (non-deprecated) profile, supersedes
+ *   http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256
+ * Differences from the deprecated policy:
+ *   - Symmetric signing/encryption: HMAC-SHA2-256 + AES-128-CBC
+ *     replaced by AES-128-GCM AEAD (16-byte tag, 12-byte IV).
+ *   - Policy type: UA_SECURITYPOLICYTYPE_ECC_AEAD (was _ECC).
+ *   - Adds setMessageSecurityParameters for AEAD nonce masking.
+ * Asymmetric signature (ECDSA-SHA2-256) and key derivation
+ * (HKDF-SHA2-256 over P-256 ECDHE) are unchanged.
+ */
+
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+
+#include <openssl/rand.h>
+
+#define UA_SECURITYPOLICY_ECCNISTP256_AESGCM_ASYM_SIGNING_KEY_LENGTH 32
+#define UA_SECURITYPOLICY_ECCNISTP256_AESGCM_ASYM_SIGNATURE_LENGTH 64
+#define UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_ENCRYPTION_KEY_LENGTH 16
+/* AES-128-GCM is an AEAD cipher: there is NO separate symmetric signing
+ * key. The derived key material is only [EncryptionKey(16) | IV(12)] =
+ * 28 bytes, and the GCM authentication tag is produced with the
+ * encryption key. (OPC UA Part 6 v1.05: ECC_nistP256_AesGcm has
+ * DerivedSignatureKeyLength = 0; cf. UA-.NETStandard SecurityPolicyInfo.) */
+#define UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_SIGNING_KEY_LENGTH 0
+#define UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_SIGNATURE_LENGTH 16
+#define UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_IV_LENGTH 12
+#define UA_SECURITYPOLICY_ECCNISTP256_AESGCM_NONCE_LENGTH_BYTES 64
+
+typedef struct {
+    EVP_PKEY *localPrivateKey;
+    EVP_PKEY *csrLocalPrivateKey;
+    UA_ByteString localCertThumbprint;
+    UA_ApplicationType applicationType;
+} Policy_Context_EccNistP256AesGcm;
+
+typedef struct Channel_Context_EccNistP256AesGcm {
+    EVP_PKEY *    localEphemeralKeyPair;
+    UA_ByteString localSymSigningKey;
+    UA_ByteString localSymEncryptingKey;
+    UA_ByteString localSymIv;
+    UA_ByteString remoteSymSigningKey;
+    UA_ByteString remoteSymEncryptingKey;
+    UA_ByteString remoteSymIv;
+
+    UA_ByteString remoteCertificate;
+    X509 *remoteCertificateX509; /* X509 */
+
+    /* AEAD message context (mirrors securitypolicy_ecccurve448.c) */
+    UA_UInt32 tokenId;
+    UA_UInt32 previousSequenceNumber;
+    UA_ByteString additionalAuthData;
+} Channel_Context_EccNistP256AesGcm;
+
+/* Compute the per-message AES-128-GCM IV.
+ * For GCM, the 12-byte IV is formed by XORing the tokenId into the first
+ * 4 bytes and the previous sequence number into the next 4 bytes of the
+ * base (local/remote) Sym IV. The last 4 bytes are unchanged. */
+static void
+computeMaskedIvAesGcm(UA_Byte *iv_out, const UA_ByteString *base_iv,
+                      UA_UInt32 tokenId, UA_UInt32 seqNo) {
+    memcpy(iv_out, base_iv->data, 12);
+    iv_out[0] ^= (UA_Byte)(tokenId & 0xFF);
+    iv_out[1] ^= (UA_Byte)((tokenId >> 8) & 0xFF);
+    iv_out[2] ^= (UA_Byte)((tokenId >> 16) & 0xFF);
+    iv_out[3] ^= (UA_Byte)((tokenId >> 24) & 0xFF);
+    iv_out[4] ^= (UA_Byte)(seqNo & 0xFF);
+    iv_out[5] ^= (UA_Byte)((seqNo >> 8) & 0xFF);
+    iv_out[6] ^= (UA_Byte)((seqNo >> 16) & 0xFF);
+    iv_out[7] ^= (UA_Byte)((seqNo >> 24) & 0xFF);
+}
+
+/* --- Policy Context --- */
+
+static UA_StatusCode
+UA_Policy_EccNistP256AesGcm_New_Context(UA_SecurityPolicy *securityPolicy,
+                                        const UA_ByteString localPrivateKey,
+                                        const UA_ApplicationType applicationType,
+                                        const UA_Logger *logger) {
+    Policy_Context_EccNistP256AesGcm *context = (Policy_Context_EccNistP256AesGcm *)
+        UA_malloc(sizeof(Policy_Context_EccNistP256AesGcm));
+    if(!context)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    context->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&localPrivateKey);
+    if(!context->localPrivateKey) {
+        UA_free(context);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    context->csrLocalPrivateKey = NULL;
+
+    UA_StatusCode retval = UA_Openssl_X509_GetCertificateThumbprint(
+        &securityPolicy->localCertificate, &context->localCertThumbprint, true);
+    if(retval != UA_STATUSCODE_GOOD) {
+        EVP_PKEY_free(context->localPrivateKey);
+        UA_free(context);
+        return retval;
+    }
+
+    context->applicationType = applicationType;
+
+    securityPolicy->policyContext = context;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+UA_Policy_EccNistP256AesGcm_Clear_Context(UA_SecurityPolicy *policy) {
+    if(!policy || !policy->policyContext)
+        return;
+
+    UA_ByteString_clear(&policy->localCertificate);
+
+    /* Delete all allocated members in the context */
+    Policy_Context_EccNistP256AesGcm *pc =
+        (Policy_Context_EccNistP256AesGcm *)policy->policyContext;
+    if(!pc)
+        return;
+
+    EVP_PKEY_free(pc->localPrivateKey);
+    EVP_PKEY_free(pc->csrLocalPrivateKey);
+    UA_ByteString_clear(&pc->localCertThumbprint);
+    UA_free(pc);
+}
+
+static UA_StatusCode
+createSigningRequest_sp_eccnistp256aesgcm(UA_SecurityPolicy *securityPolicy,
+                                          const UA_String *subjectName,
+                                          const UA_ByteString *nonce,
+                                          const UA_KeyValueMap *params,
+                                          UA_ByteString *csr,
+                                          UA_ByteString *newPrivateKey) {
+    if(!securityPolicy || !csr)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+     if(!securityPolicy->policyContext)
+         return UA_STATUSCODE_BADINTERNALERROR;
+    Policy_Context_EccNistP256AesGcm *pc =
+        (Policy_Context_EccNistP256AesGcm*)securityPolicy->policyContext;
+    return UA_OpenSSL_CreateSigningRequest(pc->localPrivateKey,
+                                           &pc->csrLocalPrivateKey,
+                                           securityPolicy, subjectName,
+                                           nonce, csr, newPrivateKey);
+}
+
+static UA_StatusCode
+updateCertificateAndPrivateKey_sp_EccNistP256AesGcm(UA_SecurityPolicy *securityPolicy,
+                                                    const UA_ByteString newCertificate,
+                                                    const UA_ByteString newPrivateKey) {
+    if(!securityPolicy || !securityPolicy->policyContext)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Policy_Context_EccNistP256AesGcm *pc =
+        (Policy_Context_EccNistP256AesGcm *)securityPolicy->policyContext;
+
+    /* Set the certificate */
+    UA_ByteString_clear(&securityPolicy->localCertificate);
+    UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(
+        &newCertificate, &securityPolicy->localCertificate,
+        EVP_PKEY_EC);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Set the new private key */
+    EVP_PKEY_free(pc->localPrivateKey);
+    pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
+    if(!pc->localPrivateKey) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto error;
+    }
+
+    /* Update the thumbprint */
+    UA_ByteString_clear(&pc->localCertThumbprint);
+    retval = UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
+                                                      &pc->localCertThumbprint, true);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
+
+    return UA_STATUSCODE_GOOD;
+
+error:
+    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "Could not update certificate and private key");
+    if(securityPolicy->policyContext)
+        UA_Policy_EccNistP256AesGcm_Clear_Context(securityPolicy);
+    return retval;
+}
+
+/* --- Channel Context --- */
+
+static UA_StatusCode
+EccNistP256AesGcm_New_Context(const UA_SecurityPolicy *securityPolicy,
+                              const UA_ByteString *remoteCertificate,
+                              void **channelContext) {
+    if(securityPolicy == NULL || remoteCertificate == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Channel_Context_EccNistP256AesGcm *newContext = (Channel_Context_EccNistP256AesGcm *)
+        UA_calloc(1, sizeof(Channel_Context_EccNistP256AesGcm));
+    if(!newContext)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode retval =
+        UA_copyCertificate(&newContext->remoteCertificate, remoteCertificate);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(newContext);
+        return retval;
+    }
+
+    /* Decode to X509 */
+    newContext->remoteCertificateX509 =
+        UA_OpenSSL_LoadCertificate(&newContext->remoteCertificate, EVP_PKEY_EC);
+    if(newContext->remoteCertificateX509 == NULL) {
+        UA_ByteString_clear (&newContext->remoteCertificate);
+        UA_free (newContext);
+        return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+    }
+
+    /* Return the new channel context */
+    *channelContext = newContext;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+EccNistP256AesGcm_Delete_Context(const UA_SecurityPolicy *policy,
+                                 void *channelContext) {
+    if(!channelContext)
+        return;
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+    X509_free(cc->remoteCertificateX509);
+    UA_ByteString_clear(&cc->remoteCertificate);
+    UA_ByteString_clear(&cc->localSymSigningKey);
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
+    UA_ByteString_clear(&cc->localSymIv);
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
+    UA_ByteString_clear(&cc->remoteSymIv);
+    UA_ByteString_clear(&cc->additionalAuthData);
+    EVP_PKEY_free(cc->localEphemeralKeyPair);
+    UA_free(cc);
+}
+
+/* --- AEAD Message Security Parameters --- */
+
+static UA_StatusCode
+EccNistP256AesGcm_setMessageSecurityParameters(const UA_SecurityPolicy *policy,
+                                                void *channelContext,
+                                                UA_UInt32 tokenId,
+                                                UA_UInt32 previousSequenceNumber,
+                                                const UA_ByteString *additionalAuthData) {
+    if(!channelContext)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+    cc->tokenId = tokenId;
+    cc->previousSequenceNumber = previousSequenceNumber;
+
+    UA_ByteString_clear(&cc->additionalAuthData);
+    if(additionalAuthData && additionalAuthData->length > 0)
+        return UA_ByteString_copy(additionalAuthData, &cc->additionalAuthData);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_compareCertificateThumbprint_EccNistP256AesGcm(const UA_SecurityPolicy *policy,
+                                                  const UA_ByteString *certificateThumbprint) {
+    if(policy == NULL || certificateThumbprint == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    Policy_Context_EccNistP256AesGcm *pc =
+        (Policy_Context_EccNistP256AesGcm *)policy->policyContext;
+    if(!UA_ByteString_equal(certificateThumbprint, &pc->localCertThumbprint))
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_makeCertificateThumbprint_EccNistP256AesGcm(const UA_SecurityPolicy *securityPolicy,
+                                               const UA_ByteString *certificate,
+                                               UA_ByteString *thumbprint) {
+    return UA_Openssl_X509_GetCertificateThumbprint(certificate, thumbprint, false);
+}
+
+static size_t
+UA_Asym_EccNistP256AesGcm_getRemoteSignatureSize(const UA_SecurityPolicy *policy,
+                                                 const void *channelContext) {
+    /* According to the standard, the server and the client must agree on the
+     * security mode and security policy. Therefore, it can be assumed that
+     * the remote asymmetric cryptographic tokens have the same sizes as the
+     * local ones. */
+    return UA_SECURITYPOLICY_ECCNISTP256_AESGCM_ASYM_SIGNATURE_LENGTH;
+}
+
+static size_t
+UA_AsySig_EccNistP256AesGcm_getLocalSignatureSize(const UA_SecurityPolicy *policy,
+                                                  const void *channelContext) {
+    return UA_SECURITYPOLICY_ECCNISTP256_AESGCM_ASYM_SIGNATURE_LENGTH;
+}
+
+static size_t
+UA_AsymEn_EccNistP256AesGcm_getRemotePlainTextBlockSize(const UA_SecurityPolicy *policy,
+                                                        const void *channelContext) {
+    return 1;
+}
+
+static size_t
+UA_AsymEn_EccNistP256AesGcm_getRemoteBlockSize(const UA_SecurityPolicy *policy,
+                                               const void *channelContext) {
+    return 1;
+}
+
+static size_t
+UA_AsymEn_EccNistP256AesGcm_getRemoteKeyLength(const UA_SecurityPolicy *policy,
+                                               const void *channelContext) {
+    /* According to the standard, the server and the client must agree on the
+     * security mode and security policy. Therefore, it can be assumed that the
+     * remote asymmetric cryptographic tokens have the same sizes as the local
+     * ones.
+     *
+     * No ECC encryption -> key length set to 1 to avoid division or
+     * multiplication with 0 */
+    return 1;
+}
+
+static UA_StatusCode
+UA_Sym_EccNistP256AesGcm_generateNonce(const UA_SecurityPolicy *policy,
+                                       void *channelContext, UA_ByteString *out) {
+    Policy_Context_EccNistP256AesGcm* pctx =
+        (Policy_Context_EccNistP256AesGcm*)policy->policyContext;
+    if(!pctx)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    /* Detect if we want to create an ephemeral key or just cryptographic random
+     * data */
+    if(out->data[0] == 'e' && out->data[1] == 'p' && out->data[2] == 'h') {
+        Channel_Context_EccNistP256AesGcm *cctx =
+            (Channel_Context_EccNistP256AesGcm*)channelContext;
+        return UA_OpenSSL_ECC_NISTP256_GenerateKey(&cctx->localEphemeralKeyPair, out);
+    }
+
+    UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
+    return (rc == 1) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
+}
+
+static size_t
+UA_SymEn_EccNistP256AesGcm_getLocalKeyLength(const UA_SecurityPolicy *policy,
+                                             const void *channelContext) {
+    /* 16 bytes 128 bits */
+    return UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_ENCRYPTION_KEY_LENGTH;
+}
+
+static size_t
+UA_SymSig_EccNistP256AesGcm_getLocalKeyLength(const UA_SecurityPolicy *policy,
+                                              const void *channelContext) {
+    /* 16 bytes 128 bits */
+    return UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_SIGNING_KEY_LENGTH;
+}
+
+static UA_StatusCode
+UA_Sym_EccNistP256AesGcm_generateKey(const UA_SecurityPolicy *policy,
+                                     void *channelContext, const UA_ByteString *secret,
+                                     const UA_ByteString *seed, UA_ByteString *out) {
+    Policy_Context_EccNistP256AesGcm* pctx =
+        (Policy_Context_EccNistP256AesGcm *)policy->policyContext;
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+    if(!pctx || !cc)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    return UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
+                                     pctx->applicationType, cc->localEphemeralKeyPair,
+                                     secret, seed, out);
+}
+
+static UA_StatusCode
+EccNistP256AesGcm_setLocalSymSigningKey(const UA_SecurityPolicy *policy,
+                                         void *channelContext,
+                                         const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+    UA_ByteString_clear(&cc->localSymSigningKey);
+    return UA_ByteString_copy(key, &cc->localSymSigningKey);
+}
+
+static UA_StatusCode
+EccNistP256AesGcm_setLocalSymEncryptingKey(const UA_SecurityPolicy *policy,
+                                           void *channelContext,
+                                           const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
+    return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
+}
+
+static UA_StatusCode
+EccNistP256AesGcm_setLocalSymIv(const UA_SecurityPolicy *policy,
+                                void *channelContext,
+                                const UA_ByteString *iv) {
+    if(iv == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+    UA_ByteString_clear(&cc->localSymIv);
+    return UA_ByteString_copy(iv, &cc->localSymIv);
+}
+
+static size_t
+UA_SymEn_EccNistP256AesGcm_getRemoteKeyLength(const UA_SecurityPolicy *policy,
+                                              const void *channelContext) {
+    /* 16 bytes 128 bits */
+    return UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_ENCRYPTION_KEY_LENGTH;
+}
+
+static size_t
+UA_SymEn_EccNistP256AesGcm_getBlockSize(const UA_SecurityPolicy *policy,
+                                        const void *channelContext) {
+    /* AEAD ciphers are stream-like -> 1 byte */
+    return 1;
+}
+
+static size_t
+UA_SymEn_EccNistP256AesGcm_getIvLength(const UA_SecurityPolicy *policy,
+                                       const void *channelContext) {
+    return UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_IV_LENGTH;
+}
+
+static size_t
+UA_SymSig_EccNistP256AesGcm_getRemoteKeyLength(const UA_SecurityPolicy *policy,
+                                               const void *channelContext) {
+    /* 16 bytes 128 bits */
+    return UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_SIGNING_KEY_LENGTH;
+}
+
+static UA_StatusCode
+EccNistP256AesGcm_setRemoteSymSigningKey(const UA_SecurityPolicy *policy,
+                                          void *channelContext,
+                                          const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
+    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
+}
+
+static UA_StatusCode
+EccNistP256AesGcm_setRemoteSymEncryptingKey(const UA_SecurityPolicy *policy,
+                                            void *channelContext,
+                                            const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
+    return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
+}
+
+static UA_StatusCode
+EccNistP256AesGcm_setRemoteSymIv(const UA_SecurityPolicy *policy,
+                                 void *channelContext, const UA_ByteString *iv) {
+    if(iv == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+    UA_ByteString_clear(&cc->remoteSymIv);
+    return UA_ByteString_copy(iv, &cc->remoteSymIv);
+}
+
+/* --- Asymmetric Signature (ECDSA-SHA2-256, unchanged from the deprecated
+ *     policy) --- */
+
+static UA_StatusCode
+UA_AsymSig_EccNistP256AesGcm_sign(const UA_SecurityPolicy *policy,
+                                  void *channelContext, const UA_ByteString *message,
+                                  UA_ByteString *signature) {
+    if(channelContext == NULL || message == NULL || signature == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Policy_Context_EccNistP256AesGcm *pc =
+        (Policy_Context_EccNistP256AesGcm *)policy->policyContext;
+    return UA_Openssl_ECDSA_SHA256_Sign(message, pc->localPrivateKey, signature);
+}
+
+
+static UA_StatusCode
+UA_AsymSig_EccNistP256AesGcm_verify(const UA_SecurityPolicy *policy, void *channelContext,
+                                    const UA_ByteString *message,
+                                    const UA_ByteString *signature) {
+    if(message == NULL || signature == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+    return UA_Openssl_ECDSA_SHA256_Verify(message, cc->remoteCertificateX509, signature);
+}
+
+static UA_StatusCode
+UA_Asym_EccNistP256AesGcm_Dummy(const UA_SecurityPolicy *policy,
+                                void *channelContext, UA_ByteString *data) {
+    return UA_STATUSCODE_GOOD; /* Do nothing and return true */
+}
+
+/* --- Symmetric Signature (AES-128-GCM AEAD, sign-only) --- */
+
+static size_t
+UA_SymSig_EccNistP256AesGcm_getRemoteSignatureSize(const UA_SecurityPolicy *policy,
+                                                   const void *channelContext) {
+    return UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_SIGNATURE_LENGTH;
+}
+
+static UA_StatusCode
+UA_SymSig_EccNistP256AesGcm_verify(const UA_SecurityPolicy *policy, void *channelContext,
+                                   const UA_ByteString *message, const UA_ByteString *signature) {
+    if(channelContext == NULL || message == NULL || signature == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(signature->length < UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_SIGNATURE_LENGTH)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+
+    /* Compute masked IV using the remote IV */
+    UA_Byte maskedIv[12];
+    computeMaskedIvAesGcm(maskedIv, &cc->remoteSymIv,
+                          cc->tokenId, cc->previousSequenceNumber);
+
+    /* Use AES-128-GCM AEAD to verify the GCM tag.
+     * Treat the entire message as AAD (sign-only). The AEAD tag is
+     * produced/verified with the encryption key (no separate signing
+     * key for AEAD policies). */
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_DecryptInit_ex(ctx, EVP_aes_128_gcm(), NULL, NULL, NULL) != 1)
+        goto errout;
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
+        goto errout;
+    if(EVP_DecryptInit_ex(ctx, NULL, NULL,
+                          cc->remoteSymEncryptingKey.data, maskedIv) != 1)
+        goto errout;
+
+    /* Set the expected tag for verification */
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG,
+                           UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_SIGNATURE_LENGTH,
+                           (void*)(uintptr_t)signature->data) != 1)
+        goto errout;
+
+    /* Process the entire message as AAD */
+    int outl = 0;
+    if(EVP_DecryptUpdate(ctx, NULL, &outl,
+                         message->data, (int)message->length) != 1)
+        goto errout;
+
+    /* Finalize triggers tag verification */
+    UA_Byte dummy;
+    if(EVP_DecryptFinal_ex(ctx, &dummy, &outl) != 1) {
+        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto errout;
+    }
+    ret = UA_STATUSCODE_GOOD;
+
+errout:
+    EVP_CIPHER_CTX_free(ctx);
+    return ret;
+}
+
+static UA_StatusCode
+UA_SymSig_EccNistP256AesGcm_sign(const UA_SecurityPolicy *policy,
+                                 void *channelContext, const UA_ByteString *message,
+                                 UA_ByteString *signature) {
+    if(channelContext == NULL || message == NULL || signature == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(signature->length < UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_SIGNATURE_LENGTH)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+
+    /* Compute masked IV (same nonce derivation as encrypt mode) */
+    UA_Byte maskedIv[12];
+    computeMaskedIvAesGcm(maskedIv, &cc->localSymIv,
+                          cc->tokenId, cc->previousSequenceNumber);
+
+    /* Use AES-128-GCM AEAD to compute the GCM tag.
+     * For sign-only: treat the entire message as AAD (no encryption).
+     * The AEAD tag is produced with the encryption key (no separate
+     * signing key for AEAD policies). */
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_EncryptInit_ex(ctx, EVP_aes_128_gcm(), NULL, NULL, NULL) != 1)
+        goto errout;
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
+        goto errout;
+    if(EVP_EncryptInit_ex(ctx, NULL, NULL,
+                          cc->localSymEncryptingKey.data, maskedIv) != 1)
+        goto errout;
+
+    /* Process the entire message as AAD (authenticated, not encrypted) */
+    int outl = 0;
+    if(EVP_EncryptUpdate(ctx, NULL, &outl,
+                         message->data, (int)message->length) != 1)
+        goto errout;
+
+    /* Finalize with no plaintext */
+    UA_Byte dummy;
+    if(EVP_EncryptFinal_ex(ctx, &dummy, &outl) != 1)
+        goto errout;
+
+    /* Get the 16-byte GCM authentication tag */
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG,
+                           UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_SIGNATURE_LENGTH,
+                           signature->data) != 1)
+        goto errout;
+    signature->length = UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_SIGNATURE_LENGTH;
+    ret = UA_STATUSCODE_GOOD;
+
+errout:
+    EVP_CIPHER_CTX_free(ctx);
+    return ret;
+}
+
+static size_t
+UA_SymSig_EccNistP256AesGcm_getLocalSignatureSize(const UA_SecurityPolicy *policy,
+                                                  const void *channelContext) {
+    return UA_SECURITYPOLICY_ECCNISTP256_AESGCM_SYM_SIGNATURE_LENGTH;
+}
+
+/* --- Symmetric Encryption (AES-128-GCM AEAD) --- */
+
+static UA_StatusCode
+UA_SymEn_EccNistP256AesGcm_decrypt(const UA_SecurityPolicy *policy,
+                                   void *channelContext, UA_ByteString *data) {
+    if(channelContext == NULL || data == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+
+    UA_Byte maskedIv[12];
+    computeMaskedIvAesGcm(maskedIv, &cc->remoteSymIv,
+                          cc->tokenId, cc->previousSequenceNumber);
+    UA_ByteString ivBs = {12, maskedIv};
+
+    return UA_OpenSSL_AES_128_GCM_Decrypt(
+        &ivBs, &cc->remoteSymEncryptingKey, &cc->additionalAuthData,
+        data, true);
+}
+
+static UA_StatusCode
+UA_SymEn_EccNistP256AesGcm_encrypt(const UA_SecurityPolicy *policy,
+                                   void *channelContext, UA_ByteString *data) {
+    if(channelContext == NULL || data == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256AesGcm *cc =
+        (Channel_Context_EccNistP256AesGcm *)channelContext;
+
+    UA_Byte maskedIv[12];
+    computeMaskedIvAesGcm(maskedIv, &cc->localSymIv,
+                          cc->tokenId, cc->previousSequenceNumber);
+    UA_ByteString ivBs = {12, maskedIv};
+
+    return UA_OpenSSL_AES_128_GCM_Encrypt(
+        &ivBs, &cc->localSymEncryptingKey, &cc->additionalAuthData,
+        data, true);
+}
+
+static UA_StatusCode
+EccNistP256AesGcm_compareCertificate(const UA_SecurityPolicy *policy,
+                                     const void *channelContext,
+                                     const UA_ByteString *certificate) {
+    if(channelContext == NULL || certificate == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    const Channel_Context_EccNistP256AesGcm *cc =
+        (const Channel_Context_EccNistP256AesGcm *)channelContext;
+    return UA_OpenSSL_X509_compare(certificate, cc->remoteCertificateX509);
+}
+
+static size_t
+UA_AsymEn_EccNistP256AesGcm_getLocalKeyLength(const UA_SecurityPolicy *policy,
+                                              const void *channelContext) {
+    /* No ECC encryption -> key length set to 1 to avoid division or
+     * multiplication with 0 */
+    return 1;
+}
+
+/* --- Public Entry Point --- */
+
+UA_StatusCode
+UA_SecurityPolicy_EccNistP256AesGcm(UA_SecurityPolicy *sp,
+                                    const UA_ApplicationType applicationType,
+                                    const UA_ByteString localCertificate,
+                                    const UA_ByteString localPrivateKey,
+                                    const UA_Logger *logger) {
+    memset(sp, 0, sizeof(UA_SecurityPolicy));
+    sp->logger = logger;
+    sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm\0");
+    sp->certificateGroupId =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    sp->certificateTypeId = UA_NS0ID(ECCNISTP256APPLICATIONCERTIFICATETYPE);
+    sp->securityLevel = 10;
+    sp->policyType = UA_SECURITYPOLICYTYPE_ECC_AEAD;
+
+    /* Asymmetric Signature (ECDSA-SHA2-256).
+     *
+     * The URI here is what goes into the SignatureData.algorithm of the
+     * CreateSession/ActivateSession signatures. For the ECC SecurityPolicies
+     * the OPC UA reference stack (UA-.NETStandard) signs with an empty
+     * algorithm but its verifier accepts EITHER an empty string OR the
+     * SecurityPolicy URI (SecurityPolicies.cs, AsymmetricSignatureAlgorithm
+     * EcdsaSha256: `IsNullOrEmpty(signature.Algorithm) || signature.Algorithm
+     * == securityPolicy.Uri`). Empty is accepted by .NET/Softing but rejected
+     * by stricter servers (e.g. CodeSys), so we send the SecurityPolicy URI -
+     * the canonical non-empty value that interoperates with both. The
+     * dedicated ECDSA URIs (xmldsig-more#ecdsa-sha256, conformanceunit/2473)
+     * are NOT accepted and must not be used. */
+    UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;
+    asymSig->uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_AesGcm\0");
+    asymSig->verify = UA_AsymSig_EccNistP256AesGcm_verify;
+    asymSig->sign = UA_AsymSig_EccNistP256AesGcm_sign;
+    asymSig->getLocalSignatureSize = UA_AsySig_EccNistP256AesGcm_getLocalSignatureSize;
+    asymSig->getRemoteSignatureSize = UA_Asym_EccNistP256AesGcm_getRemoteSignatureSize;
+
+    /* Asymmetric Encryption (none) */
+    UA_SecurityPolicyEncryptionAlgorithm *asymEnc = &sp->asymEncryptionAlgorithm;
+    asymEnc->uri = UA_STRING("https://profiles.opcfoundation.org/conformanceunit/2720\0");
+    asymEnc->encrypt = UA_Asym_EccNistP256AesGcm_Dummy;
+    asymEnc->decrypt = UA_Asym_EccNistP256AesGcm_Dummy;
+    asymEnc->getLocalKeyLength = UA_AsymEn_EccNistP256AesGcm_getLocalKeyLength;
+    asymEnc->getRemoteKeyLength = UA_AsymEn_EccNistP256AesGcm_getRemoteKeyLength;
+    asymEnc->getRemoteBlockSize = UA_AsymEn_EccNistP256AesGcm_getRemoteBlockSize;
+    asymEnc->getRemotePlainTextBlockSize = UA_AsymEn_EccNistP256AesGcm_getRemotePlainTextBlockSize;
+
+    /* Symmetric Signature (AES-128-GCM, 16-byte tag) */
+    UA_SecurityPolicySignatureAlgorithm *symSig = &sp->symSignatureAlgorithm;
+    symSig->uri = UA_STRING("http://opcfoundation.org/UA/security/aes128-gcm\0");
+    symSig->verify = UA_SymSig_EccNistP256AesGcm_verify;
+    symSig->sign = UA_SymSig_EccNistP256AesGcm_sign;
+    symSig->getLocalSignatureSize = UA_SymSig_EccNistP256AesGcm_getLocalSignatureSize;
+    symSig->getRemoteSignatureSize = UA_SymSig_EccNistP256AesGcm_getRemoteSignatureSize;
+    symSig->getLocalKeyLength = UA_SymSig_EccNistP256AesGcm_getLocalKeyLength;
+    symSig->getRemoteKeyLength = UA_SymSig_EccNistP256AesGcm_getRemoteKeyLength;
+
+    /* Symmetric Encryption (AES-128-GCM AEAD) */
+    UA_SecurityPolicyEncryptionAlgorithm *symEnc = &sp->symEncryptionAlgorithm;
+    symEnc->uri = UA_STRING("http://opcfoundation.org/UA/security/aes128-gcm\0");
+    symEnc->encrypt = UA_SymEn_EccNistP256AesGcm_encrypt;
+    symEnc->decrypt = UA_SymEn_EccNistP256AesGcm_decrypt;
+    symEnc->getLocalKeyLength = UA_SymEn_EccNistP256AesGcm_getLocalKeyLength;
+    symEnc->getRemoteKeyLength = UA_SymEn_EccNistP256AesGcm_getRemoteKeyLength;
+    symEnc->getRemoteBlockSize = UA_SymEn_EccNistP256AesGcm_getBlockSize;
+    symEnc->getRemotePlainTextBlockSize = UA_SymEn_EccNistP256AesGcm_getBlockSize;
+    symEnc->getLocalIvLength = UA_SymEn_EccNistP256AesGcm_getIvLength;
+
+    /* Use the same signature algorithm as the asymmetric component for
+     * certificate signing (see standard) */
+    sp->certSignatureAlgorithm = sp->asymSignatureAlgorithm;
+
+    /* Direct Method Pointers */
+    sp->newChannelContext = EccNistP256AesGcm_New_Context;
+    sp->deleteChannelContext = EccNistP256AesGcm_Delete_Context;
+    sp->setLocalSymEncryptingKey = EccNistP256AesGcm_setLocalSymEncryptingKey;
+    sp->setLocalSymSigningKey = EccNistP256AesGcm_setLocalSymSigningKey;
+    sp->setLocalSymIv = EccNistP256AesGcm_setLocalSymIv;
+    sp->setRemoteSymEncryptingKey = EccNistP256AesGcm_setRemoteSymEncryptingKey;
+    sp->setRemoteSymSigningKey = EccNistP256AesGcm_setRemoteSymSigningKey;
+    sp->setRemoteSymIv = EccNistP256AesGcm_setRemoteSymIv;
+    sp->setMessageSecurityParameters = EccNistP256AesGcm_setMessageSecurityParameters;
+    sp->compareCertificate = EccNistP256AesGcm_compareCertificate;
+    sp->generateKey = UA_Sym_EccNistP256AesGcm_generateKey;
+    sp->generateNonce = UA_Sym_EccNistP256AesGcm_generateNonce;
+    sp->nonceLength = UA_SECURITYPOLICY_ECCNISTP256_AESGCM_NONCE_LENGTH_BYTES;
+    sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccNistP256AesGcm;
+    sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccNistP256AesGcm;
+    sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccNistP256AesGcm;
+    sp->createSigningRequest = createSigningRequest_sp_eccnistp256aesgcm;
+    sp->clear = UA_Policy_EccNistP256AesGcm_Clear_Context;
+
+    /* Parse the certificate */
+    UA_Openssl_Init();
+    UA_StatusCode res =
+        UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate,
+                                        EVP_PKEY_EC);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Create the policy context */
+    res = UA_Policy_EccNistP256AesGcm_New_Context(sp, localPrivateKey,
+                                                  applicationType, logger);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&sp->localCertificate);
+        return res;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+#endif
+
+/**** amalgamated original file "/plugins/crypto/openssl/securitypolicy_eccnistp256_chachapoly.c" ****/
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *
+ * SecurityPolicy [ECC A] – ECC-nistP256-ChaChaPoly Profile
+ *   http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly
+ *
+ * This is the new (non-deprecated) profile, supersedes
+ *   http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256
+ * Differences from the deprecated policy:
+ *   - Symmetric signing/encryption: HMAC-SHA2-256 + AES-128-CBC
+ *     replaced by ChaCha20-Poly1305 AEAD (16-byte tag, 12-byte nonce).
+ *   - Policy type: UA_SECURITYPOLICYTYPE_ECC_AEAD (was _ECC).
+ *   - Adds setMessageSecurityParameters for AEAD nonce masking.
+ * Asymmetric signature (ECDSA-SHA2-256) and key derivation
+ * (HKDF-SHA2-256 over P-256 ECDHE) are unchanged.
+ */
+
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+
+#include <openssl/rand.h>
+
+#define UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_ASYM_SIGNING_KEY_LENGTH 32
+#define UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_ASYM_SIGNATURE_LENGTH 64
+#define UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_ENCRYPTION_KEY_LENGTH 32
+/* ChaCha20-Poly1305 is an AEAD cipher: there is NO separate symmetric signing
+ * key. The derived key material is only [EncryptionKey(16) | IV(12)] =
+ * 28 bytes, and the GCM authentication tag is produced with the
+ * encryption key. (OPC UA Part 6 v1.05: ECC_nistP256_ChaChaPoly has
+ * DerivedSignatureKeyLength = 0; cf. UA-.NETStandard SecurityPolicyInfo.) */
+#define UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNING_KEY_LENGTH 0
+#define UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH 16
+#define UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_IV_LENGTH 12
+#define UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_NONCE_LENGTH_BYTES 64
+
+typedef struct {
+    EVP_PKEY *localPrivateKey;
+    EVP_PKEY *csrLocalPrivateKey;
+    UA_ByteString localCertThumbprint;
+    UA_ApplicationType applicationType;
+} Policy_Context_EccNistP256ChaChaPoly;
+
+typedef struct Channel_Context_EccNistP256ChaChaPoly {
+    EVP_PKEY *    localEphemeralKeyPair;
+    UA_ByteString localSymSigningKey;
+    UA_ByteString localSymEncryptingKey;
+    UA_ByteString localSymIv;
+    UA_ByteString remoteSymSigningKey;
+    UA_ByteString remoteSymEncryptingKey;
+    UA_ByteString remoteSymIv;
+
+    UA_ByteString remoteCertificate;
+    X509 *remoteCertificateX509; /* X509 */
+
+    /* AEAD message context (mirrors securitypolicy_ecccurve448.c) */
+    UA_UInt32 tokenId;
+    UA_UInt32 previousSequenceNumber;
+    UA_ByteString additionalAuthData;
+} Channel_Context_EccNistP256ChaChaPoly;
+
+/* Compute the per-message ChaCha20-Poly1305 nonce.
+ * For GCM, the 12-byte IV is formed by XORing the tokenId into the first
+ * 4 bytes and the previous sequence number into the next 4 bytes of the
+ * base (local/remote) Sym IV. The last 4 bytes are unchanged. */
+static void
+computeMaskedIvChaChaPoly(UA_Byte *iv_out, const UA_ByteString *base_iv,
+                      UA_UInt32 tokenId, UA_UInt32 seqNo) {
+    memcpy(iv_out, base_iv->data, 12);
+    iv_out[0] ^= (UA_Byte)(tokenId & 0xFF);
+    iv_out[1] ^= (UA_Byte)((tokenId >> 8) & 0xFF);
+    iv_out[2] ^= (UA_Byte)((tokenId >> 16) & 0xFF);
+    iv_out[3] ^= (UA_Byte)((tokenId >> 24) & 0xFF);
+    iv_out[4] ^= (UA_Byte)(seqNo & 0xFF);
+    iv_out[5] ^= (UA_Byte)((seqNo >> 8) & 0xFF);
+    iv_out[6] ^= (UA_Byte)((seqNo >> 16) & 0xFF);
+    iv_out[7] ^= (UA_Byte)((seqNo >> 24) & 0xFF);
+}
+
+/* --- Policy Context --- */
+
+static UA_StatusCode
+UA_Policy_EccNistP256ChaChaPoly_New_Context(UA_SecurityPolicy *securityPolicy,
+                                        const UA_ByteString localPrivateKey,
+                                        const UA_ApplicationType applicationType,
+                                        const UA_Logger *logger) {
+    Policy_Context_EccNistP256ChaChaPoly *context = (Policy_Context_EccNistP256ChaChaPoly *)
+        UA_malloc(sizeof(Policy_Context_EccNistP256ChaChaPoly));
+    if(!context)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    context->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&localPrivateKey);
+    if(!context->localPrivateKey) {
+        UA_free(context);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    context->csrLocalPrivateKey = NULL;
+
+    UA_StatusCode retval = UA_Openssl_X509_GetCertificateThumbprint(
+        &securityPolicy->localCertificate, &context->localCertThumbprint, true);
+    if(retval != UA_STATUSCODE_GOOD) {
+        EVP_PKEY_free(context->localPrivateKey);
+        UA_free(context);
+        return retval;
+    }
+
+    context->applicationType = applicationType;
+
+    securityPolicy->policyContext = context;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+UA_Policy_EccNistP256ChaChaPoly_Clear_Context(UA_SecurityPolicy *policy) {
+    if(!policy || !policy->policyContext)
+        return;
+
+    UA_ByteString_clear(&policy->localCertificate);
+
+    /* Delete all allocated members in the context */
+    Policy_Context_EccNistP256ChaChaPoly *pc =
+        (Policy_Context_EccNistP256ChaChaPoly *)policy->policyContext;
+    if(!pc)
+        return;
+
+    EVP_PKEY_free(pc->localPrivateKey);
+    EVP_PKEY_free(pc->csrLocalPrivateKey);
+    UA_ByteString_clear(&pc->localCertThumbprint);
+    UA_free(pc);
+}
+
+static UA_StatusCode
+createSigningRequest_sp_eccnistp256chachapoly(UA_SecurityPolicy *securityPolicy,
+                                          const UA_String *subjectName,
+                                          const UA_ByteString *nonce,
+                                          const UA_KeyValueMap *params,
+                                          UA_ByteString *csr,
+                                          UA_ByteString *newPrivateKey) {
+    if(!securityPolicy || !csr)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+     if(!securityPolicy->policyContext)
+         return UA_STATUSCODE_BADINTERNALERROR;
+    Policy_Context_EccNistP256ChaChaPoly *pc =
+        (Policy_Context_EccNistP256ChaChaPoly*)securityPolicy->policyContext;
+    return UA_OpenSSL_CreateSigningRequest(pc->localPrivateKey,
+                                           &pc->csrLocalPrivateKey,
+                                           securityPolicy, subjectName,
+                                           nonce, csr, newPrivateKey);
+}
+
+static UA_StatusCode
+updateCertificateAndPrivateKey_sp_EccNistP256ChaChaPoly(UA_SecurityPolicy *securityPolicy,
+                                                    const UA_ByteString newCertificate,
+                                                    const UA_ByteString newPrivateKey) {
+    if(!securityPolicy || !securityPolicy->policyContext)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Policy_Context_EccNistP256ChaChaPoly *pc =
+        (Policy_Context_EccNistP256ChaChaPoly *)securityPolicy->policyContext;
+
+    /* Set the certificate */
+    UA_ByteString_clear(&securityPolicy->localCertificate);
+    UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(
+        &newCertificate, &securityPolicy->localCertificate,
+        EVP_PKEY_EC);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Set the new private key */
+    EVP_PKEY_free(pc->localPrivateKey);
+    pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
+    if(!pc->localPrivateKey) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto error;
+    }
+
+    /* Update the thumbprint */
+    UA_ByteString_clear(&pc->localCertThumbprint);
+    retval = UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
+                                                      &pc->localCertThumbprint, true);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
+
+    return UA_STATUSCODE_GOOD;
+
+error:
+    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "Could not update certificate and private key");
+    if(securityPolicy->policyContext)
+        UA_Policy_EccNistP256ChaChaPoly_Clear_Context(securityPolicy);
+    return retval;
+}
+
+/* --- Channel Context --- */
+
+static UA_StatusCode
+EccNistP256ChaChaPoly_New_Context(const UA_SecurityPolicy *securityPolicy,
+                              const UA_ByteString *remoteCertificate,
+                              void **channelContext) {
+    if(securityPolicy == NULL || remoteCertificate == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Channel_Context_EccNistP256ChaChaPoly *newContext = (Channel_Context_EccNistP256ChaChaPoly *)
+        UA_calloc(1, sizeof(Channel_Context_EccNistP256ChaChaPoly));
+    if(!newContext)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode retval =
+        UA_copyCertificate(&newContext->remoteCertificate, remoteCertificate);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(newContext);
+        return retval;
+    }
+
+    /* Decode to X509 */
+    newContext->remoteCertificateX509 =
+        UA_OpenSSL_LoadCertificate(&newContext->remoteCertificate, EVP_PKEY_EC);
+    if(newContext->remoteCertificateX509 == NULL) {
+        UA_ByteString_clear (&newContext->remoteCertificate);
+        UA_free (newContext);
+        return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+    }
+
+    /* Return the new channel context */
+    *channelContext = newContext;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+EccNistP256ChaChaPoly_Delete_Context(const UA_SecurityPolicy *policy,
+                                 void *channelContext) {
+    if(!channelContext)
+        return;
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    X509_free(cc->remoteCertificateX509);
+    UA_ByteString_clear(&cc->remoteCertificate);
+    UA_ByteString_clear(&cc->localSymSigningKey);
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
+    UA_ByteString_clear(&cc->localSymIv);
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
+    UA_ByteString_clear(&cc->remoteSymIv);
+    UA_ByteString_clear(&cc->additionalAuthData);
+    EVP_PKEY_free(cc->localEphemeralKeyPair);
+    UA_free(cc);
+}
+
+/* --- AEAD Message Security Parameters --- */
+
+static UA_StatusCode
+EccNistP256ChaChaPoly_setMessageSecurityParameters(const UA_SecurityPolicy *policy,
+                                                void *channelContext,
+                                                UA_UInt32 tokenId,
+                                                UA_UInt32 previousSequenceNumber,
+                                                const UA_ByteString *additionalAuthData) {
+    if(!channelContext)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    cc->tokenId = tokenId;
+    cc->previousSequenceNumber = previousSequenceNumber;
+
+    UA_ByteString_clear(&cc->additionalAuthData);
+    if(additionalAuthData && additionalAuthData->length > 0)
+        return UA_ByteString_copy(additionalAuthData, &cc->additionalAuthData);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_compareCertificateThumbprint_EccNistP256ChaChaPoly(const UA_SecurityPolicy *policy,
+                                                  const UA_ByteString *certificateThumbprint) {
+    if(policy == NULL || certificateThumbprint == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    Policy_Context_EccNistP256ChaChaPoly *pc =
+        (Policy_Context_EccNistP256ChaChaPoly *)policy->policyContext;
+    if(!UA_ByteString_equal(certificateThumbprint, &pc->localCertThumbprint))
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_makeCertificateThumbprint_EccNistP256ChaChaPoly(const UA_SecurityPolicy *securityPolicy,
+                                               const UA_ByteString *certificate,
+                                               UA_ByteString *thumbprint) {
+    return UA_Openssl_X509_GetCertificateThumbprint(certificate, thumbprint, false);
+}
+
+static size_t
+UA_Asym_EccNistP256ChaChaPoly_getRemoteSignatureSize(const UA_SecurityPolicy *policy,
+                                                 const void *channelContext) {
+    /* According to the standard, the server and the client must agree on the
+     * security mode and security policy. Therefore, it can be assumed that
+     * the remote asymmetric cryptographic tokens have the same sizes as the
+     * local ones. */
+    return UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_ASYM_SIGNATURE_LENGTH;
+}
+
+static size_t
+UA_AsySig_EccNistP256ChaChaPoly_getLocalSignatureSize(const UA_SecurityPolicy *policy,
+                                                  const void *channelContext) {
+    return UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_ASYM_SIGNATURE_LENGTH;
+}
+
+static size_t
+UA_AsymEn_EccNistP256ChaChaPoly_getRemotePlainTextBlockSize(const UA_SecurityPolicy *policy,
+                                                        const void *channelContext) {
+    return 1;
+}
+
+static size_t
+UA_AsymEn_EccNistP256ChaChaPoly_getRemoteBlockSize(const UA_SecurityPolicy *policy,
+                                               const void *channelContext) {
+    return 1;
+}
+
+static size_t
+UA_AsymEn_EccNistP256ChaChaPoly_getRemoteKeyLength(const UA_SecurityPolicy *policy,
+                                               const void *channelContext) {
+    /* According to the standard, the server and the client must agree on the
+     * security mode and security policy. Therefore, it can be assumed that the
+     * remote asymmetric cryptographic tokens have the same sizes as the local
+     * ones.
+     *
+     * No ECC encryption -> key length set to 1 to avoid division or
+     * multiplication with 0 */
+    return 1;
+}
+
+static UA_StatusCode
+UA_Sym_EccNistP256ChaChaPoly_generateNonce(const UA_SecurityPolicy *policy,
+                                       void *channelContext, UA_ByteString *out) {
+    Policy_Context_EccNistP256ChaChaPoly* pctx =
+        (Policy_Context_EccNistP256ChaChaPoly*)policy->policyContext;
+    if(!pctx)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    /* Detect if we want to create an ephemeral key or just cryptographic random
+     * data */
+    if(out->data[0] == 'e' && out->data[1] == 'p' && out->data[2] == 'h') {
+        Channel_Context_EccNistP256ChaChaPoly *cctx =
+            (Channel_Context_EccNistP256ChaChaPoly*)channelContext;
+        return UA_OpenSSL_ECC_NISTP256_GenerateKey(&cctx->localEphemeralKeyPair, out);
+    }
+
+    UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
+    return (rc == 1) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
+}
+
+static size_t
+UA_SymEn_EccNistP256ChaChaPoly_getLocalKeyLength(const UA_SecurityPolicy *policy,
+                                             const void *channelContext) {
+    /* 16 bytes 128 bits */
+    return UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_ENCRYPTION_KEY_LENGTH;
+}
+
+static size_t
+UA_SymSig_EccNistP256ChaChaPoly_getLocalKeyLength(const UA_SecurityPolicy *policy,
+                                              const void *channelContext) {
+    /* 16 bytes 128 bits */
+    return UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNING_KEY_LENGTH;
+}
+
+static UA_StatusCode
+UA_Sym_EccNistP256ChaChaPoly_generateKey(const UA_SecurityPolicy *policy,
+                                     void *channelContext, const UA_ByteString *secret,
+                                     const UA_ByteString *seed, UA_ByteString *out) {
+    Policy_Context_EccNistP256ChaChaPoly* pctx =
+        (Policy_Context_EccNistP256ChaChaPoly *)policy->policyContext;
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    if(!pctx || !cc)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    return UA_OpenSSL_ECC_DeriveKeys(EC_curve_nist2nid("P-256"), "SHA256",
+                                     pctx->applicationType, cc->localEphemeralKeyPair,
+                                     secret, seed, out);
+}
+
+static UA_StatusCode
+EccNistP256ChaChaPoly_setLocalSymSigningKey(const UA_SecurityPolicy *policy,
+                                         void *channelContext,
+                                         const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    UA_ByteString_clear(&cc->localSymSigningKey);
+    return UA_ByteString_copy(key, &cc->localSymSigningKey);
+}
+
+static UA_StatusCode
+EccNistP256ChaChaPoly_setLocalSymEncryptingKey(const UA_SecurityPolicy *policy,
+                                           void *channelContext,
+                                           const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
+    return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
+}
+
+static UA_StatusCode
+EccNistP256ChaChaPoly_setLocalSymIv(const UA_SecurityPolicy *policy,
+                                void *channelContext,
+                                const UA_ByteString *iv) {
+    if(iv == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    UA_ByteString_clear(&cc->localSymIv);
+    return UA_ByteString_copy(iv, &cc->localSymIv);
+}
+
+static size_t
+UA_SymEn_EccNistP256ChaChaPoly_getRemoteKeyLength(const UA_SecurityPolicy *policy,
+                                              const void *channelContext) {
+    /* 16 bytes 128 bits */
+    return UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_ENCRYPTION_KEY_LENGTH;
+}
+
+static size_t
+UA_SymEn_EccNistP256ChaChaPoly_getBlockSize(const UA_SecurityPolicy *policy,
+                                        const void *channelContext) {
+    /* AEAD ciphers are stream-like -> 1 byte */
+    return 1;
+}
+
+static size_t
+UA_SymEn_EccNistP256ChaChaPoly_getIvLength(const UA_SecurityPolicy *policy,
+                                       const void *channelContext) {
+    return UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_IV_LENGTH;
+}
+
+static size_t
+UA_SymSig_EccNistP256ChaChaPoly_getRemoteKeyLength(const UA_SecurityPolicy *policy,
+                                               const void *channelContext) {
+    /* 16 bytes 128 bits */
+    return UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNING_KEY_LENGTH;
+}
+
+static UA_StatusCode
+EccNistP256ChaChaPoly_setRemoteSymSigningKey(const UA_SecurityPolicy *policy,
+                                          void *channelContext,
+                                          const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
+    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
+}
+
+static UA_StatusCode
+EccNistP256ChaChaPoly_setRemoteSymEncryptingKey(const UA_SecurityPolicy *policy,
+                                            void *channelContext,
+                                            const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
+    return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
+}
+
+static UA_StatusCode
+EccNistP256ChaChaPoly_setRemoteSymIv(const UA_SecurityPolicy *policy,
+                                 void *channelContext, const UA_ByteString *iv) {
+    if(iv == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    UA_ByteString_clear(&cc->remoteSymIv);
+    return UA_ByteString_copy(iv, &cc->remoteSymIv);
+}
+
+/* --- Asymmetric Signature (ECDSA-SHA2-256, unchanged from the deprecated
+ *     policy) --- */
+
+static UA_StatusCode
+UA_AsymSig_EccNistP256ChaChaPoly_sign(const UA_SecurityPolicy *policy,
+                                  void *channelContext, const UA_ByteString *message,
+                                  UA_ByteString *signature) {
+    if(channelContext == NULL || message == NULL || signature == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Policy_Context_EccNistP256ChaChaPoly *pc =
+        (Policy_Context_EccNistP256ChaChaPoly *)policy->policyContext;
+    return UA_Openssl_ECDSA_SHA256_Sign(message, pc->localPrivateKey, signature);
+}
+
+
+static UA_StatusCode
+UA_AsymSig_EccNistP256ChaChaPoly_verify(const UA_SecurityPolicy *policy, void *channelContext,
+                                    const UA_ByteString *message,
+                                    const UA_ByteString *signature) {
+    if(message == NULL || signature == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    return UA_Openssl_ECDSA_SHA256_Verify(message, cc->remoteCertificateX509, signature);
+}
+
+static UA_StatusCode
+UA_Asym_EccNistP256ChaChaPoly_Dummy(const UA_SecurityPolicy *policy,
+                                void *channelContext, UA_ByteString *data) {
+    return UA_STATUSCODE_GOOD; /* Do nothing and return true */
+}
+
+/* --- Symmetric Signature (ChaCha20-Poly1305 AEAD, sign-only) --- */
+
+static size_t
+UA_SymSig_EccNistP256ChaChaPoly_getRemoteSignatureSize(const UA_SecurityPolicy *policy,
+                                                   const void *channelContext) {
+    return UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH;
+}
+
+static UA_StatusCode
+UA_SymSig_EccNistP256ChaChaPoly_verify(const UA_SecurityPolicy *policy, void *channelContext,
+                                   const UA_ByteString *message, const UA_ByteString *signature) {
+    if(channelContext == NULL || message == NULL || signature == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(signature->length < UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+
+    /* Compute masked IV using the remote IV */
+    UA_Byte maskedIv[12];
+    computeMaskedIvChaChaPoly(maskedIv, &cc->remoteSymIv,
+                          cc->tokenId, cc->previousSequenceNumber);
+
+    /* Use ChaCha20-Poly1305 AEAD to verify the Poly1305 tag.
+     * Treat the entire message as AAD (sign-only). The AEAD tag is
+     * produced/verified with the encryption key (no separate signing
+     * key for AEAD policies). */
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_DecryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
+        goto errout;
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
+        goto errout;
+    if(EVP_DecryptInit_ex(ctx, NULL, NULL,
+                          cc->remoteSymEncryptingKey.data, maskedIv) != 1)
+        goto errout;
+
+    /* Set the expected tag for verification */
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG,
+                           UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH,
+                           (void*)(uintptr_t)signature->data) != 1)
+        goto errout;
+
+    /* Process the entire message as AAD */
+    int outl = 0;
+    if(EVP_DecryptUpdate(ctx, NULL, &outl,
+                         message->data, (int)message->length) != 1)
+        goto errout;
+
+    /* Finalize triggers tag verification */
+    UA_Byte dummy;
+    if(EVP_DecryptFinal_ex(ctx, &dummy, &outl) != 1) {
+        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto errout;
+    }
+    ret = UA_STATUSCODE_GOOD;
+
+errout:
+    EVP_CIPHER_CTX_free(ctx);
+    return ret;
+}
+
+static UA_StatusCode
+UA_SymSig_EccNistP256ChaChaPoly_sign(const UA_SecurityPolicy *policy,
+                                 void *channelContext, const UA_ByteString *message,
+                                 UA_ByteString *signature) {
+    if(channelContext == NULL || message == NULL || signature == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(signature->length < UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+
+    /* Compute masked IV (same nonce derivation as encrypt mode) */
+    UA_Byte maskedIv[12];
+    computeMaskedIvChaChaPoly(maskedIv, &cc->localSymIv,
+                          cc->tokenId, cc->previousSequenceNumber);
+
+    /* Use ChaCha20-Poly1305 AEAD to compute the Poly1305 tag.
+     * For sign-only: treat the entire message as AAD (no encryption).
+     * The AEAD tag is produced with the encryption key (no separate
+     * signing key for AEAD policies). */
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_EncryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
+        goto errout;
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
+        goto errout;
+    if(EVP_EncryptInit_ex(ctx, NULL, NULL,
+                          cc->localSymEncryptingKey.data, maskedIv) != 1)
+        goto errout;
+
+    /* Process the entire message as AAD (authenticated, not encrypted) */
+    int outl = 0;
+    if(EVP_EncryptUpdate(ctx, NULL, &outl,
+                         message->data, (int)message->length) != 1)
+        goto errout;
+
+    /* Finalize with no plaintext */
+    UA_Byte dummy;
+    if(EVP_EncryptFinal_ex(ctx, &dummy, &outl) != 1)
+        goto errout;
+
+    /* Get the 16-byte GCM authentication tag */
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG,
+                           UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH,
+                           signature->data) != 1)
+        goto errout;
+    signature->length = UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH;
+    ret = UA_STATUSCODE_GOOD;
+
+errout:
+    EVP_CIPHER_CTX_free(ctx);
+    return ret;
+}
+
+static size_t
+UA_SymSig_EccNistP256ChaChaPoly_getLocalSignatureSize(const UA_SecurityPolicy *policy,
+                                                  const void *channelContext) {
+    return UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_SYM_SIGNATURE_LENGTH;
+}
+
+/* --- Symmetric Encryption (ChaCha20-Poly1305 AEAD) --- */
+
+static UA_StatusCode
+UA_SymEn_EccNistP256ChaChaPoly_decrypt(const UA_SecurityPolicy *policy,
+                                   void *channelContext, UA_ByteString *data) {
+    if(channelContext == NULL || data == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+
+    UA_Byte maskedIv[12];
+    computeMaskedIvChaChaPoly(maskedIv, &cc->remoteSymIv,
+                          cc->tokenId, cc->previousSequenceNumber);
+    UA_ByteString ivBs = {12, maskedIv};
+
+    return UA_OpenSSL_ChaCha20Poly1305_Decrypt(
+        &ivBs, &cc->remoteSymEncryptingKey, &cc->additionalAuthData,
+        data, true);
+}
+
+static UA_StatusCode
+UA_SymEn_EccNistP256ChaChaPoly_encrypt(const UA_SecurityPolicy *policy,
+                                   void *channelContext, UA_ByteString *data) {
+    if(channelContext == NULL || data == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    Channel_Context_EccNistP256ChaChaPoly *cc =
+        (Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+
+    UA_Byte maskedIv[12];
+    computeMaskedIvChaChaPoly(maskedIv, &cc->localSymIv,
+                          cc->tokenId, cc->previousSequenceNumber);
+    UA_ByteString ivBs = {12, maskedIv};
+
+    return UA_OpenSSL_ChaCha20Poly1305_Encrypt(
+        &ivBs, &cc->localSymEncryptingKey, &cc->additionalAuthData,
+        data, true);
+}
+
+static UA_StatusCode
+EccNistP256ChaChaPoly_compareCertificate(const UA_SecurityPolicy *policy,
+                                     const void *channelContext,
+                                     const UA_ByteString *certificate) {
+    if(channelContext == NULL || certificate == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    const Channel_Context_EccNistP256ChaChaPoly *cc =
+        (const Channel_Context_EccNistP256ChaChaPoly *)channelContext;
+    return UA_OpenSSL_X509_compare(certificate, cc->remoteCertificateX509);
+}
+
+static size_t
+UA_AsymEn_EccNistP256ChaChaPoly_getLocalKeyLength(const UA_SecurityPolicy *policy,
+                                              const void *channelContext) {
+    /* No ECC encryption -> key length set to 1 to avoid division or
+     * multiplication with 0 */
+    return 1;
+}
+
+/* --- Public Entry Point --- */
+
+UA_StatusCode
+UA_SecurityPolicy_EccNistP256ChaChaPoly(UA_SecurityPolicy *sp,
+                                    const UA_ApplicationType applicationType,
+                                    const UA_ByteString localCertificate,
+                                    const UA_ByteString localPrivateKey,
+                                    const UA_Logger *logger) {
+    memset(sp, 0, sizeof(UA_SecurityPolicy));
+    sp->logger = logger;
+    sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly\0");
+    sp->certificateGroupId =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    sp->certificateTypeId = UA_NS0ID(ECCNISTP256APPLICATIONCERTIFICATETYPE);
+    sp->securityLevel = 10;
+    sp->policyType = UA_SECURITYPOLICYTYPE_ECC_AEAD;
+
+    /* Asymmetric Signature (ECDSA-SHA2-256).
+     *
+     * The URI here is what goes into the SignatureData.algorithm of the
+     * CreateSession/ActivateSession signatures. For the ECC SecurityPolicies
+     * the OPC UA reference stack (UA-.NETStandard) signs with an empty
+     * algorithm but its verifier accepts EITHER an empty string OR the
+     * SecurityPolicy URI (SecurityPolicies.cs, AsymmetricSignatureAlgorithm
+     * EcdsaSha256: `IsNullOrEmpty(signature.Algorithm) || signature.Algorithm
+     * == securityPolicy.Uri`). Empty is accepted by .NET/Softing but rejected
+     * by stricter servers (e.g. CodeSys), so we send the SecurityPolicy URI -
+     * the canonical non-empty value that interoperates with both. The
+     * dedicated ECDSA URIs (xmldsig-more#ecdsa-sha256, conformanceunit/2473)
+     * are NOT accepted and must not be used. */
+    UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;
+    asymSig->uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256_ChaChaPoly\0");
+    asymSig->verify = UA_AsymSig_EccNistP256ChaChaPoly_verify;
+    asymSig->sign = UA_AsymSig_EccNistP256ChaChaPoly_sign;
+    asymSig->getLocalSignatureSize = UA_AsySig_EccNistP256ChaChaPoly_getLocalSignatureSize;
+    asymSig->getRemoteSignatureSize = UA_Asym_EccNistP256ChaChaPoly_getRemoteSignatureSize;
+
+    /* Asymmetric Encryption (none) */
+    UA_SecurityPolicyEncryptionAlgorithm *asymEnc = &sp->asymEncryptionAlgorithm;
+    asymEnc->uri = UA_STRING("https://profiles.opcfoundation.org/conformanceunit/2720\0");
+    asymEnc->encrypt = UA_Asym_EccNistP256ChaChaPoly_Dummy;
+    asymEnc->decrypt = UA_Asym_EccNistP256ChaChaPoly_Dummy;
+    asymEnc->getLocalKeyLength = UA_AsymEn_EccNistP256ChaChaPoly_getLocalKeyLength;
+    asymEnc->getRemoteKeyLength = UA_AsymEn_EccNistP256ChaChaPoly_getRemoteKeyLength;
+    asymEnc->getRemoteBlockSize = UA_AsymEn_EccNistP256ChaChaPoly_getRemoteBlockSize;
+    asymEnc->getRemotePlainTextBlockSize = UA_AsymEn_EccNistP256ChaChaPoly_getRemotePlainTextBlockSize;
+
+    /* Symmetric Signature (ChaCha20-Poly1305, 16-byte tag) */
+    UA_SecurityPolicySignatureAlgorithm *symSig = &sp->symSignatureAlgorithm;
+    symSig->uri = UA_STRING("http://opcfoundation.org/UA/security/chacha20-poly1305\0");
+    symSig->verify = UA_SymSig_EccNistP256ChaChaPoly_verify;
+    symSig->sign = UA_SymSig_EccNistP256ChaChaPoly_sign;
+    symSig->getLocalSignatureSize = UA_SymSig_EccNistP256ChaChaPoly_getLocalSignatureSize;
+    symSig->getRemoteSignatureSize = UA_SymSig_EccNistP256ChaChaPoly_getRemoteSignatureSize;
+    symSig->getLocalKeyLength = UA_SymSig_EccNistP256ChaChaPoly_getLocalKeyLength;
+    symSig->getRemoteKeyLength = UA_SymSig_EccNistP256ChaChaPoly_getRemoteKeyLength;
+
+    /* Symmetric Encryption (ChaCha20-Poly1305 AEAD) */
+    UA_SecurityPolicyEncryptionAlgorithm *symEnc = &sp->symEncryptionAlgorithm;
+    symEnc->uri = UA_STRING("http://opcfoundation.org/UA/security/chacha20-poly1305\0");
+    symEnc->encrypt = UA_SymEn_EccNistP256ChaChaPoly_encrypt;
+    symEnc->decrypt = UA_SymEn_EccNistP256ChaChaPoly_decrypt;
+    symEnc->getLocalKeyLength = UA_SymEn_EccNistP256ChaChaPoly_getLocalKeyLength;
+    symEnc->getRemoteKeyLength = UA_SymEn_EccNistP256ChaChaPoly_getRemoteKeyLength;
+    symEnc->getRemoteBlockSize = UA_SymEn_EccNistP256ChaChaPoly_getBlockSize;
+    symEnc->getRemotePlainTextBlockSize = UA_SymEn_EccNistP256ChaChaPoly_getBlockSize;
+    symEnc->getLocalIvLength = UA_SymEn_EccNistP256ChaChaPoly_getIvLength;
+
+    /* Use the same signature algorithm as the asymmetric component for
+     * certificate signing (see standard) */
+    sp->certSignatureAlgorithm = sp->asymSignatureAlgorithm;
+
+    /* Direct Method Pointers */
+    sp->newChannelContext = EccNistP256ChaChaPoly_New_Context;
+    sp->deleteChannelContext = EccNistP256ChaChaPoly_Delete_Context;
+    sp->setLocalSymEncryptingKey = EccNistP256ChaChaPoly_setLocalSymEncryptingKey;
+    sp->setLocalSymSigningKey = EccNistP256ChaChaPoly_setLocalSymSigningKey;
+    sp->setLocalSymIv = EccNistP256ChaChaPoly_setLocalSymIv;
+    sp->setRemoteSymEncryptingKey = EccNistP256ChaChaPoly_setRemoteSymEncryptingKey;
+    sp->setRemoteSymSigningKey = EccNistP256ChaChaPoly_setRemoteSymSigningKey;
+    sp->setRemoteSymIv = EccNistP256ChaChaPoly_setRemoteSymIv;
+    sp->setMessageSecurityParameters = EccNistP256ChaChaPoly_setMessageSecurityParameters;
+    sp->compareCertificate = EccNistP256ChaChaPoly_compareCertificate;
+    sp->generateKey = UA_Sym_EccNistP256ChaChaPoly_generateKey;
+    sp->generateNonce = UA_Sym_EccNistP256ChaChaPoly_generateNonce;
+    sp->nonceLength = UA_SECURITYPOLICY_ECCNISTP256_CHACHAPOLY_NONCE_LENGTH_BYTES;
+    sp->makeCertThumbprint = UA_makeCertificateThumbprint_EccNistP256ChaChaPoly;
+    sp->compareCertThumbprint = UA_compareCertificateThumbprint_EccNistP256ChaChaPoly;
+    sp->updateCertificate = updateCertificateAndPrivateKey_sp_EccNistP256ChaChaPoly;
+    sp->createSigningRequest = createSigningRequest_sp_eccnistp256chachapoly;
+    sp->clear = UA_Policy_EccNistP256ChaChaPoly_Clear_Context;
+
+    /* Parse the certificate */
+    UA_Openssl_Init();
+    UA_StatusCode res =
+        UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate,
+                                        EVP_PKEY_EC);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Create the policy context */
+    res = UA_Policy_EccNistP256ChaChaPoly_New_Context(sp, localPrivateKey,
+                                                  applicationType, logger);
     if(res != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&sp->localCertificate);
         return res;
@@ -166084,6 +170037,9 @@ UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *sp,
                               const UA_Logger *logger) {
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "SecurityPolicy ECC_nistP384 is deprecated (OPC UA Part 7); "
+                   "use ECC_nistP384_AesGcm or ECC_nistP384_ChaChaPoly instead");
     sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384\0");
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
@@ -166659,6 +170615,9 @@ UA_SecurityPolicy_EccBrainpoolP256r1(UA_SecurityPolicy *sp,
                                      const UA_Logger *logger) {
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "SecurityPolicy ECC_brainpoolP256r1 is deprecated (OPC UA Part 7); "
+                   "use ECC_brainpoolP256r1_AesGcm or ECC_brainpoolP256r1_ChaChaPoly instead");
     sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1\0");
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
@@ -167235,6 +171194,9 @@ UA_SecurityPolicy_EccBrainpoolP384r1(UA_SecurityPolicy *sp,
                                      const UA_Logger *logger) {
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "SecurityPolicy ECC_brainpoolP384r1 is deprecated (OPC UA Part 7); "
+                   "use ECC_brainpoolP384r1_AesGcm or ECC_brainpoolP384r1_ChaChaPoly instead");
     sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1\0");
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
